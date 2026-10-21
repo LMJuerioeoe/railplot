@@ -38,6 +38,10 @@ A baseboard module is a board with a `module` field: `{ "preset": "std-1200x600"
 
 Track joins are not stored. Ends that touch (within 0.5 mm) and face each other are joined whenever the file is opened.
 
+## Prices
+
+Prices typed into the parts list are kept in `prices` (optional): `{ "currency": "£", "each": { "hornby-oo/R600": 2.5, "board|std-1200x600": 45 } }`. `each` is keyed by the part (`<library id>/<part id>`, one whole piece for flexible track), `board|<module>` for a baseboard module, `hwm|<module>` for a module's extra hardware and `hw|<item>` for joint hardware.
+
 ## Layout control
 
 A layout set up for [control](control/README.md) has a `control` object. Everything in it is optional to a reader that only wants the track plan.

@@ -134,6 +134,12 @@ with sync_playwright() as p:
     pg.click("#tb-parts")
     rows = pg.locator("table.parts tbody tr").count()
     check("parts list has rows", rows >= 3, rows)
+    first = pg.locator("input.price-in").first
+    key = first.get_attribute("data-price")
+    first.fill("2.40"); first.press("Enter"); pg.wait_for_timeout(150)
+    n = js(pg, f"railplot.p.items.filter(i => i.part === '{key}').length")
+    check("a price is saved with the layout", js(pg, f"railplot.p.prices.each['{key}']") == 2.4)
+    check("the total follows", f"{2.4 * n:.2f}" in pg.locator("#pl-total").inner_text(), pg.locator("#pl-total").inner_text())
     shot(pg, "06-parts")
     pg.click("text=Done")
 

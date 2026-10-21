@@ -251,7 +251,7 @@ kbd { font: 11px/1 var(--font-num); padding: 2px 5px; border: 1px solid var(--li
 table.parts { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 table.parts th, table.parts td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; }
 table.parts th { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; background: var(--panel); }
-table.parts .num { text-align: right; font-family: var(--font-num); }
+table.parts .num { text-align: right; font-family: var(--font-num); white-space: nowrap; }
 table.parts tr:last-child td { border-bottom: 0; }
 table.keys { border-collapse: collapse; width: 100%; }
 table.keys td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -378,3 +378,8 @@ table.keys td:first-child { width: 1%; white-space: nowrap; }
 .code-block { font: 12px/1.5 var(--font-num, monospace); background: var(--panel-2, rgba(127,127,127,.12)); padding: 8px 10px; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; }
 .claude-row { display: flex; gap: 8px; align-items: flex-start; }
 
+
+/* Prices in the parts list */
+.price-in { width: 6.5em; text-align: right; font: inherit; font-family: var(--font-num); padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); color: var(--ink); }
+.pl-total { margin: 10px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+#pl-boards h3 { margin: 14px 0 6px; font-size: 14px; }

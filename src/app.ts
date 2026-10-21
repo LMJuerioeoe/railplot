@@ -4,7 +4,7 @@ import { LIBRARIES, getLibrary, getPart, partGeometryLabel } from "./library";
 import {
   Analysis, Anchor, Item, Project, WorldEnd, addLayer, addPolyBoard, addRectBoard, addStart, analyze, anchorPose,
   applySnap, boardAt, continuationEnd, createFlex, deleteItems, deleteLayer, endKey, findSnap, flexLength, geom,
-  gradeBand, gradient, isVisible, itemsById, mirrorItems, moveItems, newProject, partOf, partsCsv, partsList,
+  gradeBand, gradient, isVisible, itemsById, mirrorItems, moveItems, newProject, partOf, partsCsv, partsList, costOf, costByBoard,
   placePart, projectBounds, rotateItems, selectionBounds, setHeightAt, shiftHeights, summarize, uid,
   appendModule, mainLibrary, moduleJoints, motorsOverFrame, rejoinModule, trackPorts, portUsed, boardGuides, layGuides, allModuleEnds, BoardPort,
 } from "./model";
@@ -51,6 +51,7 @@ async function saveBlob(...args: Parameters<typeof rawSaveBlob>) {
 
 const AUTOSAVE_KEY = "railplot.autosave.v1";
 const PREFS_KEY = "railplot.prefs.v1";
+const PRICES_KEY = "railplot.prices.v1";
 const VERSION = "0.11.0";
 
 export class App {
@@ -1290,31 +1291,67 @@ export class App {
   showPartsList() {
     let visibleOnly = false, byLayer = false;
     const table = h("div", { class: "table-wrap" });
+    const boardsBox = h("div", { id: "pl-boards" });
+    const totalBox = h("p", { class: "pl-total", id: "pl-total" });
+    // prices typed on other layouts on this computer, offered as a starting point
+    let remembered: Record<string, number> = {};
+    try { remembered = JSON.parse(store.get(PRICES_KEY) ?? "{}"); } catch { /* none yet */ }
+    const cur = h("select", { id: "pl-currency", "aria-label": "Currency", onchange: () => { this.p.prices = { currency: cur.value, each: this.p.prices?.each ?? {} }; this.commit(); fill(); } },
+      ...["€", "£", "$", "CHF", "kr", "zł"].map((c) => h("option", { value: c, selected: c === (this.p.prices?.currency ?? "€") }, c))) as HTMLSelectElement;
+    const money = (n: number) => `${this.p.prices?.currency ?? cur.value} ${n.toFixed(2)}`;
+    const setPrice = (key: string, v: string) => {
+      const each = { ...(this.p.prices?.each ?? {}) };
+      const n = parseFloat(v.replace(",", "."));
+      if (v.trim() === "" || !isFinite(n) || n < 0) delete each[key]; else each[key] = Math.round(n * 100) / 100;
+      this.p.prices = { currency: cur.value, each };
+      if (each[key] !== undefined) { remembered[key] = each[key]; store.set(PRICES_KEY, JSON.stringify(remembered)); }
+      this.commit();
+      fill();
+    };
     const fill = () => {
-      clear(table);
+      clear(table); clear(boardsBox);
       const rows = partsList(this.p, { visibleOnly, byLayer });
-      if (!rows.length) { table.append(h("p", { class: "muted" }, "No track on the layout yet.")); return; }
+      if (!rows.length) { table.append(h("p", { class: "muted" }, "No track on the layout yet.")); totalBox.textContent = ""; return; }
+      const each = this.p.prices?.each ?? {};
       const t = h("table", { class: "parts" },
-        h("thead", {}, h("tr", {}, ...(byLayer ? [h("th", {}, "Layer")] : []), h("th", {}, "Part"), h("th", {}, "Name"), h("th", { class: "num" }, "Qty"))),
-        h("tbody", {}, ...rows.map((r) => h("tr", {},
-          ...(byLayer ? [h("td", {}, r.layer ?? "")] : []),
-          h("td", { class: "mono" }, r.id),
-          h("td", {}, r.name, h("span", { class: "muted small" }, ` · ${r.producer}`), r.length ? h("span", { class: "muted small" }, ` · ${fmtLen(r.length, this.p.units)} in total`) : null),
-          h("td", { class: "num" }, String(r.count))))));
+        h("thead", {}, h("tr", {}, ...(byLayer ? [h("th", {}, "Layer")] : []), h("th", {}, "Part"), h("th", {}, "Name"), h("th", { class: "num" }, "Qty"), h("th", { class: "num" }, "Each"), h("th", { class: "num" }, "Total"))),
+        h("tbody", {}, ...rows.map((r) => {
+          const price = each[r.priceKey];
+          const inp = h("input", { class: "price-in", type: "text", inputmode: "decimal", "data-price": r.priceKey, "aria-label": `Price of ${r.id}`,
+            value: price === undefined ? "" : price.toFixed(2), placeholder: remembered[r.priceKey] !== undefined ? remembered[r.priceKey].toFixed(2) : "—",
+            onchange: (e: Event) => setPrice(r.priceKey, (e.target as HTMLInputElement).value),
+            onkeydown: (e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); } });
+          return h("tr", {},
+            ...(byLayer ? [h("td", {}, r.layer ?? "")] : []),
+            h("td", { class: "mono" }, r.id),
+            h("td", {}, r.name, h("span", { class: "muted small" }, ` · ${r.producer}`), r.length ? h("span", { class: "muted small" }, ` · ${fmtLen(r.length, this.p.units)} in total`) : null),
+            h("td", { class: "num" }, String(r.count)),
+            h("td", { class: "num" }, inp),
+            h("td", { class: "num" }, price === undefined ? "" : money(price * r.count)));
+        })));
       table.append(t);
+      const c = costOf(rows, this.p.prices);
+      totalBox.textContent = c.unpriced === rows.length ? "Type what each part costs to see the total. Prices are saved with the layout, and offered again on your other layouts."
+        : `Total ${money(c.total)}${c.unpriced ? ` · ${c.unpriced} part${c.unpriced === 1 ? "" : "s"} not priced yet` : ""}`;
+      const per = costByBoard(this.p).filter((b) => b.total > 0);
+      if (per.length > 1) boardsBox.append(h("h3", {}, "By baseboard"),
+        h("table", { class: "parts" }, h("thead", {}, h("tr", {}, h("th", {}, "Board"), h("th", { class: "num" }, "Board"), h("th", { class: "num" }, "Track on it"), h("th", { class: "num" }, "Total"))),
+          h("tbody", {}, ...per.map((b) => h("tr", {}, h("td", {}, b.name), h("td", { class: "num" }, money(b.board_cost)), h("td", { class: "num" }, money(b.track)), h("td", { class: "num" }, money(b.total)))))),
+        h("p", { class: "muted small" }, "Flexible track is shared out by length here, so the boards add up to a little less than the whole pieces you buy."));
     };
     fill();
     const opts = h("div", { class: "row-opts" },
       h("label", { class: "check" }, h("input", { id: "pl-visible", type: "checkbox", onchange: (e: Event) => { visibleOnly = (e.target as HTMLInputElement).checked; fill(); } }), "Only visible layers"),
-      h("label", { class: "check" }, h("input", { id: "pl-layer", type: "checkbox", onchange: (e: Event) => { byLayer = (e.target as HTMLInputElement).checked; fill(); } }), "Group by layer"));
-    dialog("Parts list", h("div", {}, h("p", { class: "muted" }, "Flexible track is rounded up to whole lengths."), opts, table), [
+      h("label", { class: "check" }, h("input", { id: "pl-layer", type: "checkbox", onchange: (e: Event) => { byLayer = (e.target as HTMLInputElement).checked; fill(); } }), "Group by layer"),
+      h("label", { class: "check" }, "Currency ", cur));
+    const csv = () => partsCsv(partsList(this.p, { visibleOnly, byLayer }), this.p.prices);
+    dialog("Parts list", h("div", {}, h("p", { class: "muted" }, "Flexible track is rounded up to whole lengths."), opts, table, totalBox, boardsBox), [
       { label: "Copy as CSV", onClick: async () => {
-        const csv = partsCsv(partsList(this.p, { visibleOnly, byLayer }));
-        try { await navigator.clipboard.writeText(csv); toast("Parts list copied."); } catch { toast("Copy isn't available here. Use Save CSV instead.", "error"); }
+        try { await navigator.clipboard.writeText(csv()); toast("Parts list copied."); } catch { toast("Copy isn't available here. Use Save CSV instead.", "error"); }
         return true;
       } },
       { label: "Save CSV", onClick: async () => {
-        await saveBlob(`${this.p.name} parts.csv`, new Blob([partsCsv(partsList(this.p, { visibleOnly, byLayer }))], { type: "text/csv" }), { name: "CSV", extensions: ["csv"], mime: "text/csv" });
+        await saveBlob(`${this.p.name} parts.csv`, new Blob([csv()], { type: "text/csv" }), { name: "CSV", extensions: ["csv"], mime: "text/csv" });
         return true;
       } },
       { label: "Done", primary: true },
