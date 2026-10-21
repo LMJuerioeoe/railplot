@@ -9,10 +9,6 @@ Railplot can build common yards and a shunting puzzle for you, from your track s
 | **Run-round loop** | A loop where the engine runs round its train, with a headshunt at each end. |
 | **Inglenook sidings** | Alan Wright's shunting puzzle: a headshunt for the engine and three wagons, then sidings for five, three and three wagons. Make up a train of five from eight wagons, in the order the cards say. |
 
-## Shunting sessions
-
-Tools > **Shunting session** turns a shunting layout into a game. Pick the Inglenook (five wagons from eight) or your plan's own sidings, and Railplot deals where each wagon starts and the train to make up, from the engine back. Start the clock, count your moves, and press **Deal new cards** for another go. Each deal has a card set number: type it in again to replay the same puzzle, or **Print the cards** to play away from the screen. Name your own wagons under **Your wagons**; the list is saved with the layout.
-
 ## Example layouts on the baseboards
 
 **File > Example shunting layouts** opens complete plans on the laser-cut baseboard modules, built with these yards. Pick the track system first: each plan is worked out for it.
@@ -61,3 +57,7 @@ PIKO's 15° points make longer, gentler throats than Setrack's and Hornby's 22.5
 - **Flexible track**: the system's own (Peco Streamline SL-100, PIKO 55209). Hornby has none, so its yards use Peco Streamline, which joins Hornby track directly.
 
 Buffer stops aren't in Railplot's libraries yet, so dead ends are left open.
+
+## Shunting sessions
+
+Tools > **Shunting session** turns a shunting layout into a game. Pick the Inglenook (five wagons from eight) or your plan's own sidings, and Railplot deals where each wagon starts and the train to make up, from the engine back. Start the clock, count your moves, and press **Deal new cards** for another go. Each deal has a card set number: type it in again to replay the same puzzle, or **Print the cards** to play away from the screen. Name your own wagons under **Your wagons**; the list is saved with the layout.
