@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 330" role="img" aria-labelledby="t2 d2" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="12">
+  <title id="t2">Blocks, sensors and signals</title>
+  <desc id="d2">A stretch of track cut into three blocks, A, B and C, with insulated joiners in both rails at each joint. Each block is fed by its own driver. An infrared sensor sits just past each joint, and a signal guards the way into block B. Train 1 is in block A heading right: Railplot powers block A and the free block B at the train's speed, while block C stays off.</desc>
+  <style>
+    .box { fill: var(--raised, #ffffff); stroke: var(--line-strong, #9aa3a0); stroke-width: 1.5; }
+    .t { fill: var(--ink, #1b221e); }
+    .m { fill: var(--ink-2, #4f5a55); }
+    .h { font-weight: 600; font-size: 13px; }
+    .rail { stroke: var(--ink-2, #4f5a55); stroke-width: 3; }
+    .sl { stroke: #a0522d; stroke-width: 5; }
+    .feed { fill: none; stroke-width: 2; }
+  </style>
+  <!-- live blocks -->
+  <rect x="30" y="72" width="226" height="56" rx="6" fill="#d2452c" opacity="0.16"/>
+  <rect x="264" y="72" width="226" height="56" rx="6" fill="#d2452c" opacity="0.10"/>
+  <text class="t h" x="143" y="60" text-anchor="middle">Block A</text>
+  <text class="t h" x="377" y="60" text-anchor="middle">Block B</text>
+  <text class="t h" x="613" y="60" text-anchor="middle">Block C</text>
+  <!-- sleepers -->
+  <g class="sl">
+    <path d="M45 84V116M75 84V116M105 84V116M135 84V116M165 84V116M195 84V116M225 84V116M250 84V116"/>
+    <path d="M275 84V116M305 84V116M335 84V116M365 84V116M395 84V116M425 84V116M455 84V116M482 84V116"/>
+    <path d="M510 84V116M540 84V116M570 84V116M600 84V116M630 84V116M660 84V116M690 84V116M720 84V116"/>
+  </g>
+  <!-- rails with gaps at the joints -->
+  <path class="rail" d="M30 90H257M263 90H493M499 90H735M30 110H257M263 110H493M499 110H735"/>
+  <g fill="var(--ink, #1b221e)">
+    <rect x="256" y="85" width="8" height="10" rx="1"/><rect x="256" y="105" width="8" height="10" rx="1"/>
+    <rect x="492" y="85" width="8" height="10" rx="1"/><rect x="492" y="105" width="8" height="10" rx="1"/>
+  </g>
+  <text class="m" x="260" y="145" text-anchor="middle">insulated joiners,</text>
+  <text class="m" x="260" y="159" text-anchor="middle">both rails</text>
+  <!-- sensors just past each joint -->
+  <path d="M280 94 l6 6 -6 6 -6 -6z" fill="#f0b429" stroke="var(--ink, #1b221e)" stroke-width="1.2"/>
+  <path d="M516 94 l6 6 -6 6 -6 -6z" fill="#ffffff" stroke="var(--ink, #1b221e)" stroke-width="1.2"/>
+  <text class="m" x="300" y="34">IR sensor between the sleepers</text>
+  <path d="M296 38 L284 90" stroke="var(--ink-2, #4f5a55)" stroke-width="1" fill="none"/>
+  <!-- signal into B -->
+  <path d="M244 72 V40" stroke="var(--ink, #1b221e)" stroke-width="2"/>
+  <circle cx="244" cy="34" r="8" fill="var(--ink, #1b221e)"/><circle cx="244" cy="34" r="5" fill="#2fbf5b"/>
+  <text class="m" x="232" y="20" text-anchor="end">signal into B: green</text>
+  <!-- train -->
+  <rect x="120" y="78" width="96" height="44" rx="8" fill="#d2452c"/>
+  <text x="168" y="104" text-anchor="middle" fill="#ffffff" font-weight="600">Train 1</text>
+  <path d="M222 100 h22 m-7 -6 l7 6 -7 6" stroke="#d2452c" stroke-width="2.5" fill="none"/>
+  <!-- drivers -->
+  <g>
+    <rect class="box" x="88" y="210" width="110" height="44" rx="6"/><text class="t h" x="143" y="230" text-anchor="middle">Driver 1</text><text class="m" x="143" y="246" text-anchor="middle">Train 1's speed</text>
+    <rect class="box" x="322" y="210" width="110" height="44" rx="6"/><text class="t h" x="377" y="230" text-anchor="middle">Driver 2</text><text class="m" x="377" y="246" text-anchor="middle">Train 1's speed</text>
+    <rect class="box" x="558" y="210" width="110" height="44" rx="6"/><text class="t h" x="613" y="230" text-anchor="middle">Driver 3</text><text class="m" x="613" y="246" text-anchor="middle">off</text>
+  </g>
+  <g class="feed" stroke="#d2452c">
+    <path d="M130 210 V180 H70 V90"/><path d="M156 210 V170 H90 V110"/>
+    <path d="M364 210 V180 H304 V90"/><path d="M390 210 V170 H324 V110"/>
+  </g>
+  <g class="feed" stroke="var(--ink-2, #4f5a55)">
+    <path d="M600 210 V180 H540 V90"/><path d="M626 210 V170 H560 V110"/>
+  </g>
+  <text class="m" x="30" y="290">Railplot gives Train 1's block and the free block ahead the train's speed. Block C stays off for now:</text>
+  <text class="m" x="30" y="306">a train standing in C would keep it, and Train 1 would stop at the end of B. When the sensor at the</text>
+  <text class="m" x="30" y="322">A–B joint sees Train 1 pass, A goes off and C comes on.</text>
+</svg>

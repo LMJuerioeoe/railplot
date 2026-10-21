@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "id": "peco-setrack-oo",
+  "name": "Peco Setrack OO/HO (code 100)",
+  "producer": "Peco",
+  "system": "Setrack",
+  "scale": "OO",
+  "gauge": 16.5,
+  "trackSpacing": 67,
+  "profile": { "sleeperLength": 32, "sleeperWidth": 2.6, "sleeperSpacing": 8.5, "railHeight": 2.5, "roadbed": null },
+  "sources": [
+    { "title": "Hobbyco: Hornby and Peco track sizes", "url": "https://www.hobbyco.com.au/blogs/blog/hornby-and-peco-track-sizes" },
+    { "title": "ST-241 product listing (168 mm, 22.5 deg, 438 mm)", "url": "https://nightwatchtrains.com/products/peco-setrack-st-241-ho-scale-no-2-radius-code-100-lh-left-hand-turnout-switch" },
+    { "title": "ST-235 product listing (571.5 mm radius)", "url": "https://railsofsheffield.com/products/peco-st-235-st235-no4-radius-standard-curve-5715-mm-radius" }
+  ],
+  "parts": [
+    { "id": "ST-200", "name": "Standard straight", "type": "straight", "length": 168 },
+    { "id": "ST-201", "name": "Double straight", "type": "straight", "length": 335 },
+    { "id": "ST-220", "name": "1st radius standard curve", "type": "curve", "radius": 371, "angle": 22.5 },
+    { "id": "ST-221", "name": "1st radius double curve", "type": "curve", "radius": 371, "angle": 45 },
+    { "id": "ST-225", "name": "2nd radius standard curve", "type": "curve", "radius": 438, "angle": 22.5 },
+    { "id": "ST-226", "name": "2nd radius double curve", "type": "curve", "radius": 438, "angle": 45 },
+    { "id": "ST-230", "name": "3rd radius standard curve", "type": "curve", "radius": 505, "angle": 22.5 },
+    { "id": "ST-231", "name": "3rd radius double curve", "type": "curve", "radius": 505, "angle": 45 },
+    { "id": "ST-235", "name": "4th radius standard curve", "type": "curve", "radius": 571.5, "angle": 22.5 },
+    { "id": "ST-241", "name": "Left-hand turnout, 2nd radius", "type": "turnout", "hand": "left",
+      "routes": [ { "segs": [ { "straight": 168 } ] }, { "segs": [ { "radius": 438, "angle": 22.5 } ] } ] },
+    { "id": "ST-240", "name": "Right-hand turnout, 2nd radius", "type": "turnout", "hand": "right",
+      "routes": [ { "segs": [ { "straight": 168 } ] }, { "segs": [ { "radius": 438, "angle": -22.5 } ] } ] },
+    { "id": "SL-100", "name": "Streamline flexible track, code 100 (914 mm)", "type": "flex", "maxLength": 914, "minRadius": 300,
+      "note": "Streamline flex is compatible with Setrack. Minimum radius is a planning default, not a Peco figure." }
+  ]
+}

@@ -1,0 +1,362 @@
+{
+ "format": 2,
+ "id": "std-400x400",
+ "name": "400 × 400 standard module",
+ "family": "Standard modules",
+ "size": "400 × 400 mm",
+ "blurb": "Closed torsion box, 100 mm tall. Joining faces on the short ends.",
+ "length": 400,
+ "width": 400,
+ "depth": 100,
+ "sheet": 4,
+ "material": "4 mm birch plywood",
+ "weightKg": 1.48,
+ "pieces": 11,
+ "sheets": {
+  "count": 1,
+  "size": [
+   1300,
+   900
+  ]
+ },
+ "cutLengthM": 17.4,
+ "outline": [
+  {
+   "x": 400,
+   "y": 400
+  },
+  {
+   "x": 0,
+   "y": 400
+  },
+  {
+   "x": 0,
+   "y": 0
+  },
+  {
+   "x": 400,
+   "y": 0
+  }
+ ],
+ "faces": [
+  {
+   "a": {
+    "x": 400,
+    "y": 400
+   },
+   "b": {
+    "x": 400,
+    "y": 0
+   },
+   "width": 400
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 0
+   },
+   "b": {
+    "x": 0,
+    "y": 400
+   },
+   "width": 400
+  }
+ ],
+ "fixings": [
+  {
+   "p": {
+    "x": 394,
+    "y": 66.7
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 394,
+    "y": 120
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 394,
+    "y": 333.3
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 394,
+    "y": 280
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 333.3
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 280
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 66.7
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 120
+   },
+   "kind": "bolt",
+   "d": 8.5
+  }
+ ],
+ "members": [
+  {
+   "a": {
+    "x": 394,
+    "y": 0
+   },
+   "b": {
+    "x": 394,
+    "y": 400
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 6,
+    "y": 400
+   },
+   "b": {
+    "x": 6,
+    "y": 0
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 2
+   },
+   "b": {
+    "x": 400,
+    "y": 2
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 400,
+    "y": 398
+   },
+   "b": {
+    "x": 0,
+    "y": 398
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 200,
+    "y": 0
+   },
+   "b": {
+    "x": 200,
+    "y": 400
+   },
+   "thickness": 4,
+   "kind": "cross"
+  }
+ ],
+ "openings": [
+  [
+   {
+    "x": 84,
+    "y": 34
+   },
+   {
+    "x": 126,
+    "y": 34
+   },
+   {
+    "x": 168,
+    "y": 76
+   },
+   {
+    "x": 168,
+    "y": 324
+   },
+   {
+    "x": 126,
+    "y": 366
+   },
+   {
+    "x": 84,
+    "y": 366
+   },
+   {
+    "x": 42,
+    "y": 324
+   },
+   {
+    "x": 42,
+    "y": 76
+   }
+  ],
+  [
+   {
+    "x": 274,
+    "y": 34
+   },
+   {
+    "x": 316,
+    "y": 34
+   },
+   {
+    "x": 358,
+    "y": 76
+   },
+   {
+    "x": 358,
+    "y": 324
+   },
+   {
+    "x": 316,
+    "y": 366
+   },
+   {
+    "x": 274,
+    "y": 366
+   },
+   {
+    "x": 232,
+    "y": 324
+   },
+   {
+    "x": 232,
+    "y": 76
+   }
+  ]
+ ],
+ "features": [],
+ "marks": [
+  [
+   12,
+   200,
+   388,
+   200
+  ],
+  [
+   200,
+   12,
+   200,
+   388
+  ],
+  [
+   100,
+   6,
+   100,
+   18
+  ],
+  [
+   100,
+   394,
+   100,
+   382
+  ],
+  [
+   200,
+   6,
+   200,
+   18
+  ],
+  [
+   200,
+   394,
+   200,
+   382
+  ],
+  [
+   300,
+   6,
+   300,
+   18
+  ],
+  [
+   300,
+   394,
+   300,
+   382
+  ],
+  [
+   6,
+   100,
+   18,
+   100
+  ],
+  [
+   394,
+   100,
+   382,
+   100
+  ],
+  [
+   6,
+   200,
+   18,
+   200
+  ],
+  [
+   394,
+   200,
+   382,
+   200
+  ],
+  [
+   6,
+   300,
+   18,
+   300
+  ],
+  [
+   394,
+   300,
+   382,
+   300
+  ]
+ ],
+ "hardware": "Per joint: 2 x M8 bolts, wing nuts and washers; 2 x 10 mm dowels or pattern-makers' dowels (8 mm pin). PVA glue.",
+ "hardwarePerJoint": [
+  {
+   "item": "M8 bolt with wing nut and washers",
+   "count": 2
+  },
+  {
+   "item": "10 mm alignment dowel (or pattern-makers' dowel, 8 mm pin)",
+   "count": 2
+  }
+ ],
+ "source": "Laser-cut baseboard range from the OO/H0 layout project (make_baseboards.py), imported from data/baseboard-range.json."
+}

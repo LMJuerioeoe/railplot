@@ -1,0 +1,471 @@
+{
+ "format": 2,
+ "id": "turntable-900x400",
+ "name": "900 × 400 train turntable",
+ "family": "Fiddle yard",
+ "size": "900 × 400 mm",
+ "blurb": "The whole 872 mm deck turns end for end on a centre bearing to reverse a train. Fixed aprons at the ends carry the track to the joining faces; a pin locks the deck at 0° and 180°. The deck swings out over the sides while turning, so leave clear space beside the board.",
+ "length": 900,
+ "width": 400,
+ "depth": 100,
+ "sheet": 4,
+ "material": "4 mm birch plywood",
+ "weightKg": 3.75,
+ "pieces": 22,
+ "sheets": {
+  "count": 2,
+  "size": [
+   1300,
+   900
+  ]
+ },
+ "cutLengthM": 38.8,
+ "outline": [
+  {
+   "x": 0,
+   "y": 0
+  },
+  {
+   "x": 900,
+   "y": 0
+  },
+  {
+   "x": 900,
+   "y": 400
+  },
+  {
+   "x": 0,
+   "y": 400
+  }
+ ],
+ "faces": [
+  {
+   "a": {
+    "x": 900,
+    "y": 400
+   },
+   "b": {
+    "x": 900,
+    "y": 0
+   },
+   "width": 400
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 0
+   },
+   "b": {
+    "x": 0,
+    "y": 400
+   },
+   "width": 400
+  }
+ ],
+ "fixings": [
+  {
+   "p": {
+    "x": 894,
+    "y": 66.7
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 894,
+    "y": 120
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 894,
+    "y": 333.3
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 894,
+    "y": 280
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 333.3
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 280
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 66.7
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 120
+   },
+   "kind": "bolt",
+   "d": 8.5
+  }
+ ],
+ "members": [
+  {
+   "a": {
+    "x": 894,
+    "y": 0
+   },
+   "b": {
+    "x": 894,
+    "y": 400
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 6,
+    "y": 400
+   },
+   "b": {
+    "x": 6,
+    "y": 0
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 2
+   },
+   "b": {
+    "x": 900,
+    "y": 2
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 900,
+    "y": 398
+   },
+   "b": {
+    "x": 0,
+    "y": 398
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 225,
+    "y": 0
+   },
+   "b": {
+    "x": 225,
+    "y": 400
+   },
+   "thickness": 4,
+   "kind": "cross"
+  },
+  {
+   "a": {
+    "x": 450,
+    "y": 0
+   },
+   "b": {
+    "x": 450,
+    "y": 400
+   },
+   "thickness": 4,
+   "kind": "cross"
+  },
+  {
+   "a": {
+    "x": 675,
+    "y": 0
+   },
+   "b": {
+    "x": 675,
+    "y": 400
+   },
+   "thickness": 4,
+   "kind": "cross"
+  }
+ ],
+ "openings": [
+  [
+   {
+    "x": 87,
+    "y": 34
+   },
+   {
+    "x": 148,
+    "y": 34
+   },
+   {
+    "x": 193,
+    "y": 79
+   },
+   {
+    "x": 193,
+    "y": 321
+   },
+   {
+    "x": 148,
+    "y": 366
+   },
+   {
+    "x": 87,
+    "y": 366
+   },
+   {
+    "x": 42,
+    "y": 321
+   },
+   {
+    "x": 42,
+    "y": 79
+   }
+  ],
+  [
+   {
+    "x": 302,
+    "y": 34
+   },
+   {
+    "x": 373,
+    "y": 34
+   },
+   {
+    "x": 418,
+    "y": 79
+   },
+   {
+    "x": 418,
+    "y": 321
+   },
+   {
+    "x": 373,
+    "y": 366
+   },
+   {
+    "x": 302,
+    "y": 366
+   },
+   {
+    "x": 257,
+    "y": 321
+   },
+   {
+    "x": 257,
+    "y": 79
+   }
+  ],
+  [
+   {
+    "x": 527,
+    "y": 34
+   },
+   {
+    "x": 598,
+    "y": 34
+   },
+   {
+    "x": 643,
+    "y": 79
+   },
+   {
+    "x": 643,
+    "y": 321
+   },
+   {
+    "x": 598,
+    "y": 366
+   },
+   {
+    "x": 527,
+    "y": 366
+   },
+   {
+    "x": 482,
+    "y": 321
+   },
+   {
+    "x": 482,
+    "y": 79
+   }
+  ],
+  [
+   {
+    "x": 752,
+    "y": 34
+   },
+   {
+    "x": 813,
+    "y": 34
+   },
+   {
+    "x": 858,
+    "y": 79
+   },
+   {
+    "x": 858,
+    "y": 321
+   },
+   {
+    "x": 813,
+    "y": 366
+   },
+   {
+    "x": 752,
+    "y": 366
+   },
+   {
+    "x": 707,
+    "y": 321
+   },
+   {
+    "x": 707,
+    "y": 79
+   }
+  ]
+ ],
+ "features": [
+  {
+   "kind": "deck",
+   "label": "Turning deck",
+   "outline": [
+    {
+     "x": 885.5,
+     "y": 179.2
+    },
+    {
+     "x": 884.9,
+     "y": 231.1
+    },
+    {
+     "x": 881.6,
+     "y": 262.1
+    },
+    {
+     "x": 876,
+     "y": 292.8
+    },
+    {
+     "x": 862,
+     "y": 342.8
+    },
+    {
+     "x": 850.7,
+     "y": 371.8
+    },
+    {
+     "x": 837.4,
+     "y": 400
+    },
+    {
+     "x": 62.6,
+     "y": 400
+    },
+    {
+     "x": 45.3,
+     "y": 362.2
+    },
+    {
+     "x": 28.9,
+     "y": 313
+    },
+    {
+     "x": 20.1,
+     "y": 272.4
+    },
+    {
+     "x": 14.5,
+     "y": 220.8
+    },
+    {
+     "x": 15.1,
+     "y": 168.9
+    },
+    {
+     "x": 18.5,
+     "y": 137.9
+    },
+    {
+     "x": 24,
+     "y": 107.2
+    },
+    {
+     "x": 38,
+     "y": 57.2
+    },
+    {
+     "x": 49.3,
+     "y": 28.2
+    },
+    {
+     "x": 62.6,
+     "y": 0
+    },
+    {
+     "x": 837.4,
+     "y": 0
+    },
+    {
+     "x": 854.7,
+     "y": 37.8
+    },
+    {
+     "x": 871.1,
+     "y": 87
+    },
+    {
+     "x": 880,
+     "y": 127.6
+    }
+   ]
+  }
+ ],
+ "marks": [
+  [
+   20,
+   200,
+   880,
+   200
+  ]
+ ],
+ "hardware": "150 mm (6 in) lazy-susan bearing, 8 mm thick; 6 mm pin, 60 mm long; joining hardware.",
+ "hardwarePerJoint": [
+  {
+   "item": "M8 bolt with wing nut and washers",
+   "count": 2
+  },
+  {
+   "item": "10 mm alignment dowel (or pattern-makers' dowel, 8 mm pin)",
+   "count": 2
+  }
+ ],
+ "source": "Laser-cut baseboard range from the OO/H0 layout project (make_baseboards.py), imported from data/baseboard-range.json."
+}

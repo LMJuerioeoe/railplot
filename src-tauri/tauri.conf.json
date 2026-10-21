@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Railplot",
+  "version": "0.9.0",
+  "identifier": "io.github.railplot.app",
+  "build": {
+    "beforeBuildCommand": "bun run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Railplot",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 600,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "deb", "appimage"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
+    ],
+    "shortDescription": "Track planner for OO and H0 model railways",
+    "longDescription": "Railplot is a free, open-source track planner for model railways. Plan with real sectional track libraries, flexible track, gradients and layers, check it in 3D, and print a parts list.",
+    "copyright": "Railplot contributors",
+    "fileAssociations": [
+      { "ext": ["railplot"], "name": "Railplot layout", "description": "Railplot layout", "role": "Editor", "mimeType": "application/x-railplot" }
+    ],
+    "windows": {
+      "nsis": { "installMode": "currentUser" }
+    }
+  }
+}

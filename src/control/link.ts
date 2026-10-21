@@ -1,0 +1,499 @@
+// Talking to controllers: ESP32 boards over HTTP on the local network, DCC-EX command stations
+// over USB or the network, or the built-in simulator.
+import { ControlEngine, Frame, neighbours } from "./engine";
+import { Controller, DCCEX_CAB_BASE } from "./types";
+import { geom } from "../model";
+
+export interface LinkStatus {
+  online: boolean;
+  accepted: boolean;          // this device is the one driving
+  fw?: string;
+  message?: string;
+  inputs: (n: number) => boolean;
+  mA: number[];
+}
+
+export interface Link {
+  controller: Controller;
+  /** What the connection depends on (see linkKey). */
+  key: string;
+  status: LinkStatus | null;
+  busy: boolean;
+  /** Send outputs and read inputs. `take` claims driving from another device. */
+  exchange(frame: Frame, take: boolean): Promise<LinkStatus | null>;
+  /** Links that need a person's go-ahead to connect (USB in a browser). */
+  connect?(): Promise<void>;
+  close?(): void;
+}
+
+/** What a link's connection depends on: change any of it and the link reconnects. */
+export function linkKey(c: Controller) { return `${c.kind}|${c.host}|${c.conn ?? ""}|${c.cabBase ?? ""}`; }
+
+export const CLIENT_ID = (() => {
+  try {
+    const k = "railplot.client";
+    const v = sessionStorage.getItem(k) ?? Math.random().toString(36).slice(2, 10);
+    sessionStorage.setItem(k, v);
+    return v;
+  } catch { return Math.random().toString(36).slice(2, 10); }
+})();
+
+export function baseUrl(c: Controller): string {
+  if (!c.host) return typeof location !== "undefined" && location.protocol.startsWith("http") ? "" : "http://railplot.local";
+  return /^https?:\/\//.test(c.host) ? c.host.replace(/\/$/, "") : `http://${c.host}`;
+}
+
+async function getJson(url: string, ms = 1200): Promise<any> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctl.signal, cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+
+export async function postText(url: string, body: string, ms = 5000): Promise<void> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    // text/plain keeps this a "simple" request, so the controller needs no CORS preflight
+    const r = await fetch(url, { method: "POST", body, headers: { "Content-Type": "text/plain" }, signal: ctl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  } finally { clearTimeout(t); }
+}
+
+/** Upload a file to a controller as a form post (streams to its flash, no CORS preflight needed). */
+export async function uploadFile(url: string, name: string, text: string, ms = 30000): Promise<void> {
+  const fd = new FormData();
+  fd.append("file", new Blob([text], { type: "text/plain" }), name);
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { method: "POST", body: fd, signal: ctl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  } finally { clearTimeout(t); }
+}
+
+export async function fetchText(url: string, ms = 5000): Promise<string | null> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctl.signal, cache: "no-store" });
+    return r.ok ? await r.text() : null;
+  } catch { return null; } finally { clearTimeout(t); }
+}
+
+/** Is this page being served by a Railplot controller? */
+export async function servedByController(): Promise<boolean> {
+  if (typeof location === "undefined" || !location.protocol.startsWith("http")) return false;
+  try { const j = await getJson("/api/status", 800); return typeof j?.fw === "string" && j.fw.startsWith("railplot-controller"); }
+  catch { return false; }
+}
+
+const enc = (pairs: [number, number][]) => pairs.map(([a, b]) => `${a}:${b}`).join(",");
+
+export class Esp32Link implements Link {
+  status: LinkStatus | null = null;
+  busy = false;
+  key: string;
+  private fails = 0;
+  constructor(public controller: Controller) { this.key = linkKey(controller); }
+
+  async exchange(frame: Frame, take: boolean): Promise<LinkStatus | null> {
+    this.busy = true;
+    try {
+      const q = `cid=${CLIENT_ID}&take=${take ? 1 : 0}&b=${enc(frame.blocks)}&s=${enc(frame.servos)}&o=${enc(frame.outputs)}`;
+      const j = await getJson(`${baseUrl(this.controller)}/api/frame?${q}`);
+      this.fails = 0;
+      const words: number[] = Array.isArray(j.in) ? j.in : [];
+      this.status = {
+        online: true, accepted: !!j.accepted, fw: j.fw,
+        message: j.accepted ? undefined : "Another phone or computer is driving.",
+        inputs: (n) => ((words[n >> 4] ?? 0) >> (n & 15) & 1) === 1,
+        mA: Array.isArray(j.mA) ? j.mA : [],
+      };
+    } catch (e) {
+      const blocked = typeof location !== "undefined" && location.protocol === "https:" && baseUrl(this.controller).startsWith("http:");
+      const message = blocked
+        ? "This page is served over https, which browsers don't let talk to a controller on your network. Use the desktop app, the offline file, or open the controller's own address."
+        : `Can't reach ${this.controller.host || "the controller"}. Check it's powered and on the same Wi-Fi.`;
+      if (++this.fails >= 2) this.status = { online: false, accepted: false, message, inputs: () => false, mA: [] };
+    } finally { this.busy = false; }
+    return this.status;
+  }
+}
+
+// ---------- simulator ----------
+
+interface SimTrain { block: string; prev?: string; orient: 1 | -1; progress: number; expected?: string }
+
+/**
+ * A pretend controller: trains move along their blocks at a speed set by the block power,
+ * and trip the sensor at each block joint they cross, just like the real thing.
+ */
+export class SimLink implements Link {
+  status: LinkStatus | null = null;
+  busy = false;
+  key: string;
+  trains = new Map<string, SimTrain>();
+  private latched = new Set<number>();
+  private last = 0;
+  /** Full speed in mm per second at full power. */
+  fullSpeed = 450;
+  /** The clock, in ms (tests replace it). */
+  clock: () => number = () => performance.now();
+
+  constructor(public controller: Controller, private engine: () => ControlEngine) { this.key = linkKey(controller); }
+
+  blockLength(blockId: string): number {
+    const e = this.engine();
+    const b = e.cfg.blocks.find((x) => x.id === blockId);
+    if (!b) return 1;
+    let L = 0;
+    for (const id of b.items) { const it = e.p.items.find((i) => i.id === id); if (it) L += geom(it).length; }
+    return Math.max(50, L);
+  }
+
+  async exchange(frame: Frame): Promise<LinkStatus | null> {
+    const e = this.engine();
+    const now = this.clock();
+    const dt = this.last ? Math.min(0.5, (now - this.last) / 1000) : 0;
+    this.last = now;
+    const duty = new Map<string, number>();
+    for (const [ch, d] of frame.blocks) {
+      const b = e.cfg.blocks.find((x) => x.controller === this.controller.id && x.channel === ch);
+      if (b) duty.set(b.id, d / 1023);
+    }
+    for (const t of e.cfg.trains) {
+      if (!t.block) { this.trains.delete(t.id); continue; }
+      let s = this.trains.get(t.id);
+      if (!s) { s = { block: t.block, orient: 1, progress: 0.5 }; this.trains.set(t.id, s); }
+      else if (s.expected) { if (t.block === s.expected) s.expected = undefined; }
+      else if (s.block !== t.block) { s.block = t.block; s.prev = undefined; s.orient = 1; s.progress = 0.5; }
+      const p = duty.get(s.block) ?? 0;
+      const v = p * s.orient * this.fullSpeed;
+      s.progress += (v * dt) / this.blockLength(s.block);
+      if (s.progress >= 1 || s.progress <= 0) {
+        const forward = s.progress >= 1;
+        const nbs = neighbours(e.p, e.cfg, e.topo, s.block);
+        const options = forward ? nbs.filter((n) => n !== s!.prev) : (s.prev ? [s.prev] : nbs);
+        const next = options.find((n) => Math.sign(duty.get(n) ?? 0) === Math.sign(p) && (duty.get(n) ?? 0) !== 0);
+        if (next) {
+          const sensor = e.cfg.sensors.find((x) => (x.blocks[0] === s!.block && x.blocks[1] === next) || (x.blocks[1] === s!.block && x.blocks[0] === next));
+          if (sensor && sensor.controller === this.controller.id && sensor.input !== undefined) this.latched.add(sensor.input);
+          s.prev = s.block; s.block = next; s.expected = next; s.progress = 0.001;
+          // carrying on backwards: in the new block "away from where we came from" is the other way round
+          if (!forward) s.orient = s.orient === 1 ? -1 : 1;
+        } else s.progress = Math.max(0, Math.min(1, s.progress));
+      }
+    }
+    const inputs = new Set(this.latched);
+    this.latched.clear();
+    this.status = { online: true, accepted: true, fw: "simulator", inputs: (n) => inputs.has(n), mA: [] };
+    return this.status;
+  }
+
+  /** Where a simulated train is within its block (0..1), for drawing. */
+  progressOf(trainId: string): number | undefined { return this.trains.get(trainId)?.progress; }
+}
+
+// ---------- DCC-EX ----------
+
+/** A byte pipe to a DCC-EX command station: Web Serial in a browser, or TCP or a serial port on the hub. */
+export interface Transport {
+  readonly connected: boolean;
+  readonly error?: string;
+  send(text: string): void;
+  onText: (text: string) => void;
+  close(): void;
+}
+
+/**
+ * Railplot's side of the DCC-EX native protocol. Each Railplot block on the command station is one
+ * TrackManager output (A-H) in DC mode with its own cab number, and Railplot sets that cab's speed.
+ * Pure: it turns frames into commands and reads replies, without knowing how the bytes travel.
+ */
+export class DccExProtocol {
+  private buf = "";
+  private ready = false;
+  private sentSpeed = new Map<number, string>();
+  private sentTurnout = new Map<number, number>();
+  private sentOut = new Map<number, boolean>();
+  private lastRefresh = -1e9;
+  private lastCurrent = -1e9;
+  active = new Set<number>();
+  private latched = new Set<number>();
+  mA: number[] = [];
+  version = "";
+  lastRx = 0;
+  rejected = 0;
+
+  constructor(public cabBase = DCCEX_CAB_BASE) {}
+
+  cab(channel: number) { return this.cabBase + channel; }
+  static track(channel: number) { return String.fromCharCode(65 + channel); }
+
+  /** Feed received text; returns the complete messages it contained. */
+  receive(text: string, now: number): string[] {
+    this.buf += text;
+    const out: string[] = [];
+    for (;;) {
+      const a = this.buf.indexOf("<");
+      if (a < 0) { this.buf = ""; break; }
+      const b = this.buf.indexOf(">", a);
+      if (b < 0) { this.buf = this.buf.slice(a); if (this.buf.length > 4096) this.buf = ""; break; }
+      const msg = this.buf.slice(a + 1, b).trim();
+      this.buf = this.buf.slice(b + 1);
+      out.push(msg);
+      this.handle(msg, now);
+    }
+    return out;
+  }
+
+  private handle(msg: string, now: number) {
+    this.lastRx = now;
+    const parts = msg.split(/\s+/);
+    const op = msg[0];
+    // "<Q id>" a sensor came on, "<q id>" it went off. ("<Q id vpin pullup>" is a sensor list entry, not an event.)
+    const id = +(parts[0].length > 1 ? parts[0].slice(1) : parts[1] ?? "");
+    const event = (parts[0].length > 1 ? parts.length === 1 : parts.length === 2) && Number.isFinite(id);
+    if (op === "Q" && event) { this.active.add(id); this.latched.add(id); }
+    else if (op === "q" && event) this.active.delete(id);
+    else if (msg.startsWith("jI")) this.mA = msg.slice(2).trim().split(/\s+/).filter(Boolean).map(Number).map((x) => (Number.isFinite(x) ? x : 0));
+    else if (msg.startsWith("iDCC")) { this.version = msg.slice(1).split("/")[0].trim(); }
+    else if (msg === "X") this.rejected++;
+  }
+
+  /** Inputs since the last call: a sensor counts if it is on now or switched on in between. */
+  takeInputs(): (n: number) => boolean {
+    const on = new Set([...this.active, ...this.latched]);
+    this.latched.clear();
+    return (n) => on.has(n);
+  }
+
+  /** Commands that set up the command station: each used track to DC with its cab, and powered. */
+  setup(channels: number[]): string[] {
+    const out = ["<s>"];
+    for (const ch of channels) out.push(`<= ${DccExProtocol.track(ch)} DC ${this.cab(ch)}>`);
+    // changing a track's mode turns its power off
+    for (const ch of channels) out.push(`<1 ${DccExProtocol.track(ch)}>`);
+    for (const ch of channels) out.push(`<t ${this.cab(ch)} 0 1>`);
+    this.ready = true;
+    this.lastRefresh = -1e9; this.lastCurrent = -1e9;
+    this.sentSpeed.clear(); this.sentTurnout.clear(); this.sentOut.clear();
+    return out;
+  }
+
+  get isReady() { return this.ready; }
+  reset() { this.ready = false; this.buf = ""; }
+
+  /** Commands for a frame: only what changed, with every speed repeated every few seconds. */
+  encode(frame: Frame, now: number): string[] {
+    const out: string[] = [];
+    const refresh = now - this.lastRefresh > 3000;
+    if (refresh) this.lastRefresh = now;
+    for (const [ch, d] of frame.blocks) {
+      const speed = Math.min(126, Math.round((Math.abs(d) / 1023) * 126));
+      const cmd = `<t ${this.cab(ch)} ${speed} ${d < 0 ? 0 : 1}>`;
+      if (refresh || this.sentSpeed.get(ch) !== cmd) { out.push(cmd); this.sentSpeed.set(ch, cmd); }
+    }
+    for (const [id, st] of frame.turnouts) {
+      if (this.sentTurnout.get(id) === st) continue;
+      out.push(`<T ${id} ${st}>`);
+      this.sentTurnout.set(id, st);
+    }
+    for (const [vpin, level] of frame.outputs) {
+      const on = level > 0;
+      if (this.sentOut.get(vpin) === on) continue;
+      out.push(on ? `<z ${vpin}>` : `<z -${vpin}>`);
+      this.sentOut.set(vpin, on);
+    }
+    if (now - this.lastCurrent > 1000) { this.lastCurrent = now; out.push("<JI>"); }
+    return out;
+  }
+
+  /** mA per Railplot driver channel (DCC-EX lists currents in track order). */
+  currents(): number[] { return this.mA; }
+
+  stopAll(channels: number[]): string[] {
+    return ["<!>", ...channels.map((ch) => `<t ${this.cab(ch)} 0 1>`)];
+  }
+}
+
+const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+
+export class DccExLink implements Link {
+  status: LinkStatus | null = null;
+  busy = false;
+  key: string;
+  proto: DccExProtocol;
+  private openedAt = 0;
+  private wasConnected = false;
+
+  constructor(public controller: Controller, private engine: () => ControlEngine, public transport: Transport | null, private hint = "") {
+    this.key = linkKey(controller);
+    this.proto = new DccExProtocol(controller.cabBase ?? DCCEX_CAB_BASE);
+    this.attach();
+  }
+
+  private attach() {
+    if (!this.transport) return;
+    this.transport.onText = (t) => this.proto.receive(t, now());
+  }
+
+  /** Replace the byte pipe (for USB, after the person picks the port). */
+  setTransport(t: Transport) {
+    this.transport?.close();
+    this.transport = t;
+    this.proto.reset();
+    this.wasConnected = false;
+    this.attach();
+  }
+
+  private channels() {
+    return [...new Set(this.engine().cfg.blocks.filter((b) => b.controller === this.controller.id && b.channel !== undefined).map((b) => b.channel!))].sort();
+  }
+
+  async exchange(frame: Frame): Promise<LinkStatus | null> {
+    const t = this.transport;
+    const tnow = now();
+    if (!t || !t.connected) {
+      this.wasConnected = false;
+      this.proto.reset();
+      this.status = { online: false, accepted: false, message: t?.error ?? this.hint ?? "Not connected.", inputs: () => false, mA: [] };
+      return this.status;
+    }
+    if (!this.wasConnected) { this.wasConnected = true; this.openedAt = tnow; this.proto.lastRx = 0; }
+    // an Arduino restarts when its USB port opens: give it time to boot before setting it up
+    if (!this.proto.isReady) {
+      if (this.proto.lastRx === 0 && tnow - this.openedAt < 3000) {
+        this.status = { online: true, accepted: false, message: "Waiting for DCC-EX to start…", inputs: () => false, mA: [] };
+        return this.status;
+      }
+      for (const c of this.proto.setup(this.channels())) t.send(c);
+    }
+    for (const c of this.proto.encode(frame, tnow)) t.send(c);
+    const silent = this.proto.lastRx === 0 ? tnow - this.openedAt > 6000 : tnow - this.proto.lastRx > 5000;
+    this.status = {
+      online: true, accepted: !silent, fw: this.proto.version || "DCC-EX",
+      message: silent ? "Connected, but DCC-EX isn't answering. Check it's an EX-CommandStation 5 or newer, and the USB speed is 115200." : undefined,
+      inputs: this.proto.takeInputs(),
+      mA: this.channelCurrents(),
+    };
+    return this.status;
+  }
+
+  private channelCurrents(): number[] {
+    const out: number[] = [];
+    this.proto.currents().forEach((v, i) => { out[i] = v; });
+    return out;
+  }
+
+  close() {
+    try { if (this.transport?.connected) for (const c of this.proto.stopAll(this.channels())) this.transport.send(c); } catch { /* closing anyway */ }
+    this.transport?.close();
+  }
+}
+
+// ---------- Web Serial (Chrome and Edge) ----------
+
+type SerialPortLike = {
+  open(o: { baudRate: number }): Promise<void>;
+  close(): Promise<void>;
+  readable: ReadableStream<Uint8Array> | null;
+  writable: WritableStream<Uint8Array> | null;
+};
+const serialApi = (): { requestPort(o?: object): Promise<SerialPortLike>; getPorts(): Promise<SerialPortLike[]> } | null =>
+  typeof navigator !== "undefined" && (navigator as any).serial ? (navigator as any).serial : null;
+
+export const webSerialSupported = () => !!serialApi() && (typeof isSecureContext === "undefined" || isSecureContext);
+
+export class WebSerialTransport implements Transport {
+  connected = false;
+  error?: string;
+  onText: (text: string) => void = () => {};
+  private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
+  private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  private enc = new TextEncoder();
+
+  constructor(private port: SerialPortLike) {}
+
+  async open() {
+    try {
+      await this.port.open({ baudRate: 115200 });
+      this.writer = this.port.writable!.getWriter();
+      this.connected = true;
+      this.error = undefined;
+      this.readLoop();
+    } catch (e) {
+      this.error = `Couldn't open the USB port: ${(e as Error).message}. Is another program (Arduino IDE, EX-WebThrottle) using it?`;
+    }
+  }
+
+  private async readLoop() {
+    const dec = new TextDecoder();
+    try {
+      this.reader = this.port.readable!.getReader();
+      for (;;) {
+        const { value, done } = await this.reader.read();
+        if (done) break;
+        if (value) this.onText(dec.decode(value, { stream: true }));
+      }
+    } catch (e) {
+      this.error = `The USB connection dropped: ${(e as Error).message}`;
+    }
+    this.connected = false;
+  }
+
+  send(text: string) {
+    if (!this.writer || !this.connected) return;
+    this.writer.write(this.enc.encode(text)).catch(() => { this.connected = false; this.error = "The USB connection dropped."; });
+  }
+
+  close() {
+    this.connected = false;
+    this.reader?.cancel().catch(() => {});
+    this.writer?.close().catch(() => {});
+    this.port.close().catch(() => {});
+  }
+}
+
+/** A DCC-EX link in a browser: USB through Web Serial. Network connections need the hub. */
+export class BrowserDccExLink extends DccExLink {
+  constructor(controller: Controller, engine: () => ControlEngine) {
+    const hint = controller.conn === "net"
+      ? "A browser can't open a network connection to DCC-EX. Run the Railplot hub, or connect DCC-EX by USB."
+      : !webSerialSupported()
+        ? "USB needs Chrome or Edge on a computer (the desktop app or the offline file opened in Chrome or Edge), or the Railplot hub."
+        : "Press Connect USB in Set up and choose the command station's port.";
+    super(controller, engine, null, hint);
+    if (controller.conn !== "net") this.reuseGrantedPort();
+  }
+
+  private async reuseGrantedPort() {
+    const api = serialApi();
+    if (!api || !webSerialSupported()) return;
+    try {
+      const ports = await api.getPorts();
+      if (ports.length === 1) { const t = new WebSerialTransport(ports[0]); await t.open(); if (t.connected) this.setTransport(t); }
+    } catch { /* the person connects by hand */ }
+  }
+
+  /** Must be called from a click: the browser asks which port to use. */
+  async connect() {
+    const api = serialApi();
+    if (!api || !webSerialSupported()) throw new Error("This browser can't use USB devices. Use Chrome or Edge.");
+    const port = await api.requestPort();
+    const t = new WebSerialTransport(port);
+    await t.open();
+    if (!t.connected) throw new Error(t.error ?? "Couldn't open the port.");
+    this.setTransport(t);
+  }
+}
+
+export function makeLink(c: Controller, engine: () => ControlEngine): Link {
+  if (c.kind === "sim") return new SimLink(c, engine);
+  if (c.kind === "dccex") return new BrowserDccExLink(c, engine);
+  return new Esp32Link(c);
+}

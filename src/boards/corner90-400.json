@@ -1,0 +1,290 @@
+{
+ "format": 2,
+ "id": "corner90-400",
+ "name": "90° corner, 400 wide",
+ "family": "Corners and curves",
+ "size": "400 × 400 mm",
+ "blurb": "Square corner board with joining faces on two adjacent sides, to turn a run of boards through 90°.",
+ "length": 400,
+ "width": 400,
+ "depth": 100,
+ "sheet": 4,
+ "material": "4 mm birch plywood",
+ "weightKg": 1.47,
+ "pieces": 11,
+ "sheets": {
+  "count": 1,
+  "size": [
+   1300,
+   900
+  ]
+ },
+ "cutLengthM": 17.1,
+ "outline": [
+  {
+   "x": 400,
+   "y": 400
+  },
+  {
+   "x": 0,
+   "y": 400
+  },
+  {
+   "x": 0,
+   "y": 0
+  },
+  {
+   "x": 400,
+   "y": 0
+  }
+ ],
+ "faces": [
+  {
+   "a": {
+    "x": 400,
+    "y": 0
+   },
+   "b": {
+    "x": 0,
+    "y": 0
+   },
+   "width": 400
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 0
+   },
+   "b": {
+    "x": 0,
+    "y": 400
+   },
+   "width": 400
+  }
+ ],
+ "fixings": [
+  {
+   "p": {
+    "x": 66.7,
+    "y": 6
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 120,
+    "y": 6
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 333.3,
+    "y": 6
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 280,
+    "y": 6
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 333.3
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 280
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 66.7
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 120
+   },
+   "kind": "bolt",
+   "d": 8.5
+  }
+ ],
+ "members": [
+  {
+   "a": {
+    "x": 0,
+    "y": 6
+   },
+   "b": {
+    "x": 400,
+    "y": 6
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 6,
+    "y": 400
+   },
+   "b": {
+    "x": 6,
+    "y": 0
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 398,
+    "y": 0
+   },
+   "b": {
+    "x": 398,
+    "y": 400
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 400,
+    "y": 398
+   },
+   "b": {
+    "x": 0,
+    "y": 398
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 200,
+    "y": 12
+   },
+   "b": {
+    "x": 200,
+    "y": 400
+   },
+   "thickness": 4,
+   "kind": "cross"
+  }
+ ],
+ "openings": [
+  [
+   {
+    "x": 84,
+    "y": 42
+   },
+   {
+    "x": 126,
+    "y": 42
+   },
+   {
+    "x": 168,
+    "y": 84
+   },
+   {
+    "x": 168,
+    "y": 324
+   },
+   {
+    "x": 126,
+    "y": 366
+   },
+   {
+    "x": 84,
+    "y": 366
+   },
+   {
+    "x": 42,
+    "y": 324
+   },
+   {
+    "x": 42,
+    "y": 84
+   }
+  ],
+  [
+   {
+    "x": 276.7,
+    "y": 42
+   },
+   {
+    "x": 321.3,
+    "y": 42
+   },
+   {
+    "x": 366,
+    "y": 86.7
+   },
+   {
+    "x": 366,
+    "y": 321.3
+   },
+   {
+    "x": 321.3,
+    "y": 366
+   },
+   {
+    "x": 276.7,
+    "y": 366
+   },
+   {
+    "x": 232,
+    "y": 321.3
+   },
+   {
+    "x": 232,
+    "y": 86.7
+   }
+  ]
+ ],
+ "features": [],
+ "marks": [
+  [
+   20,
+   200,
+   200,
+   200
+  ],
+  [
+   200,
+   20,
+   200,
+   200
+  ]
+ ],
+ "hardware": "Per joint: 2 x M8 bolts + wing nuts, 2 x 10 mm dowels.",
+ "hardwarePerJoint": [
+  {
+   "item": "M8 bolt with wing nut and washers",
+   "count": 2
+  },
+  {
+   "item": "10 mm alignment dowel (or pattern-makers' dowel, 8 mm pin)",
+   "count": 2
+  }
+ ],
+ "source": "Laser-cut baseboard range from the OO/H0 layout project (make_baseboards.py), imported from data/baseboard-range.json."
+}

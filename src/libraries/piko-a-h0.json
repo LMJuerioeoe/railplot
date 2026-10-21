@@ -1,0 +1,376 @@
+{
+  "format": 1,
+  "id": "piko-a-h0",
+  "name": "PIKO A-Gleis H0",
+  "producer": "PIKO",
+  "system": "A-Gleis",
+  "scale": "H0",
+  "gauge": 16.5,
+  "trackSpacing": 61.88,
+  "profile": {
+    "sleeperLength": 29,
+    "sleeperWidth": 2.4,
+    "sleeperSpacing": 8.2,
+    "railHeight": 2.5,
+    "roadbed": null
+  },
+  "sources": [
+    {
+      "title": "PIKO A-Gleis brochure (DE)",
+      "url": "https://www.elektrickevlacky.cz/documents/PIKO_A-Gleis_DE.pdf"
+    },
+    {
+      "title": "Raily: PIKO A track geometry",
+      "url": "https://enigon.com/raily/modules/de/ho_piko_a.html"
+    },
+    {
+      "title": "hpw-modellbahn: PIKO track systems",
+      "url": "https://www.hpw-modellbahn.de/gleistechnik/gleis06.htm"
+    }
+  ],
+  "parts": [
+    {
+      "id": "55200",
+      "name": "G239 straight",
+      "type": "straight",
+      "length": 239.07
+    },
+    {
+      "id": "55201",
+      "name": "G231 straight",
+      "type": "straight",
+      "length": 230.93
+    },
+    {
+      "id": "55202",
+      "name": "G119 straight",
+      "type": "straight",
+      "length": 119.54
+    },
+    {
+      "id": "55203",
+      "name": "G115 straight",
+      "type": "straight",
+      "length": 115.46
+    },
+    {
+      "id": "55204",
+      "name": "G107 straight",
+      "type": "straight",
+      "length": 107.32
+    },
+    {
+      "id": "55205",
+      "name": "G62 straight",
+      "type": "straight",
+      "length": 61.88
+    },
+    {
+      "id": "55207",
+      "name": "GUE62-H transition to older PIKO track",
+      "type": "straight",
+      "length": 61.88
+    },
+    {
+      "id": "55208",
+      "name": "GUE62-U transition to other makes",
+      "type": "straight",
+      "length": 61.88
+    },
+    {
+      "id": "55211",
+      "name": "R1 curve 30°",
+      "type": "curve",
+      "radius": 360,
+      "angle": 30
+    },
+    {
+      "id": "55212",
+      "name": "R2 curve 30°",
+      "type": "curve",
+      "radius": 421.88,
+      "angle": 30
+    },
+    {
+      "id": "55213",
+      "name": "R3 curve 30°",
+      "type": "curve",
+      "radius": 483.75,
+      "angle": 30
+    },
+    {
+      "id": "55214",
+      "name": "R4 curve 30°",
+      "type": "curve",
+      "radius": 545.63,
+      "angle": 30
+    },
+    {
+      "id": "55219",
+      "name": "R9 curve 15°",
+      "type": "curve",
+      "radius": 907.97,
+      "angle": 15
+    },
+    {
+      "id": "55251",
+      "name": "R1 curve 7.5°",
+      "type": "curve",
+      "radius": 360,
+      "angle": 7.5
+    },
+    {
+      "id": "55252",
+      "name": "R2 curve 7.5°",
+      "type": "curve",
+      "radius": 421.88,
+      "angle": 7.5
+    },
+    {
+      "id": "55220",
+      "name": "WL turnout left",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 239.07
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 907.97,
+              "angle": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "55221",
+      "name": "WR turnout right",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 239.07
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 907.97,
+              "angle": -15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "55225",
+      "name": "W3 three-way turnout",
+      "type": "turnout",
+      "hand": "both",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 239.07
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 907.97,
+              "angle": 15
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 907.97,
+              "angle": -15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "55222",
+      "name": "BWL curved turnout left",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "radius": 421.88,
+              "angle": 30
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "straight": 61.88
+            },
+            {
+              "radius": 421.88,
+              "angle": 30
+            }
+          ]
+        }
+      ],
+      "note": "Inner route R2 30°, outer route G62 + R2 30°."
+    },
+    {
+      "id": "55223",
+      "name": "BWR curved turnout right",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "radius": 421.88,
+              "angle": -30
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "straight": 61.88
+            },
+            {
+              "radius": 421.88,
+              "angle": -30
+            }
+          ]
+        }
+      ],
+      "note": "Inner route R2 30°, outer route G62 + R2 30°."
+    },
+    {
+      "id": "55227",
+      "name": "BWL-R3 curved turnout left",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "radius": 483.75,
+              "angle": 30
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "straight": 61.96
+            },
+            {
+              "radius": 483.75,
+              "angle": 30
+            }
+          ]
+        }
+      ],
+      "note": "Inner route R3 30°, outer route 61.96 mm straight + R3 30°."
+    },
+    {
+      "id": "55228",
+      "name": "BWR-R3 curved turnout right",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "radius": 483.75,
+              "angle": -30
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "straight": 61.96
+            },
+            {
+              "radius": 483.75,
+              "angle": -30
+            }
+          ]
+        }
+      ],
+      "note": "Inner route R3 30°, outer route 61.96 mm straight + R3 30°."
+    },
+    {
+      "id": "55226",
+      "name": "WY Y-turnout",
+      "type": "turnout",
+      "hand": "both",
+      "routes": [
+        {
+          "segs": [
+            {
+              "radius": 907.97,
+              "angle": 15
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 907.97,
+              "angle": -15
+            }
+          ]
+        }
+      ],
+      "note": "Both legs R9 15°, 30° between them."
+    },
+    {
+      "id": "55240",
+      "name": "K15 crossing 15°",
+      "type": "crossing",
+      "length": 239.07,
+      "angle": 15
+    },
+    {
+      "id": "55241",
+      "name": "K30 crossing 30°",
+      "type": "crossing",
+      "length": 119.54,
+      "angle": 30
+    },
+    {
+      "id": "55224",
+      "name": "DKW double slip",
+      "type": "crossing",
+      "length": 239.07,
+      "angle": 15,
+      "slip": {
+        "radius": 907.97
+      }
+    },
+    {
+      "id": "55209",
+      "name": "G940 flexible track",
+      "type": "flex",
+      "maxLength": 940,
+      "minRadius": 360,
+      "note": "Minimum radius is a planning default."
+    }
+  ]
+}

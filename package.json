@@ -1,0 +1,24 @@
+{
+  "name": "railplot",
+  "version": "0.9.0",
+  "description": "Free, open-source track planner for OO and H0 model railways.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "dev": "bun scripts/build.ts --dev",
+    "test": "bun test tests",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.hub.json",
+    "validate-libraries": "bun scripts/validate-libraries.ts",
+    "tauri": "tauri",
+    "hub": "bun scripts/build.ts && bun src/hub/main.ts",
+    "build:hub": "bun scripts/build-hub.ts",
+    "mcp": "bun src/mcp/main.ts",
+    "docs": "bun scripts/build.ts && bun scripts/build-docs.ts"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 465" role="img" aria-labelledby="t1 d1" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="12">
+  <title id="t1">Phase 1 wiring</title>
+  <desc id="d1">A 12 volt supply feeds a 2 amp fuse. After the fuse, 12 volts goes to the DRV8876 track driver and to a buck converter that makes 5 volts for the ESP32 and the servo board. ESP32 pins 25, 26 and 36 connect to the driver's EN, PH and CS pins, and 3.3 volts to its SLEEP pin. The driver's OUT1 and OUT2 go to the two track feed wires. ESP32 pins 21 and 22 are the I2C bus to the PCA9685 servo board, which drives the point servos.</desc>
+  <style>
+    .box { fill: var(--raised, #ffffff); stroke: var(--line-strong, #9aa3a0); stroke-width: 1.5; }
+    .t { fill: var(--ink, #1b221e); }
+    .m { fill: var(--ink-2, #4f5a55); }
+    .h { font-weight: 600; font-size: 13px; }
+    .w { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .v12 { stroke: #d2452c; } .v5 { stroke: #e0a12a; } .sig { stroke: #2a74c9; } .i2c { stroke: #2c9a5a; } .trk { stroke: var(--ink-2, #4f5a55); }
+    .dot { fill: var(--ink, #1b221e); }
+    .rail { stroke: var(--ink-2, #4f5a55); stroke-width: 3; }
+    .sl { stroke: #a0522d; stroke-width: 5; }
+  </style>
+  <!-- wires first, boxes on top -->
+  <path class="w v12" d="M200 40 H250 M320 40 H360 V170 M330 40 V105 H200"/>
+  <circle class="dot" cx="330" cy="40" r="3.5"/>
+  <path class="w v5" d="M150 140 V170 M200 128 H520 V318 H560"/>
+  <path class="w sig" d="M220 250 H330 M220 275 H330 M220 300 H330"/>
+  <path class="w v5" d="M220 325 H330" style="stroke:#8a4fa6"/>
+  <path class="w i2c" d="M220 350 H560 M220 370 H560"/>
+  <path class="w trk" d="M480 235 H580 M480 260 H580"/>
+  <path class="w sig" d="M615 380 V400"/>
+
+  <rect class="box" x="30" y="20" width="170" height="50" rx="6"/>
+  <text class="t h" x="42" y="41">12 V DC supply</text>
+  <text class="m" x="42" y="59">2 A or more, certified</text>
+  <text class="t" x="188" y="36" text-anchor="end">+</text>
+
+  <rect class="box" x="250" y="28" width="70" height="24" rx="12"/>
+  <text class="t" x="285" y="44" text-anchor="middle">2 A fuse</text>
+
+  <rect class="box" x="30" y="95" width="170" height="45" rx="6"/>
+  <text class="t h" x="42" y="114">Buck converter</text>
+  <text class="m" x="42" y="131">12 V in, 5 V out</text>
+
+  <rect class="box" x="30" y="170" width="190" height="215" rx="6"/>
+  <text class="t h" x="42" y="192">ESP32 DevKitC</text>
+  <text class="m" x="42" y="208">5V pin from the buck converter</text>
+  <g class="t" text-anchor="end">
+    <text x="212" y="254">GPIO 25</text><text x="212" y="279">GPIO 26</text><text x="212" y="304">GPIO 36 (VP)</text>
+    <text x="212" y="329">3.3V</text><text x="212" y="354">GPIO 21 (SDA)</text><text x="212" y="374">GPIO 22 (SCL)</text>
+  </g>
+
+  <rect class="box" x="330" y="170" width="150" height="170" rx="6"/>
+  <text class="t" x="352" y="188">VIN</text>
+  <text class="t h" x="420" y="190" text-anchor="middle">DRV8876</text>
+  <text class="m" x="420" y="206" text-anchor="middle">block driver 1</text>
+  <g class="t"><text x="338" y="254">EN</text><text x="338" y="279">PH</text><text x="338" y="304">CS</text><text x="338" y="329">SLEEP</text></g>
+  <g class="t" text-anchor="end"><text x="472" y="239">OUT1</text><text x="472" y="264">OUT2</text><text x="472" y="304">PMODE→GND</text></g>
+
+  <text class="t h" x="590" y="216">Track</text>
+  <g class="sl"><path d="M600 228 V267 M625 228 V267 M650 228 V267 M675 228 V267 M700 228 V267 M725 228 V267"/></g>
+  <path class="rail" d="M580 235 H745 M580 260 H745"/>
+  <text class="m" x="590" y="284">the two track feed wires</text>
+
+  <rect class="box" x="560" y="300" width="175" height="80" rx="6"/>
+  <text class="t" x="568" y="322">V+</text><text class="t" x="568" y="354">SDA</text><text class="t" x="568" y="374">SCL</text>
+  <text class="t h" x="610" y="322">PCA9685</text>
+  <text class="m" x="610" y="338">servo board, 0x40</text>
+  <text class="m" x="610" y="354">VCC to 3.3V</text>
+
+  <rect class="box" x="570" y="400" width="90" height="28" rx="4"/>
+  <text class="t" x="615" y="418" text-anchor="middle">servo</text>
+  <text class="m" x="668" y="418">to a point</text>
+
+  <text class="m" x="30" y="455">Join every GND together: supply −, DRV8876 GND, buck converter −, ESP32 GND and servo board GND.</text>
+  <g font-size="11" class="m" transform="translate(-208 25)">
+    <rect x="238" y="400" width="12" height="4" fill="#d2452c"/><text x="254" y="405">12 V</text>
+    <rect x="292" y="400" width="12" height="4" fill="#e0a12a"/><text x="308" y="405">5 V</text>
+    <rect x="340" y="400" width="12" height="4" fill="#8a4fa6"/><text x="356" y="405">3.3 V</text>
+    <rect x="398" y="400" width="12" height="4" fill="#2a74c9"/><text x="414" y="405">control</text>
+    <rect x="462" y="400" width="12" height="4" fill="#2c9a5a"/><text x="478" y="405">I2C</text>
+  </g>
+</svg>

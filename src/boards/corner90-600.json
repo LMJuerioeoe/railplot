@@ -1,0 +1,370 @@
+{
+ "format": 2,
+ "id": "corner90-600",
+ "name": "90° corner, 600 wide",
+ "family": "Corners and curves",
+ "size": "600 × 600 mm",
+ "blurb": "Square corner board with joining faces on two adjacent sides, to turn a run of boards through 90°.",
+ "length": 600,
+ "width": 600,
+ "depth": 100,
+ "sheet": 4,
+ "material": "4 mm birch plywood",
+ "weightKg": 2.76,
+ "pieces": 12,
+ "sheets": {
+  "count": 2,
+  "size": [
+   1300,
+   900
+  ]
+ },
+ "cutLengthM": 28.3,
+ "outline": [
+  {
+   "x": 0,
+   "y": 0
+  },
+  {
+   "x": 600,
+   "y": 0
+  },
+  {
+   "x": 600,
+   "y": 600
+  },
+  {
+   "x": 0,
+   "y": 600
+  }
+ ],
+ "faces": [
+  {
+   "a": {
+    "x": 600,
+    "y": 0
+   },
+   "b": {
+    "x": 0,
+    "y": 0
+   },
+   "width": 600
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 0
+   },
+   "b": {
+    "x": 0,
+    "y": 600
+   },
+   "width": 600
+  }
+ ],
+ "fixings": [
+  {
+   "p": {
+    "x": 100,
+    "y": 6
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 180,
+    "y": 6
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 500,
+    "y": 6
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 420,
+    "y": 6
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 500
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 420
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 100
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 180
+   },
+   "kind": "bolt",
+   "d": 8.5
+  }
+ ],
+ "members": [
+  {
+   "a": {
+    "x": 0,
+    "y": 6
+   },
+   "b": {
+    "x": 600,
+    "y": 6
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 6,
+    "y": 600
+   },
+   "b": {
+    "x": 6,
+    "y": 0
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 598,
+    "y": 0
+   },
+   "b": {
+    "x": 598,
+    "y": 600
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 600,
+    "y": 598
+   },
+   "b": {
+    "x": 0,
+    "y": 598
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 300,
+    "y": 12
+   },
+   "b": {
+    "x": 300,
+    "y": 600
+   },
+   "thickness": 4,
+   "kind": "cross"
+  },
+  {
+   "a": {
+    "x": 12,
+    "y": 300
+   },
+   "b": {
+    "x": 600,
+    "y": 300
+   },
+   "thickness": 4,
+   "kind": "spine"
+  }
+ ],
+ "openings": [
+  [
+   {
+    "x": 223,
+    "y": 332
+   },
+   {
+    "x": 268,
+    "y": 377
+   },
+   {
+    "x": 268,
+    "y": 521
+   },
+   {
+    "x": 223,
+    "y": 566
+   },
+   {
+    "x": 87,
+    "y": 566
+   },
+   {
+    "x": 42,
+    "y": 521
+   },
+   {
+    "x": 42,
+    "y": 377
+   },
+   {
+    "x": 87,
+    "y": 332
+   }
+  ],
+  [
+   {
+    "x": 42,
+    "y": 87
+   },
+   {
+    "x": 87,
+    "y": 42
+   },
+   {
+    "x": 223,
+    "y": 42
+   },
+   {
+    "x": 268,
+    "y": 87
+   },
+   {
+    "x": 268,
+    "y": 223
+   },
+   {
+    "x": 223,
+    "y": 268
+   },
+   {
+    "x": 87,
+    "y": 268
+   },
+   {
+    "x": 42,
+    "y": 223
+   }
+  ],
+  [
+   {
+    "x": 521,
+    "y": 332
+   },
+   {
+    "x": 566,
+    "y": 377
+   },
+   {
+    "x": 566,
+    "y": 521
+   },
+   {
+    "x": 521,
+    "y": 566
+   },
+   {
+    "x": 377,
+    "y": 566
+   },
+   {
+    "x": 332,
+    "y": 521
+   },
+   {
+    "x": 332,
+    "y": 377
+   },
+   {
+    "x": 377,
+    "y": 332
+   }
+  ],
+  [
+   {
+    "x": 332,
+    "y": 87
+   },
+   {
+    "x": 377,
+    "y": 42
+   },
+   {
+    "x": 521,
+    "y": 42
+   },
+   {
+    "x": 566,
+    "y": 87
+   },
+   {
+    "x": 566,
+    "y": 223
+   },
+   {
+    "x": 521,
+    "y": 268
+   },
+   {
+    "x": 377,
+    "y": 268
+   },
+   {
+    "x": 332,
+    "y": 223
+   }
+  ]
+ ],
+ "features": [],
+ "marks": [
+  [
+   20,
+   300,
+   300,
+   300
+  ],
+  [
+   300,
+   20,
+   300,
+   300
+  ]
+ ],
+ "hardware": "Per joint: 2 x M8 bolts + wing nuts, 2 x 10 mm dowels.",
+ "hardwarePerJoint": [
+  {
+   "item": "M8 bolt with wing nut and washers",
+   "count": 2
+  },
+  {
+   "item": "10 mm alignment dowel (or pattern-makers' dowel, 8 mm pin)",
+   "count": 2
+  }
+ ],
+ "source": "Laser-cut baseboard range from the OO/H0 layout project (make_baseboards.py), imported from data/baseboard-range.json."
+}

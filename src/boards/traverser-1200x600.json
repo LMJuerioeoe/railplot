@@ -1,0 +1,389 @@
+{
+ "format": 2,
+ "id": "traverser-1200x600",
+ "name": "1200 × 600 sliding traverser",
+ "family": "Fiddle yard",
+ "size": "1200 × 600 mm",
+ "blurb": "Deck slides across the board on two pairs of drawer slides. 5 roads at 50 mm, 295 mm of travel, indexed by a pin. Entry track on the board centreline at both ends.",
+ "length": 1200,
+ "width": 600,
+ "depth": 100,
+ "sheet": 4,
+ "material": "4 mm birch plywood",
+ "weightKg": 3.72,
+ "pieces": 20,
+ "sheets": {
+  "count": 2,
+  "size": [
+   1300,
+   900
+  ]
+ },
+ "cutLengthM": 43.8,
+ "outline": [
+  {
+   "x": 0,
+   "y": 0
+  },
+  {
+   "x": 1200,
+   "y": 0
+  },
+  {
+   "x": 1200,
+   "y": 600
+  },
+  {
+   "x": 0,
+   "y": 600
+  }
+ ],
+ "faces": [
+  {
+   "a": {
+    "x": 1200,
+    "y": 600
+   },
+   "b": {
+    "x": 1200,
+    "y": 0
+   },
+   "width": 600
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 0
+   },
+   "b": {
+    "x": 0,
+    "y": 600
+   },
+   "width": 600
+  }
+ ],
+ "fixings": [
+  {
+   "p": {
+    "x": 1194,
+    "y": 100
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 1194,
+    "y": 180
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 1194,
+    "y": 500
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 1194,
+    "y": 420
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 500
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 420
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 100
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 180
+   },
+   "kind": "bolt",
+   "d": 8.5
+  }
+ ],
+ "members": [
+  {
+   "a": {
+    "x": 1194,
+    "y": 0
+   },
+   "b": {
+    "x": 1194,
+    "y": 600
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 6,
+    "y": 600
+   },
+   "b": {
+    "x": 6,
+    "y": 0
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 2
+   },
+   "b": {
+    "x": 1200,
+    "y": 2
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 1200,
+    "y": 598
+   },
+   "b": {
+    "x": 0,
+    "y": 598
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 300,
+    "y": 0
+   },
+   "b": {
+    "x": 300,
+    "y": 600
+   },
+   "thickness": 4,
+   "kind": "spine"
+  },
+  {
+   "a": {
+    "x": 900,
+    "y": 0
+   },
+   "b": {
+    "x": 900,
+    "y": 600
+   },
+   "thickness": 4,
+   "kind": "spine"
+  },
+  {
+   "a": {
+    "x": 52,
+    "y": 0
+   },
+   "b": {
+    "x": 52,
+    "y": 600
+   },
+   "thickness": 4,
+   "kind": "spine"
+  }
+ ],
+ "openings": [
+  [
+   {
+    "x": 129,
+    "y": 34
+   },
+   {
+    "x": 223,
+    "y": 34
+   },
+   {
+    "x": 268,
+    "y": 79
+   },
+   {
+    "x": 268,
+    "y": 521
+   },
+   {
+    "x": 223,
+    "y": 566
+   },
+   {
+    "x": 129,
+    "y": 566
+   },
+   {
+    "x": 84,
+    "y": 521
+   },
+   {
+    "x": 84,
+    "y": 79
+   }
+  ],
+  [
+   {
+    "x": 332,
+    "y": 79
+   },
+   {
+    "x": 377,
+    "y": 34
+   },
+   {
+    "x": 823,
+    "y": 34
+   },
+   {
+    "x": 868,
+    "y": 79
+   },
+   {
+    "x": 868,
+    "y": 521
+   },
+   {
+    "x": 823,
+    "y": 566
+   },
+   {
+    "x": 377,
+    "y": 566
+   },
+   {
+    "x": 332,
+    "y": 521
+   }
+  ],
+  [
+   {
+    "x": 977,
+    "y": 34
+   },
+   {
+    "x": 1113,
+    "y": 34
+   },
+   {
+    "x": 1158,
+    "y": 79
+   },
+   {
+    "x": 1158,
+    "y": 521
+   },
+   {
+    "x": 1113,
+    "y": 566
+   },
+   {
+    "x": 977,
+    "y": 566
+   },
+   {
+    "x": 932,
+    "y": 521
+   },
+   {
+    "x": 932,
+    "y": 79
+   }
+  ]
+ ],
+ "features": [
+  {
+   "kind": "deck",
+   "label": "Sliding deck",
+   "outline": [
+    {
+     "x": 13.5,
+     "y": 5
+    },
+    {
+     "x": 1186.5,
+     "y": 5
+    },
+    {
+     "x": 1186.5,
+     "y": 300
+    },
+    {
+     "x": 13.5,
+     "y": 300
+    }
+   ]
+  }
+ ],
+ "marks": [
+  [
+   19.5,
+   52.5,
+   1180.5,
+   52.5
+  ],
+  [
+   19.5,
+   102.5,
+   1180.5,
+   102.5
+  ],
+  [
+   19.5,
+   152.5,
+   1180.5,
+   152.5
+  ],
+  [
+   19.5,
+   202.5,
+   1180.5,
+   202.5
+  ],
+  [
+   19.5,
+   252.5,
+   1180.5,
+   252.5
+  ]
+ ],
+ "hardware": "2 pairs of 45 mm ball-bearing drawer slides, 300 mm full extension (12.7 mm thick); 6 mm steel pin; joining hardware as standard modules.",
+ "hardwarePerJoint": [
+  {
+   "item": "M8 bolt with wing nut and washers",
+   "count": 2
+  },
+  {
+   "item": "10 mm alignment dowel (or pattern-makers' dowel, 8 mm pin)",
+   "count": 2
+  }
+ ],
+ "source": "Laser-cut baseboard range from the OO/H0 layout project (make_baseboards.py), imported from data/baseboard-range.json."
+}

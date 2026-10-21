@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - name: Type check
+        run: bunx tsc -p tsconfig.json && bunx tsc -p tsconfig.hub.json
+      - name: Unit tests
+        run: bun test tests
+      - name: Validate track libraries
+        run: bun scripts/validate-libraries.ts
+      - name: Build
+        run: bun run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: End-to-end tests
+        run: |
+          pip install playwright==1.48.0
+          python -m playwright install --with-deps chromium
+          python tests/e2e/test_flows.py
+          python tests/e2e/test_hub.py
+      - name: Docs site
+        run: bun scripts/build-docs.ts

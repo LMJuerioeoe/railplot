@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -14 760 264" role="img" aria-labelledby="t3 d3" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="12">
+  <title id="t3">How the parts fit together</title>
+  <desc id="d3">Phones and laptops run Railplot in a browser. They can talk straight to an ESP32 controller, or to a Railplot hub on a laptop or Raspberry Pi. WiThrottle and Engine Driver apps connect to the hub. The hub drives ESP32 controllers over Wi-Fi and DCC-EX command stations over USB or the network. The controllers drive the track, point servos, signal LEDs and read train sensors.</desc>
+  <style>
+    .box { fill: var(--raised, #ffffff); stroke: var(--line-strong, #9aa3a0); stroke-width: 1.5; }
+    .hub { fill: var(--accent-soft, #f6e7cf); stroke: var(--accent, #a8620c); stroke-width: 1.5; }
+    .t { fill: var(--ink, #1b221e); }
+    .m { fill: var(--ink-2, #4f5a55); }
+    .h { font-weight: 600; font-size: 13px; }
+    .w { fill: none; stroke: var(--ink-2, #4f5a55); stroke-width: 2; }
+    .d { stroke-dasharray: 5 4; }
+  </style>
+  <path class="w" d="M190 50 H250 V105 H300 M190 125 H300 M190 200 H250 V150 H300"/>
+  <path class="w" d="M480 110 H540 V60 H560 M480 140 H540 V200 H560"/>
+  <path class="w d" d="M105 25 V14 H650 V30"/>
+  <rect class="box" x="20" y="25" width="170" height="50" rx="6"/>
+  <text class="t h" x="32" y="46">Phone or tablet</text><text class="m" x="32" y="63">Railplot in the browser</text>
+  <rect class="box" x="20" y="100" width="170" height="50" rx="6"/>
+  <text class="t h" x="32" y="121">Laptop</text><text class="m" x="32" y="138">Railplot app or browser</text>
+  <rect class="box" x="20" y="175" width="170" height="50" rx="6"/>
+  <text class="t h" x="32" y="196">Throttle app</text><text class="m" x="32" y="213">Engine Driver, WiThrottle</text>
+  <rect class="hub" x="300" y="80" width="180" height="90" rx="8"/>
+  <text class="t h" x="314" y="104">Railplot hub</text>
+  <text class="m" x="314" y="122">on a laptop or Raspberry Pi</text>
+  <text class="m" x="314" y="140">runs the layout, automations,</text>
+  <text class="m" x="314" y="156">WiThrottle on port 12090</text>
+  <text class="m" x="200" y="42">Wi-Fi</text>
+  <rect class="box" x="560" y="30" width="180" height="60" rx="6"/>
+  <text class="t h" x="572" y="51">ESP32 controllers</text><text class="m" x="572" y="68">blocks, servos, LEDs,</text><text class="m" x="572" y="83">sensors (Wi-Fi)</text>
+  <rect class="box" x="560" y="170" width="180" height="60" rx="6"/>
+  <text class="t h" x="572" y="191">DCC-EX command station</text><text class="m" x="572" y="208">DC tracks A–H, turnouts,</text><text class="m" x="572" y="223">sensors (USB or network)</text>
+  <text class="m" x="378" y="8" text-anchor="middle" style="paint-order:stroke" stroke="var(--bg, #ffffff)" stroke-width="6">without a hub, one phone or laptop drives an ESP32 directly</text>
+</svg>

@@ -1,0 +1,288 @@
+{
+  "format": 1,
+  "id": "hornby-oo",
+  "name": "Hornby OO sectional track",
+  "producer": "Hornby",
+  "system": "Sectional",
+  "scale": "OO",
+  "gauge": 16.5,
+  "trackSpacing": 67,
+  "profile": {
+    "sleeperLength": 32,
+    "sleeperWidth": 2.6,
+    "sleeperSpacing": 8.5,
+    "railHeight": 2.5,
+    "roadbed": null
+  },
+  "sources": [
+    {
+      "title": "Hobbyco: Hornby and Peco track sizes",
+      "url": "https://www.hobbyco.com.au/blogs/blog/hornby-and-peco-track-sizes"
+    },
+    {
+      "title": "Hornby R8073 Right Hand Point",
+      "url": "https://uk.hornby.com/products/right-hand-point-r8073"
+    },
+    {
+      "title": "Hornby R610 short straight 38 mm",
+      "url": "https://www.ebay.de/itm/373422075460"
+    },
+    {
+      "title": "Hornby R8077 Left Hand Express Point (245 mm, R852, 11.25°)",
+      "url": "https://uk.hornby.com/products/left-hand-express-point-r8077"
+    },
+    {
+      "title": "Jacksons: R8076 Y point, legs R852 11.25°, pairs with R628",
+      "url": "https://www.jacksonsmodels.co.uk/hornby-track-for-model-railways-oo-gauge-r8076-y-point-track-852mm.ir"
+    },
+    {
+      "title": "Upstairs Downstairs: Hornby OO track list (R618, R8206, R8241 168 mm)",
+      "url": "https://www.trainshop.co.uk/225-hornby-track-oo"
+    },
+    {
+      "title": "R603 long straight, 670 mm (manufacturer description)",
+      "url": "https://railwaymodels.uk/product-hornby-r603-long-straight"
+    }
+  ],
+  "parts": [
+    {
+      "id": "R600",
+      "name": "Straight",
+      "type": "straight",
+      "length": 168
+    },
+    {
+      "id": "R601",
+      "name": "Double straight",
+      "type": "straight",
+      "length": 335
+    },
+    {
+      "id": "R610",
+      "name": "Short straight",
+      "type": "straight",
+      "length": 38
+    },
+    {
+      "id": "R603",
+      "name": "Long straight",
+      "type": "straight",
+      "length": 670
+    },
+    {
+      "id": "R618",
+      "name": "Double isolating straight",
+      "type": "straight",
+      "length": 168
+    },
+    {
+      "id": "R8206",
+      "name": "Power track (analogue)",
+      "type": "straight",
+      "length": 168
+    },
+    {
+      "id": "R8241",
+      "name": "Digital power track",
+      "type": "straight",
+      "length": 168
+    },
+    {
+      "id": "R604",
+      "name": "1st radius curve",
+      "type": "curve",
+      "radius": 371,
+      "angle": 22.5
+    },
+    {
+      "id": "R605",
+      "name": "1st radius double curve",
+      "type": "curve",
+      "radius": 371,
+      "angle": 45
+    },
+    {
+      "id": "R606",
+      "name": "2nd radius curve",
+      "type": "curve",
+      "radius": 438,
+      "angle": 22.5
+    },
+    {
+      "id": "R607",
+      "name": "2nd radius double curve",
+      "type": "curve",
+      "radius": 438,
+      "angle": 45
+    },
+    {
+      "id": "R643",
+      "name": "2nd radius half curve",
+      "type": "curve",
+      "radius": 438,
+      "angle": 11.25
+    },
+    {
+      "id": "R608",
+      "name": "3rd radius curve",
+      "type": "curve",
+      "radius": 505,
+      "angle": 22.5
+    },
+    {
+      "id": "R609",
+      "name": "3rd radius double curve",
+      "type": "curve",
+      "radius": 505,
+      "angle": 45
+    },
+    {
+      "id": "R8261",
+      "name": "4th radius curve",
+      "type": "curve",
+      "radius": 572,
+      "angle": 22.5
+    },
+    {
+      "id": "R8262",
+      "name": "4th radius double curve",
+      "type": "curve",
+      "radius": 572,
+      "angle": 45
+    },
+    {
+      "id": "R628",
+      "name": "Half curve for Y point (852 mm radius)",
+      "type": "curve",
+      "radius": 852,
+      "angle": 11.25
+    },
+    {
+      "id": "R8072",
+      "name": "Left-hand point",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 168
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 438,
+              "angle": 22.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R8073",
+      "name": "Right-hand point",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 168
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 438,
+              "angle": -22.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R8076",
+      "name": "Y point",
+      "type": "turnout",
+      "hand": "both",
+      "routes": [
+        {
+          "segs": [
+            {
+              "radius": 852,
+              "angle": 11.25
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 852,
+              "angle": -11.25
+            }
+          ]
+        }
+      ],
+      "note": "Add an R628 half curve to each leg to get parallel tracks."
+    },
+    {
+      "id": "R8077",
+      "name": "Left-hand express point",
+      "type": "turnout",
+      "hand": "left",
+      "approximate": true,
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 245
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 852,
+              "angle": 11.25
+            },
+            {
+              "straight": 78.8
+            }
+          ]
+        }
+      ],
+      "note": "Hornby gives 245 mm long, 852 mm radius and an 11.25° arc but not how they combine. Railplot assumes the curve starts at the toe and finishes with a short straight. Check against a real point."
+    },
+    {
+      "id": "R8078",
+      "name": "Right-hand express point",
+      "type": "turnout",
+      "hand": "right",
+      "approximate": true,
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 245
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 852,
+              "angle": -11.25
+            },
+            {
+              "straight": 78.8
+            }
+          ]
+        }
+      ],
+      "note": "Hornby gives 245 mm long, 852 mm radius and an 11.25° arc but not how they combine. Railplot assumes the curve starts at the toe and finishes with a short straight. Check against a real point."
+    }
+  ]
+}

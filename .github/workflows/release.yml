@@ -1,0 +1,73 @@
+name: Release
+# Push a tag like v0.1.0 to build installers and attach them to a draft GitHub release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+          - platform: ubuntu-22.04
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: bun install
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: bunx tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: Railplot ${{ github.ref_name }}
+          releaseBody: See the README for what's new. Windows users want the -setup.exe; the .html file runs in any browser without installing. The railplot-claude-*.mcpb files add the Railplot connector to the Claude desktop app.
+          releaseDraft: true
+      - name: Attach offline HTML
+        if: matrix.platform == 'ubuntu-22.04' && startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp dist/index.html railplot-offline.html
+          gh release upload "${{ github.ref_name }}" railplot-offline.html --clobber
+
+  hub:
+    # The Railplot hub as single-file programs for Windows, Linux, Raspberry Pi (64-bit) and Mac.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun scripts/build-hub.ts --all
+      - name: Check the Claude connector bundles
+        continue-on-error: true
+        run: |
+          for f in dist/hub/*.mcpb; do
+            d=$(mktemp -d); unzip -q "$f" manifest.json -d "$d"
+            npx -y @anthropic-ai/mcpb validate "$d/manifest.json"
+          done
+      - name: Attach the hub programs
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # wait for the draft release made by the build job
+          for i in $(seq 1 30); do gh release view "${{ github.ref_name }}" >/dev/null 2>&1 && break; sleep 20; done
+          gh release upload "${{ github.ref_name }}" dist/hub/* --clobber

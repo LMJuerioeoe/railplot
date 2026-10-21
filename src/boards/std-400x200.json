@@ -1,0 +1,338 @@
+{
+ "format": 2,
+ "id": "std-400x200",
+ "name": "400 × 200 standard module",
+ "family": "Standard modules",
+ "size": "400 × 200 mm",
+ "blurb": "Closed torsion box, 100 mm tall. Joining faces on the short ends.",
+ "length": 400,
+ "width": 200,
+ "depth": 100,
+ "sheet": 4,
+ "material": "4 mm birch plywood",
+ "weightKg": 0.86,
+ "pieces": 11,
+ "sheets": {
+  "count": 1,
+  "size": [
+   1300,
+   900
+  ]
+ },
+ "cutLengthM": 11.8,
+ "outline": [
+  {
+   "x": 0,
+   "y": 0
+  },
+  {
+   "x": 400,
+   "y": 0
+  },
+  {
+   "x": 400,
+   "y": 200
+  },
+  {
+   "x": 0,
+   "y": 200
+  }
+ ],
+ "faces": [
+  {
+   "a": {
+    "x": 400,
+    "y": 200
+   },
+   "b": {
+    "x": 400,
+    "y": 0
+   },
+   "width": 200
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 0
+   },
+   "b": {
+    "x": 0,
+    "y": 200
+   },
+   "width": 200
+  }
+ ],
+ "fixings": [
+  {
+   "p": {
+    "x": 394,
+    "y": 33.3
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 394,
+    "y": 60
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 394,
+    "y": 166.7
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 394,
+    "y": 140
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 166.7
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 140
+   },
+   "kind": "bolt",
+   "d": 8.5
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 33.3
+   },
+   "kind": "dowel",
+   "d": 10
+  },
+  {
+   "p": {
+    "x": 6,
+    "y": 60
+   },
+   "kind": "bolt",
+   "d": 8.5
+  }
+ ],
+ "members": [
+  {
+   "a": {
+    "x": 394,
+    "y": 0
+   },
+   "b": {
+    "x": 394,
+    "y": 200
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 6,
+    "y": 200
+   },
+   "b": {
+    "x": 6,
+    "y": 0
+   },
+   "thickness": 12,
+   "kind": "end"
+  },
+  {
+   "a": {
+    "x": 0,
+    "y": 2
+   },
+   "b": {
+    "x": 400,
+    "y": 2
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 400,
+    "y": 198
+   },
+   "b": {
+    "x": 0,
+    "y": 198
+   },
+   "thickness": 4,
+   "kind": "side"
+  },
+  {
+   "a": {
+    "x": 200,
+    "y": 0
+   },
+   "b": {
+    "x": 200,
+    "y": 200
+   },
+   "thickness": 4,
+   "kind": "cross"
+  }
+ ],
+ "openings": [
+  [
+   {
+    "x": 84,
+    "y": 34
+   },
+   {
+    "x": 126,
+    "y": 34
+   },
+   {
+    "x": 168,
+    "y": 76
+   },
+   {
+    "x": 168,
+    "y": 124
+   },
+   {
+    "x": 126,
+    "y": 166
+   },
+   {
+    "x": 84,
+    "y": 166
+   },
+   {
+    "x": 42,
+    "y": 124
+   },
+   {
+    "x": 42,
+    "y": 76
+   }
+  ],
+  [
+   {
+    "x": 274,
+    "y": 34
+   },
+   {
+    "x": 316,
+    "y": 34
+   },
+   {
+    "x": 358,
+    "y": 76
+   },
+   {
+    "x": 358,
+    "y": 124
+   },
+   {
+    "x": 316,
+    "y": 166
+   },
+   {
+    "x": 274,
+    "y": 166
+   },
+   {
+    "x": 232,
+    "y": 124
+   },
+   {
+    "x": 232,
+    "y": 76
+   }
+  ]
+ ],
+ "features": [],
+ "marks": [
+  [
+   12,
+   100,
+   388,
+   100
+  ],
+  [
+   200,
+   12,
+   200,
+   188
+  ],
+  [
+   100,
+   6,
+   100,
+   18
+  ],
+  [
+   100,
+   194,
+   100,
+   182
+  ],
+  [
+   200,
+   6,
+   200,
+   18
+  ],
+  [
+   200,
+   194,
+   200,
+   182
+  ],
+  [
+   300,
+   6,
+   300,
+   18
+  ],
+  [
+   300,
+   194,
+   300,
+   182
+  ],
+  [
+   6,
+   100,
+   18,
+   100
+  ],
+  [
+   394,
+   100,
+   382,
+   100
+  ]
+ ],
+ "hardware": "Per joint: 2 x M8 bolts, wing nuts and washers; 2 x 10 mm dowels or pattern-makers' dowels (8 mm pin). PVA glue.",
+ "hardwarePerJoint": [
+  {
+   "item": "M8 bolt with wing nut and washers",
+   "count": 2
+  },
+  {
+   "item": "10 mm alignment dowel (or pattern-makers' dowel, 8 mm pin)",
+   "count": 2
+  }
+ ],
+ "source": "Laser-cut baseboard range from the OO/H0 layout project (make_baseboards.py), imported from data/baseboard-range.json."
+}
