@@ -152,6 +152,9 @@ with sync_playwright() as p:
     n = js(pg, f"railplot.p.items.filter(i => i.part === '{key}').length")
     check("a price is saved with the layout", js(pg, f"railplot.p.prices.each['{key}']") == 2.4)
     check("the total follows", f"{2.4 * n:.2f}" in pg.locator("#pl-total").inner_text(), pg.locator("#pl-total").inner_text())
+    check("prices start in the browser's currency ($ in the US)", pg.locator("#pl-currency").input_value() == "$" and "$" in pg.locator("#pl-total").inner_text())
+    pg.select_option("#pl-currency", "£"); pg.wait_for_timeout(100)
+    check("and can be pounds", js(pg, "railplot.p.prices.currency") == "£" and "£" in pg.locator("#pl-total").inner_text())
     shot(pg, "06-parts")
     pg.click("text=Done")
 

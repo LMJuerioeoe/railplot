@@ -55,6 +55,25 @@ async function saveBlob(...args: Parameters<typeof rawSaveBlob>) {
 const AUTOSAVE_KEY = "railplot.autosave.v1";
 const PREFS_KEY = "railplot.prefs.v1";
 const PRICES_KEY = "railplot.prices.v1";
+const CURRENCY_KEY = "railplot.currency.v1";
+
+const CURRENCIES = [
+  { symbol: "£", name: "pound" }, { symbol: "$", name: "dollar" }, { symbol: "€", name: "euro" },
+  { symbol: "CHF", name: "Swiss franc" }, { symbol: "kr", name: "krona / krone" }, { symbol: "zł", name: "złoty" },
+];
+
+/** The currency last chosen on this computer, or the one for the browser's region: £ in the UK, $ in the US and so on. */
+function defaultCurrency(): string {
+  const saved = store.get(CURRENCY_KEY);
+  if (saved && CURRENCIES.some((c) => c.symbol === saved)) return saved;
+  const region = (typeof navigator !== "undefined" ? navigator.language : "").split("-")[1]?.toUpperCase() ?? "";
+  if (region === "GB") return "£";
+  if (["US", "CA", "AU", "NZ"].includes(region)) return "$";
+  if (region === "CH") return "CHF";
+  if (["SE", "NO", "DK"].includes(region)) return "kr";
+  if (region === "PL") return "zł";
+  return "€";
+}
 const VERSION = "0.11.0";
 
 export class App {
@@ -1308,8 +1327,11 @@ export class App {
     // prices typed on other layouts on this computer, offered as a starting point
     let remembered: Record<string, number> = {};
     try { remembered = JSON.parse(store.get(PRICES_KEY) ?? "{}"); } catch { /* none yet */ }
-    const cur = h("select", { id: "pl-currency", "aria-label": "Currency", onchange: () => { this.p.prices = { currency: cur.value, each: this.p.prices?.each ?? {} }; this.commit(); fill(); } },
-      ...["€", "£", "$", "CHF", "kr", "zł"].map((c) => h("option", { value: c, selected: c === (this.p.prices?.currency ?? "€") }, c))) as HTMLSelectElement;
+    const cur = h("select", { id: "pl-currency", "aria-label": "Currency", onchange: () => {
+      this.p.prices = { currency: cur.value, each: this.p.prices?.each ?? {} };
+      store.set(CURRENCY_KEY, cur.value);
+      this.commit(); fill();
+    } }, ...CURRENCIES.map((c) => h("option", { value: c.symbol, selected: c.symbol === (this.p.prices?.currency ?? defaultCurrency()) }, `${c.symbol} ${c.name}`))) as HTMLSelectElement;
     const money = (n: number) => `${this.p.prices?.currency ?? cur.value} ${n.toFixed(2)}`;
     const setPrice = (key: string, v: string) => {
       const each = { ...(this.p.prices?.each ?? {}) };
