@@ -239,6 +239,17 @@ export class ControlUI {
       });
     }
     ctx.globalAlpha = 1;
+    // blocks with something in them and no train booked: dashed red
+    if (e.strays.size) {
+      ctx.strokeStyle = "#e0413a"; ctx.lineWidth = Math.max(10, 6 * v.s); ctx.setLineDash([8, 6]); ctx.globalAlpha = 0.85;
+      for (const it of p.items) {
+        if (!e.strays.has(blockOf.get(it.id) ?? "")) continue;
+        ctx.beginPath();
+        for (const r of geom(it).routes) for (const pr of r.prims) strokePrim(ctx, v, pr);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
     // joints trains must never cross (DCC-EX next to another system)
     for (const bnd of e.topo.boundaries) {
       if (!bnd.isolated) continue;
@@ -750,6 +761,26 @@ export class ControlUI {
         h("button", { class: "btn btn-sm", type: "button", title: "Pretend a train passed", onclick: () => this.doAndRender({ c: "sensor", id: s.id }, "The train moved on.") }, "Test"),
         del("Delete sensor", () => { cfg.sensors = cfg.sensors.filter((x) => x !== s); }))),
       cfg.blocks.length > 1 ? h("div", { class: "btn-row" }, h("button", { class: "btn btn-sm", type: "button", onclick: () => { const n = addSensorsAtBoundaries(p, cfg); this.commitSetup(); this.render(); toast(n ? `${n} sensor${n === 1 ? "" : "s"} added.` : "Every block joint already has a sensor."); } }, "Add sensors at block joints")) : h("p", { class: "muted small" }, "Sensors need two or more blocks.")));
+
+    // detection by current
+    const det = cfg.detection ?? { current: false, threshold: 3 };
+    const sim = [...this.links.values()].find((l) => l instanceof SimLink) as SimLink | undefined;
+    const strayPick = h("select", { id: "det-stray-block", "aria-label": "Block" }, ...cfg.blocks.map((b) => h("option", { value: b.id }, b.name))) as HTMLSelectElement;
+    el.append(sec("Detecting trains by current",
+      h("label", { class: "check" }, h("input", { id: "det-current", type: "checkbox", checked: det.current, onchange: (ev: Event) => {
+        cfg.detection = { ...det, current: (ev.target as HTMLInputElement).checked };
+        this.commitSetup(); this.engine.updateDetection("", [], undefined); this.render();
+      } }), "Detect trains by the current they draw"),
+      h("p", { class: "muted small" }, "Each DRV8876 driver measures its block's current. Under power a moving loco shows up by itself; in blocks with no power, the controller (firmware 0.4 or later) sends a pulse too short to move anything and measures that. Locos always show. For wagons and coaches, fit one resistor wheelset to each: a 2.2 kΩ surface-mount resistor across the axle draws about 5 mA. Not with DRV8871 drivers, which can't measure current."),
+      h("div", { class: "setup-row" }, h("span", { class: "small grow" }, "Occupied from (mA)"),
+        num("det-threshold", det.threshold, (v) => { cfg.detection = { ...det, threshold: Math.max(1, v ?? 3) }; }, { min: 1, max: 200, step: 1, "aria-label": "Threshold in mA" })),
+      det.current && this.engine.strays.size ? h("p", { class: "warn-note" }, `Something is in ${[...this.engine.strays].map((b) => this.engine.blockName(b)).join(", ")} with no train booked there.`) : null,
+      sim && cfg.blocks.length ? h("div", { class: "setup-row" }, h("span", { class: "small grow" }, "Simulator: leave a wagon in"), strayPick,
+        h("button", { class: "btn btn-sm", type: "button", id: "det-stray", onclick: () => {
+          const b = strayPick.value;
+          sim.strays.has(b) ? sim.strays.delete(b) : sim.strays.add(b);
+          toast(sim.strays.has(b) ? `A wagon is left in ${this.engine.blockName(b)}.` : `The wagon in ${this.engine.blockName(b)} is gone.`);
+        } }, "Leave / take away")) : null));
 
     // signals
     el.append(sec("Signals",

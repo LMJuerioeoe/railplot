@@ -235,3 +235,70 @@ describe("demo", () => {
     } finally { (performance as any).now = realNow; }
   });
 });
+
+describe("detecting trains by current", () => {
+  function setup() {
+    const s = threeBlocks();
+    s.cfg.detection = { current: true, threshold: 3 };
+    s.A.channel = 0; s.B.channel = 1; s.C.channel = 2;
+    const c = s.cfg.controllers[0].id;
+    for (const b of [s.A, s.B, s.C]) b.controller = c;
+    const t = addTrain(s.cfg, s.A.id, "Goods");
+    const e = new ControlEngine(s.p, s.cfg);
+    // idle currents per channel, three readings to be believed
+    const read = (idle: number[], mA: number[] = []) => { for (let i = 0; i < 3; i++) e.updateDetection(c, mA, idle); };
+    return { ...s, t, e, read };
+  }
+
+  test("something in a block with no train booked stops trains going in, until it clears", () => {
+    const { e, read, t, B } = setup();
+    e.run(t.id).target = 0.5; e.assign();
+    expect(e.claimedBy.get(B.id)).toBe(t.id);
+    read([30, 0, 0]);
+    expect(e.strays.size).toBe(0);           // the train's own block, and B is booked for it
+    e.run(t.id).target = 0; e.assign();      // standing: B is no longer booked
+    read([30, 6, 0]);
+    expect([...e.strays]).toEqual([B.id]);
+    expect(e.events.some((x) => x.includes("Something is in B"))).toBe(true);
+    e.run(t.id).target = 0.5; e.assign();
+    expect(e.claimedBy.get(B.id)).toBeUndefined();
+    read([30, 0, 0]);
+    expect(e.strays.size).toBe(0);
+    expect(e.claimedBy.get(B.id)).toBe(t.id);
+  });
+
+  test("one reading isn't enough, and below the threshold is nothing", () => {
+    const { e, t, cfg } = setup();
+    e.run(t.id).target = 0; e.assign();
+    e.updateDetection(cfg.controllers[0].id, [], [30, 50, 0]);
+    expect(e.detected.size).toBe(0);
+    for (let i = 0; i < 3; i++) e.updateDetection(cfg.controllers[0].id, [], [30, 2, 0]);
+    expect([...e.detected]).toHaveLength(1);
+  });
+
+  test("a train whose sensor missed it moves on when its next block lights up and its own goes quiet", () => {
+    const { e, read, t, A, B } = setup();
+    read([30, 0, 0]);
+    e.run(t.id).target = 0.5; e.step(0.1); e.assign();
+    read([0, 0, 0], [0, 150, 0]);
+    expect(t.block).toBe(B.id);
+    expect(e.events.some((x) => x.includes("no sensor saw it"))).toBe(true);
+    // the block it left isn't called a stray while its tail may still be there
+    read([20, 0, 0], [0, 150, 0]);
+    expect(e.strays.has(A.id)).toBe(false);
+  });
+
+  test("the simulator draws current where its trains are", async () => {
+    const { p, cfg, A, B } = setup();
+    const e = new ControlEngine(p, cfg);
+    const link = new SimLink(cfg.controllers[0], () => e);
+    let now = 0; link.clock = () => now;
+    const st = await link.exchange(e.frames().get(cfg.controllers[0].id)!, false);
+    expect(st!.idle![A.channel!]).toBeGreaterThan(cfg.detection!.threshold);
+    expect(st!.idle![B.channel!]).toBe(0);
+    link.strays.add(B.id);
+    now += 100;
+    const st2 = await link.exchange(e.frames().get(cfg.controllers[0].id)!, false);
+    expect(st2!.idle![B.channel!]).toBeGreaterThan(cfg.detection!.threshold);
+  });
+});

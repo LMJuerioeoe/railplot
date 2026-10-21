@@ -343,6 +343,16 @@ with sync_playwright() as p:
     pg.click("#wiring-diagram"); pg.wait_for_timeout(150)
     check("the wiring diagram opens", pg.locator(".wiring-svg svg").count() == 1)
     pg.click(".dialog button:has-text('Done')")
+    pg.check("#det-current"); pg.wait_for_timeout(100)
+    # a block with no train in it or booked for one (a train that just left it may take 10 s to clear)
+    empty = js(pg, "(() => { const e = railplot.ctl.engine; return railplot.p.control.blocks.map(b => b.id).find(b => !e.trainIn(b) && !e.claimedBy.get(b)); })()")
+    pg.select_option("#det-stray-block", empty); pg.click("#det-stray")
+    try: pg.wait_for_function(f"railplot.ctl.engine.strays.has('{empty}')", timeout=15000); found = True
+    except Exception: found = False
+    check("current detection finds a wagon left where no train is booked", found, js(pg, "[...railplot.ctl.engine.detected]"))
+    pg.click("#det-stray"); pg.wait_for_timeout(1500)
+    check("and lets go when it's taken away", js(pg, "railplot.ctl.engine.strays.size") == 0)
+    pg.uncheck("#det-current"); pg.wait_for_timeout(100)
     shot(pg, "09-control")
 
     # F18 routes and automations

@@ -11,6 +11,8 @@ export interface LinkStatus {
   message?: string;
   inputs: (n: number) => boolean;
   mA: number[];
+  /** mA each driver drew during the detection pulse into its unpowered block (ESP32 firmware 0.4 and later). */
+  idle?: number[];
 }
 
 export interface Link {
@@ -112,6 +114,7 @@ export class Esp32Link implements Link {
         message: j.accepted ? undefined : "Another phone or computer is driving.",
         inputs: (n) => ((words[n >> 4] ?? 0) >> (n & 15) & 1) === 1,
         mA: Array.isArray(j.mA) ? j.mA : [],
+        idle: Array.isArray(j.dmA) ? j.dmA : undefined,
       };
     } catch (e) {
       const blocked = typeof location !== "undefined" && location.protocol === "https:" && baseUrl(this.controller).startsWith("http:");
@@ -139,6 +142,8 @@ export class SimLink implements Link {
   trains = new Map<string, SimTrain>();
   private latched = new Set<number>();
   private last = 0;
+  /** Blocks with a simulated wagon left in them, for trying current detection. */
+  strays = new Set<string>();
   /** Full speed in mm per second at full power. */
   fullSpeed = 450;
   /** The clock, in ms (tests replace it). */
@@ -190,7 +195,16 @@ export class SimLink implements Link {
     }
     const inputs = new Set(this.latched);
     this.latched.clear();
-    this.status = { online: true, accepted: true, fw: "simulator", inputs: (n) => inputs.has(n), mA: [] };
+    // currents: a simulated loco draws 150 mA under power and 25 mA in a detection pulse; its train's
+    // tail stays in the block it came from for the first tenth of the next one
+    const mA: number[] = [], idle: number[] = [];
+    for (const b of e.cfg.blocks) {
+      if (b.controller !== this.controller.id || b.channel === undefined) continue;
+      const here = [...this.trains.values()].some((s) => s.block === b.id || (s.prev === b.id && s.progress < 0.1));
+      mA[b.channel] = here && (duty.get(b.id) ?? 0) !== 0 ? 150 : 0;
+      idle[b.channel] = here || this.strays.has(b.id) ? 25 : 0;
+    }
+    this.status = { online: true, accepted: true, fw: "simulator", inputs: (n) => inputs.has(n), mA, idle };
     return this.status;
   }
 

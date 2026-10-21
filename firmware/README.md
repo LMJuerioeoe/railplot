@@ -29,10 +29,10 @@ Everything is a plain GET or form POST, with `Access-Control-Allow-Origin: *`.
 A frame reply looks like this:
 
 ```json
-{ "fw": "railplot-controller 0.3.0", "name": "railplot", "driver": "k3j9x2", "accepted": true, "stopped": false,
-  "in": [0, 0, 0, 0, 0, 0, 0, 0], "mA": [240, 0, 0, 0, 0, 0], "boards": { "servo": 1, "led": 0, "sensor": 1 } }
+{ "fw": "railplot-controller 0.4.0", "name": "railplot", "driver": "k3j9x2", "accepted": true, "stopped": false,
+  "in": [0, 0, 0, 0, 0, 0, 0, 0], "mA": [240, 0, 0, 0, 0, 0], "dmA": [0, 31, 0, 6, 0, 0], "boards": { "servo": 1, "led": 0, "sensor": 1 } }
 ```
 
-`in` holds 16 sensor bits per MCP23017 board. A sensor that saw a train any time since the last frame reads 1. `mA` is the current through each block driver.
+`in` holds 16 sensor bits per MCP23017 board. A sensor that saw a train any time since the last frame reads 1. `mA` is the current through each block driver. `dmA` (DRV8876 drivers, firmware 0.4 and later) is the current each block with no power drew during its last detection pulse: a full-voltage pulse of `DETECT_PULSE_US` (600 µs) every `DETECT_PERIOD_MS` (100 ms), too short to move a loco. A standing loco draws tens of mA in it; a coach with a 2.2 kΩ resistor wheelset about 5 mA. Set `DETECT_PERIOD_MS` to 0 to turn the pulses off; some open-frame motors may tick quietly with them on.
 
 If no frame arrives for `WATCHDOG_MS` (1.5 s), all blocks are switched off.

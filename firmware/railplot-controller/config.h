@@ -31,5 +31,12 @@
 // Infrared sensor modules pull their output low when they see a train.
 #define SENSOR_ACTIVE_LOW 1
 
+// Detecting trains by current in blocks with no power: every DETECT_PERIOD_MS each idle block gets a
+// full-voltage pulse of DETECT_PULSE_US microseconds (too short to move a loco) while its current is
+// measured. Railplot reads it when "Detect trains by the current they draw" is on. 0 turns the pulses off.
+// DRV8876 drivers only: DRV8871 modules can't measure current.
+#define DETECT_PERIOD_MS 100
+#define DETECT_PULSE_US  600
+
 // Servo speed: microseconds of travel per 20 ms step. 6 gives a slow, prototypical throw.
 #define SERVO_STEP_US 6

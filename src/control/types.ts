@@ -116,6 +116,11 @@ export interface ControlConfig {
   trains: TrainCfg[];
   routes?: RouteCfg[];
   automations?: AutomationCfg[];
+  /**
+   * Detecting trains by the current they draw, from the DRV8876 drivers: a block drawing at least
+   * `threshold` mA is occupied. Backs up the infrared sensors.
+   */
+  detection?: { current: boolean; threshold: number };
   /** Through a Railplot hub, let Claude set routes, points, signals and lights, drive trains and run automations (never track power). */
   claude?: boolean;
   nextId: number;

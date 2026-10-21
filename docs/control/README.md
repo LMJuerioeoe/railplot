@@ -137,6 +137,17 @@ Once the track is split into blocks, **Set up** shows the wiring on the plan:
 
 **Wiring diagram** draws each ESP32 controller with its power, its block drivers and the pins they use, the blocks they feed, and the sensor and servo boards on the I2C bus. Save it as SVG to print. The **Parts list** adds what the wiring needs: joiner packs, feed pairs, frog feeds, about how much bus wire, and the boards, drivers, sensors and servos.
 
+### Detecting trains by current
+
+The infrared sensors see a train cross a block joint. As a second check, turn on **Detect trains by the current they draw** in Set up (DRV8876 drivers and firmware 0.4 or later). Each driver measures its block's current. In a powered block a moving loco shows by itself. Into blocks with no power, the controller sends a full-voltage pulse of 0.6 ms ten times a second, too short to move anything, and measures what flows.
+
+- **Locos always show.** For wagons and coaches, fit a resistor wheelset to one axle of each: a 2.2 kΩ surface-mount resistor (0805 size) glued across the insulated wheel and the axle and painted with conductive paint, or ready-made resistor wheelsets. It draws about 5 mA in a pulse. The default threshold, 3 mA, sees it.
+- **Something where no train is booked** (a wagon left behind, a train put down by hand): Railplot warns, draws the block in dashed red, and won't send a train into it until it reads clear or you place a train there.
+- **A missed sensor:** when a train's block goes quiet and the one block it was heading into lights up, Railplot moves the train on anyway.
+- **The tail of a train** keeps a block lit for a moment after the train moves on. Railplot waits 10 seconds before calling a block a train has just left occupied.
+
+The simulator draws current too, and **Leave a wagon in** lets you try it without a layout.
+
 ### Budget block drivers
 
 DRV8871 modules cost a fraction of the DRV8876 carrier and are fine for OO and H0. Set `DRIVER_TYPE` to `DRIVER_DRV8871` in `config.h`, then wire each module's **IN1** where the table says EN, and **IN2** where it says PH. Leave CS unconnected.

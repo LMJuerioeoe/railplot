@@ -17,7 +17,7 @@
 #include <LittleFS.h>
 #include "config.h"
 
-static const char* FW = "railplot-controller 0.3.0";
+static const char* FW = "railplot-controller 0.4.0";
 
 struct BlockPins { uint8_t en, ph, cs; };
 // EN takes the PWM, PH sets the direction, CS is the driver's current output (ADC1 pins only, so Wi-Fi can run).
@@ -30,6 +30,7 @@ WebServer server(80);
 
 int16_t duty[NBLOCKS];                   // -1023..1023
 float mA[NBLOCKS];
+float idleMA[NBLOCKS];                    // current during the last detection pulse, blocks with no power
 uint32_t lastFrameMs = 0;
 bool stopped = true;
 String driver;
@@ -197,6 +198,10 @@ String statusJson(bool accepted, bool clearInputs) {
   for (int b = 0; b < 8; b++) { if (b) j += ','; j += inputLatch[b]; if (clearInputs) inputLatch[b] = 0; }
   j += "],\"mA\":[";
   for (int i = 0; i < NBLOCKS; i++) { if (i) j += ','; j += (int)mA[i]; }
+#if DRIVER_TYPE != DRIVER_DRV8871 && DETECT_PERIOD_MS > 0
+  j += "],\"dmA\":[";
+  for (int i = 0; i < NBLOCKS; i++) { if (i) j += ','; j += (int)idleMA[i]; }
+#endif
   j += "],\"boards\":{\"servo\":"; int n = 0; for (int b = 0; b < 4; b++) n += servoBoard[b]; j += n;
   j += ",\"led\":"; n = 0; for (int b = 0; b < 4; b++) n += ledBoard[b]; j += n;
   j += ",\"sensor\":"; n = 0; for (int b = 0; b < 8; b++) n += sensorBoard[b]; j += n;
@@ -332,6 +337,23 @@ void loop() {
     }
 #endif
   }
+#if DRIVER_TYPE != DRIVER_DRV8871 && DETECT_PERIOD_MS > 0
+  // detection pulses: one idle block at a time, so no block is pulsed more often than the period
+  static uint32_t lastDetect = 0;
+  static int detectNext = 0;
+  if (!stopped && now - lastDetect >= DETECT_PERIOD_MS / NBLOCKS) {
+    lastDetect = now;
+    int i = detectNext; detectNext = (detectNext + 1) % NBLOCKS;
+    if (duty[i] == 0) {
+      pwmWrite(i, (1 << PWM_BITS) - 1);
+      delayMicroseconds(DETECT_PULSE_US);
+      float v = 0;
+      for (int k = 0; k < 4; k++) v += analogReadMilliVolts(BLOCKS[i].cs);
+      pwmWrite(i, 0);
+      idleMA[i] = idleMA[i] * 0.5f + (v / 4 / 2.49f) * 0.5f;
+    } else idleMA[i] = 0;
+  }
+#endif
   // safety: no frames, no power
   if (!stopped && now - lastFrameMs > WATCHDOG_MS) { allStop(); Serial.println("No commands: trains stopped"); }
   digitalWrite(LED_PIN, stopped ? ((now / 500) & 1) : HIGH);

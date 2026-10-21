@@ -78,6 +78,7 @@ export class ControlRuntime {
         if (st.accepted) {
           e.updateSensors(c.id, st.inputs);
           e.updateCurrents(c.id, st.mA);
+          e.updateDetection(c.id, st.mA, st.idle);
         }
       }).catch(() => { /* a link reports its own errors in its status */ });
     }
