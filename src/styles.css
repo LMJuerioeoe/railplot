@@ -392,3 +392,22 @@ table.keys td:first-child { width: 1%; white-space: nowrap; }
 .fit-row { display: block; width: 100%; text-align: left; font: inherit; font-size: 12px; line-height: 1.4; padding: 6px 8px; border: 0; border-radius: var(--r); color: var(--ink); cursor: pointer; }
 .fit-warn { background: var(--warn-soft); }
 .fit-info { background: var(--info-soft, rgba(127,127,127,.12)); }
+
+/* Shunting sessions */
+.shunt { display: grid; gap: 10px; }
+.shunt textarea { width: 100%; font: inherit; padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--raised); color: var(--ink); }
+.shunt-print h3 { margin: 4px 0; }
+.shunt-siding { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.shunt-road { min-width: 12em; font-size: 12px; color: var(--ink-2); }
+.wagon-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.wagon { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 3px; border-radius: 999px; border: 1px solid var(--line); background: var(--raised); font-size: 13px; }
+.wagon-no { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--wagon); color: #fff; font: 600 11px var(--font-num, monospace); }
+.shunt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding-left: 1.4em; margin: 4px 0; }
+.shunt-cards li { padding: 8px; border: 1px solid var(--line-strong); border-radius: var(--r); }
+.shunt-clock { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+@media print {
+  body.printing-shunt > *:not(.scrim) { display: none !important; }
+  body.printing-shunt .scrim { position: static; background: none; }
+  body.printing-shunt .dialog { box-shadow: none; border: 0; max-height: none; width: auto; }
+  body.printing-shunt .dialog-head, body.printing-shunt .dialog-foot, body.printing-shunt .shunt > :not(.shunt-print) { display: none !important; }
+}

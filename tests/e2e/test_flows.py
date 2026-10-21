@@ -307,6 +307,18 @@ with sync_playwright() as p:
 
     check("there's no Claude chat in the app", pg.locator("#tb-claude").count() == 0 and pg.locator(".chat").count() == 0)
 
+    # F16e shunting session
+    pg.click("text=Tools"); pg.click("text=Shunting session…"); pg.wait_for_timeout(200)
+    check("a session deals a train of five cards", pg.locator(".shunt-cards li").count() == 5)
+    check("all eight wagons start in the sidings", pg.locator(".shunt-siding .wagon").count() == 8)
+    first = pg.locator("#sh-out h3").inner_text()
+    pg.click(".dialog button:has-text('Deal new cards')"); pg.wait_for_timeout(100)
+    check("new cards have a new number", pg.locator("#sh-out h3").inner_text() != first)
+    pg.click("#sh-start"); pg.click("#sh-move"); pg.click("#sh-move"); pg.wait_for_timeout(1300)
+    check("the clock runs and moves are counted", pg.locator("#sh-clock").inner_text() != "0:00" and pg.locator("#sh-moves").inner_text() == "2")
+    shot(pg, "08g-shunting")
+    pg.click(".dialog button:has-text('Done')")
+
     # F17 control: the two-train demo on the simulator
     pg.click("text=File"); pg.click("text=Open the two-train control demo")
     if pg.is_visible("text=Discard and open demo"): pg.click("text=Discard and open demo")

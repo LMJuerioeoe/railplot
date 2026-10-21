@@ -16,6 +16,8 @@ export interface Road {
   length: number;
   /** "siding": a point at one end and the end of the line at the other; "loop": points at both ends. */
   kind: "siding" | "loop";
+  /** A siding that leaves from the toe of its point: a headshunt, where the engine runs round to pull. */
+  headshunt?: boolean;
 }
 
 export interface FitIssue {
@@ -42,13 +44,14 @@ export function roads(p: Project, an: Analysis = analyze(p)): Road[] {
     const chain: Item[] = [start];
     seen.add(start.id);
     const bounds: ("point" | "buffer" | "loop")[] = [];
+    let toe = false;
     for (const endIdx of [0, 1]) {
       let cur = start, at = endIdx;
       for (;;) {
         const other = an.partner.get(endKey({ item: cur.id, end: at }));
         if (!other) { bounds.push("buffer"); break; }
         const next = byId.get(other.item)!;
-        if (isNode(next)) { bounds.push("point"); break; }
+        if (isNode(next)) { bounds.push("point"); if (other.end === 0 && partOf(next).def.type === "turnout") toe = true; break; }
         if (next.id === start.id || seen.has(next.id)) { bounds.push("loop"); break; }
         seen.add(next.id);
         if (endIdx === 0) chain.unshift(next); else chain.push(next);
@@ -57,7 +60,9 @@ export function roads(p: Project, an: Analysis = analyze(p)): Road[] {
     }
     const points = bounds.filter((b) => b === "point").length;
     if (!points || bounds.includes("loop")) continue;
-    out.push({ items: chain.map((i) => i.id), length: chain.reduce((a, i) => a + geom(i).length, 0), kind: points === 2 ? "loop" : "siding" });
+    const road: Road = { items: chain.map((i) => i.id), length: chain.reduce((a, i) => a + geom(i).length, 0), kind: points === 2 ? "loop" : "siding" };
+    if (road.kind === "siding" && toe) road.headshunt = true;
+    out.push(road);
   }
   return out;
 }

@@ -42,6 +42,10 @@ Track joins are not stored. Ends that touch (within 0.5 mm) and face each other 
 
 `train` (optional) holds the longest train and the longest vehicle the owner runs, for the train-fit checks: `{ "length": 1450, "vehicle": 272 }`, in millimetres.
 
+## Shunting
+
+`shunting` (optional) holds the owner's wagons for shunting sessions: `{ "wagons": ["Coal wagon", "Box van"] }`.
+
 ## Prices
 
 Prices typed into the parts list are kept in `prices` (optional): `{ "currency": "£", "each": { "hornby-oo/R600": 2.5, "board|std-1200x600": 45 } }`. `each` is keyed by the part (`<library id>/<part id>`, one whole piece for flexible track), `board|<module>` for a baseboard module, `hwm|<module>` for a module's extra hardware and `hw|<item>` for joint hardware.

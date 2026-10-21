@@ -41,6 +41,8 @@ export interface Project {
   control?: ControlConfig;
   /** The longest train and vehicle the owner runs, for the train-fit checks (optional). */
   train?: TrainSpec;
+  /** The owner's wagons, for shunting sessions (optional). */
+  shunting?: { wagons: string[] };
   /** What the parts cost, entered by the owner in the parts list (optional). */
   prices?: Prices;
   /** Changes suggested through the Claude connector, waiting to be accepted or rejected. */

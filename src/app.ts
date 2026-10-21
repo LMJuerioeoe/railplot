@@ -23,6 +23,7 @@ import { clear, h, icon } from "./ui/dom";
 import { closeDialog, confirmDialog, dialog, field, isDialogOpen, numInput, toast } from "./ui/dialogs";
 import { View3D } from "./view3d";
 import { trainFit } from "./trainfit";
+import { DEFAULT_WAGONS, INGLENOOK, Siding, deal, planSidings } from "./shunting";
 import { ControlUI } from "./control/ui";
 import { fetchText, servedByController } from "./control/link";
 import { hubStatus } from "./control/hubclient";
@@ -1359,6 +1360,70 @@ export class App {
     ], { wide: true });
   }
 
+  /** Deal a shunting puzzle: where the wagons start, and the train to make up, with a timer and a move count. */
+  showShunting() {
+    const wagonLen = wagonLength(this.trackLibId());
+    const onPlan = planSidings(this.p, wagonLen);
+    const names = h("textarea", { id: "sh-wagons", rows: "8", "aria-label": "Wagons, one per line" }, (this.p.shunting?.wagons ?? DEFAULT_WAGONS.map((w) => w.name)).join("\n")) as HTMLTextAreaElement;
+    const kind = h("select", { id: "sh-kind" }, h("option", { value: "inglenook" }, "Inglenook sidings: 5 from 8"),
+      onPlan.length ? h("option", { value: "plan" }, `This plan's sidings (${onPlan.map((x) => x.capacity).join(", ")} wagons)`) : null) as HTMLSelectElement;
+    const trainIn = numInput("sh-train", 5, { min: 1, max: 20, step: 1 });
+    const seedIn = numInput("sh-seed", 1 + Math.floor(Math.random() * 9999), { min: 1, max: 99999, step: 1 });
+    const out = h("div", { class: "shunt-print", id: "sh-out" });
+    const clock = h("span", { class: "mono", id: "sh-clock" }, "0:00"), movesEl = h("span", { class: "mono", id: "sh-moves" }, "0");
+    let started = 0, elapsed = 0, timer = 0, moves = 0;
+    const tick = () => {
+      if (!clock.isConnected) { clearInterval(timer); return; }
+      const t = Math.floor((elapsed + (started ? Date.now() - started : 0)) / 1000);
+      clock.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+    };
+    const wagonList = () => names.value.split("\n").map((x) => x.trim()).filter(Boolean);
+    const chipFor = (i: number) => {
+      const list = wagonList();
+      return h("span", { class: "wagon", style: `--wagon:${DEFAULT_WAGONS[i % DEFAULT_WAGONS.length].color}` }, h("span", { class: "wagon-no" }, String(i + 1)), list[i] ?? `Wagon ${i + 1}`);
+    };
+    const show = () => {
+      clear(out);
+      const list = wagonList();
+      const sidings: Siding[] = kind.value === "plan" ? onPlan : INGLENOOK;
+      const count = kind.value === "plan" ? Math.min(list.length, sidings.reduce((a, x) => a + x.capacity, 0)) : Math.min(8, list.length);
+      if (count < 2) { out.append(h("p", { class: "warn-note" }, "List at least two wagons.")); return; }
+      let d;
+      try { d = deal(count, sidings, +trainIn.value || 5, +seedIn.value || 1); }
+      catch (e) { out.append(h("p", { class: "warn-note" }, (e as Error).message)); return; }
+      if (this.p.shunting?.wagons.join("\n") !== list.join("\n")) { this.p.shunting = { wagons: list }; this.commit(); }
+      out.append(
+        h("h3", {}, `Card set ${d.seed}`),
+        h("div", { class: "sub-head" }, "To start, place the wagons like this (buffer stop end first)"),
+        ...sidings.map((sd, i) => h("div", { class: "shunt-siding" }, h("span", { class: "shunt-road" }, `${sd.name} · room for ${sd.capacity}`), h("span", { class: "wagon-row" }, ...d.start[i].map(chipFor)))),
+        h("div", { class: "sub-head" }, `Make up this train in ${sidings[d.into].name}, from the engine back`),
+        h("ol", { class: "shunt-cards" }, ...d.train.map((w) => h("li", {}, chipFor(w)))),
+        h("p", { class: "muted small" }, kind.value === "inglenook" ? "Inglenook rules: the headshunt holds the engine and three wagons. Leave the other wagons wherever you like." : `Sidings are counted at ${wagonLen} mm a wagon. The headshunt limits how many wagons you can pull at once.`));
+    };
+    for (const el of [kind, trainIn, seedIn]) el.addEventListener("change", show);
+    names.addEventListener("change", show);
+    const body = h("div", { class: "shunt" },
+      h("div", { class: "row3" }, field("Puzzle", kind), field("Train of", trainIn, "wagons"), field("Card set", seedIn)),
+      h("details", {}, h("summary", {}, "Your wagons"), names, h("p", { class: "muted small" }, "One per line. They're saved with the layout.")),
+      out,
+      h("div", { class: "shunt-clock" },
+        h("span", {}, "Time ", clock), h("span", {}, "Moves ", movesEl),
+        h("button", { class: "btn btn-sm", type: "button", id: "sh-start", onclick: (e: Event) => {
+          const b = e.currentTarget as HTMLButtonElement;
+          if (started) { elapsed += Date.now() - started; started = 0; clearInterval(timer); b.textContent = "Carry on"; }
+          else { started = Date.now(); timer = window.setInterval(tick, 250); b.textContent = "Pause"; }
+          tick();
+        } }, "Start the clock"),
+        h("button", { class: "btn btn-sm", type: "button", id: "sh-move", onclick: () => { movesEl.textContent = String(++moves); } }, "+1 move"),
+        h("button", { class: "btn btn-sm", type: "button", onclick: () => { elapsed = 0; moves = 0; movesEl.textContent = "0"; if (started) started = Date.now(); tick(); } }, "Reset")));
+    show();
+    dialog("Shunting session", body, [
+      { label: "Print the cards", onClick: () => { document.body.classList.add("printing-shunt"); window.print(); document.body.classList.remove("printing-shunt"); return true; } },
+      { label: "Deal new cards", onClick: () => { seedIn.value = String(1 + Math.floor(Math.random() * 9999)); show(); moves = 0; elapsed = 0; movesEl.textContent = "0"; tick(); return true; } },
+      { label: "Done", primary: true, onClick: () => { clearInterval(timer); } },
+    ], { wide: true });
+  }
+
   showRectBoard() {
     const x = numInput("rb-x", 0), y = numInput("rb-y", 0), w = numInput("rb-w", 2400, { min: 10 }), d = numInput("rb-d", 1200, { min: 10 });
     dialog("Add rectangular baseboard", h("div", { class: "form-grid" },
@@ -1596,6 +1661,8 @@ export class App {
       { label: "Draw baseboard", kbd: "B", run: () => this.setTool("board") },
       { label: "Rectangular baseboard…", run: () => this.showRectBoard() },
       { label: "Baseboard modules…", run: () => { this.renderBoardLibrary(); this.root.classList.add("show-lib"); } },
+      "-",
+      { label: "Shunting session…", run: () => this.showShunting() },
       "-",
       { label: "New layer", run: () => { addLayer(this.p); this.commit(); } },
     ] },
