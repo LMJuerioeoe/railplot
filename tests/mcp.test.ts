@@ -273,6 +273,21 @@ describe("through the hub", () => {
     expect(hub.p.proposals).toBeUndefined();
   });
 
+  test("an editor that says what it resolved never loses proposals it hadn't seen", async () => {
+    await call(s, "propose_add_flex", { title: "One", at: { x: 0, y: -900, heading: 0 }, sections: [{ straight: 100 }] });
+    await call(s, "propose_add_flex", { title: "Two", at: { x: 0, y: -1000, heading: 0 }, sections: [{ straight: 100 }] });
+    const [one, two] = hub.p.proposals!;
+    const editor = parseProject(serialize(hub.p));
+    delete editor.proposals;
+    // even with an old base version: only the resolved one goes
+    const r = await fetch(`http://127.0.0.1:${port}/api/layout?base=99999`, { method: "POST", body: serialize(editor), headers: { "X-Railplot-Resolved": one.id } });
+    expect((await r.json()).merged).toBe(1);
+    expect(hub.p.proposals?.map((x) => x.id)).toEqual([two.id]);
+    // a whole new layout (no header, no base) starts without proposals
+    await fetch(`http://127.0.0.1:${port}/api/layout`, { method: "POST", body: serialize(editor) });
+    expect(hub.p.proposals).toBeUndefined();
+  });
+
   test("withdrawing through the hub", async () => {
     await call(s, "propose_remove", { title: "Tidy", ids: [hub.p.items[0].id] });
     const id = hub.p.proposals![0].id;

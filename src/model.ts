@@ -1,7 +1,7 @@
 // The layout document and the operations the editor performs on it.
 import {
-  DEG, Pose, Prim, Seg, Vec, add, dist, mergeSegs, minRadius, normAngle, pointInPoly,
-  primBounds, primOf, rot, segLength, sub, walk,
+  DEG, Pose, Prim, Seg, Vec, add, dist, distToPrim, mergeSegs, minRadius, normAngle, pointInPoly,
+  primAt, primBounds, primOf, rot, segLength, sub, walk,
 } from "./geom";
 import { Part, getPart, routeLength } from "./library";
 import type { ControlConfig } from "./control/types";
@@ -483,6 +483,28 @@ export function boardGuides(p: Project, boardId: string): TrackGuide[] {
   return m ? moduleGuides(m, b!.module!) : [];
 }
 
+/** Is there track along this path already (most of it within a few mm of existing track, running the same way)? */
+export function trackAlong(p: Project, start: Pose, segs: Seg[], tol = 4): boolean {
+  let at = start;
+  const prims: Prim[] = [];
+  for (const s of segs) { prims.push(primOf(at, s)); at = walk(at, s); }
+  const total = prims.reduce((a, q) => a + q.len, 0);
+  if (total < 1) return false;
+  let hits = 0, n = 0;
+  for (const f of [0.2, 0.4, 0.6, 0.8]) {
+    let t = total * f, pr = prims[0];
+    for (const q of prims) { if (t <= q.len) { pr = q; break; } t -= q.len; }
+    const q = primAt(pr, Math.min(t, pr.len));
+    n++;
+    for (const it of p.items) {
+      const g = geom(it);
+      if (q.x < g.bounds.minX - tol || q.x > g.bounds.maxX + tol || q.y < g.bounds.minY - tol || q.y > g.bounds.maxY + tol) continue;
+      if (g.routes.some((r) => r.prims.some((x) => distToPrim(x, q) < tol))) { hits++; break; }
+    }
+  }
+  return hits >= Math.ceil(n * 0.75);
+}
+
 /**
  * Lay flexible track along a module's guides, one length per track, skipping tracks already laid and
  * curves tighter than the flexible track allows. Returns what was laid and what was too tight.
@@ -495,7 +517,7 @@ export function layGuides(p: Project, boardId: string, flexKey: string): { laid:
   let tooTight = 0, already = 0;
   for (const g of boardGuides(p, boardId)) {
     // already laid: a track end at the start of the guide, belonging to track on this board
-    if (an.ends.some((e) => dist(e, g.from) < 1 && Math.cos(e.h - g.from.h) < -0.9)) { already++; continue; }
+    if (an.ends.some((e) => dist(e, g.from) < 1 && Math.cos(e.h - g.from.h) < -0.9) || trackAlong(p, g.from, g.segs)) { already++; continue; }
     if (g.minRadius < minR - 0.01) { tooTight++; continue; }
     laid.push(createFlex(p, flexKey, { ...g.from, z: 0 }, g.segs));
   }

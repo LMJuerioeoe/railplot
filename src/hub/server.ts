@@ -143,10 +143,15 @@ export class Hub {
    * `base`: the hub version the editor last had; proposals that arrived after that are kept, the others
    * the editor has accepted or rejected.
    */
-  setLayout(text: string, base?: number): number {
+  setLayout(text: string, base?: number, resolved?: Set<string>): number {
     const p = parseProject(text);
     this.prepare(p);
-    if (base !== undefined) {
+    if (resolved) {
+      // the editor says which proposals it accepted or rejected: every other one the hub has stays
+      const keep = (this.p.proposals ?? []).filter((x) => !resolved.has(x.id) && !(p.proposals ?? []).some((y) => y.id === x.id));
+      if (keep.length) p.proposals = [...(p.proposals ?? []), ...keep];
+      this.lastMerged = keep.length;
+    } else if (base !== undefined) {
       const newer = (this.p.proposals ?? []).filter((x) => (x.v ?? 0) > base && !(p.proposals ?? []).some((y) => y.id === x.id));
       if (newer.length) p.proposals = [...(p.proposals ?? []), ...newer];
       this.lastMerged = newer.length;
@@ -216,7 +221,7 @@ export class Hub {
   }
 
   private cors(h: Record<string, string> = {}) {
-    return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Expose-Headers": "X-Railplot-Version", "Cache-Control": "no-store", ...h };
+    return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type, X-Railplot-Resolved", "Access-Control-Expose-Headers": "X-Railplot-Version", "Cache-Control": "no-store", ...h };
   }
 
   private async http(req: Request, server: { upgrade(r: Request, o: { data: Client }): boolean }): Promise<Response | undefined> {
@@ -237,7 +242,8 @@ export class Hub {
       if (text.length > 20_000_000) return new Response("Layout too big", { status: 413, headers: this.cors() });
       const base = url.searchParams.get("base");
       try {
-        const v = this.setLayout(text, base !== null && /^\d+$/.test(base) ? +base : undefined);
+        const res = req.headers.get("X-Railplot-Resolved");
+        const v = this.setLayout(text, base !== null && /^\d+$/.test(base) ? +base : undefined, res === null ? undefined : new Set(res.split(",").filter(Boolean)));
         return Response.json({ v, merged: this.lastMerged }, { headers: this.cors() });
       }
       catch (e) { return new Response(e instanceof FileError ? e.message : `Couldn't read that layout: ${(e as Error).message}`, { status: 400, headers: this.cors() }); }

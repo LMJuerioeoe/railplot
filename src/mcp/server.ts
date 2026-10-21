@@ -1,16 +1,9 @@
 // A small Model Context Protocol server over stdio: newline-delimited JSON-RPC 2.0.
 // Only what Railplot needs: initialize, ping and tools.
 
-export interface ToolDef {
-  name: string;
-  title?: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean; openWorldHint?: boolean };
-  run(args: any): Promise<string> | string;
-}
-
-export class ToolError extends Error {}
+import { ToolDef, ToolError } from "../claude/tooldefs";
+export { ToolError };
+export type { ToolDef };
 
 export const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 

@@ -11,7 +11,7 @@ Railplot is a free, open-source track planner for OO and H0 model railways that 
 - The laser-cut baseboard range: standard boards, corners, curves, traversers, turntables and canopy modules that join face to face, with a warning when a point motor would sit on a frame member.
 - Ready-made fiddle yards, run-round loops and the Inglenook sidings shunting puzzle, and example shunting layouts on the baseboard modules.
 - A parts list to shop from, and true-scale SVG drawings for templates.
-- Plan with Claude: it reads and checks your plan and proposes changes that you accept or reject.
+- Plan with Claude, in a chat beside the plan or from the Claude app: it reads and checks your plan and proposes changes that you accept or reject.
 
 ## Run
 
@@ -34,7 +34,7 @@ Railplot is a free, open-source track planner for OO and H0 model railways that 
 | [Hardware testing](control/testing.md) | What has been tested, and how to help |
 | [Firmware](../firmware/README.md) | The ESP32 controller's settings and interface |
 | [Baseboard modules](baseboard-modules.md) | The baseboard range, track positions and the module data |
-| [Claude and Railplot](claude.md) | The connector: Claude reads your plans and proposes changes |
+| [Claude and Railplot](claude.md) | The chat inside Railplot and the connector for the Claude app |
 | [Yards and example layouts](yards.md) | Fiddle yards, run-round loops, the Inglenook sidings and example layouts on the baseboards |
 | [Track libraries](library-format.md) | Adding a track system |
 | [The .railplot file](file-format.md) | The layout file format |

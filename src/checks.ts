@@ -1,11 +1,11 @@
 // Checks on a plan, as a list of plain-language issues: open ends, joints, point motors, track off the
 // baseboards, curves tighter than the track allows, gradients, and modules whose tracks don't line up.
-import { dist, minRadius, pointInPoly, samplePrim } from "./geom";
+import { dist, distToPrim, minRadius, pointInPoly, samplePrim } from "./geom";
 import { Project, allModuleEnds, analyze, geom, gradeBand, gradient, itemRoutes, motorsOverFrame, partOf, trackPorts } from "./model";
 import { endsTouch, getModule } from "./modules";
 
 export interface Issue {
-  kind: "open-end" | "misaligned" | "motor-over-frame" | "off-board" | "too-tight" | "steep" | "module-tracks" | "module-width";
+  kind: "overlap" | "open-end" | "misaligned" | "motor-over-frame" | "off-board" | "too-tight" | "steep" | "module-tracks" | "module-width";
   severity: "info" | "warn" | "bad";
   text: string;
   item?: string;
@@ -37,8 +37,40 @@ export function trackOffBoards(p: Project, margin = 20, firstOnly = false): stri
   return out;
 }
 
+/**
+ * Pairs of pieces laid on top of each other: one runs along the other for 30 mm or more, away from the
+ * ends where pieces meet. (Crossings and points cross at a spot, so they don't count.)
+ */
+export function overlappingTrack(p: Project, tol = 3): [string, string][] {
+  const gs = p.items.map((it) => ({ it, g: geom(it) }));
+  const out: [string, string][] = [];
+  for (let i = 0; i < gs.length; i++) {
+    const a = gs[i];
+    const samples: { x: number; y: number }[][] = a.g.routes.map((r) => r.prims.flatMap((pr) => samplePrim(pr, 5)));
+    for (let j = 0; j < gs.length; j++) {
+      if (i === j) continue;
+      const b = gs[j];
+      if (a.g.bounds.maxX < b.g.bounds.minX || b.g.bounds.maxX < a.g.bounds.minX || a.g.bounds.maxY < b.g.bounds.minY || b.g.bounds.maxY < a.g.bounds.minY) continue;
+      if (j < i && out.some(([x, y]) => x === b.it.id && y === a.it.id)) continue;
+      const near = (q: { x: number; y: number }) => b.g.routes.some((r) => r.prims.some((pr) => distToPrim(pr, q) < tol));
+      const awayFromEnds = (q: { x: number; y: number }) => ![...a.g.ends, ...b.g.ends].some((e) => dist(e, q) < 15);
+      let run = 0, found = false;
+      for (const route of samples) {
+        run = 0;
+        for (const q of route) {
+          if (awayFromEnds(q) && near(q)) { if (++run >= 7) { found = true; break; } } else run = 0;
+        }
+        if (found) break;
+      }
+      if (found && !out.some(([x, y]) => (x === b.it.id && y === a.it.id))) out.push([a.it.id, b.it.id]);
+    }
+  }
+  return out;
+}
+
 export function layoutIssues(p: Project): Issue[] {
   const out: Issue[] = [];
+  for (const [a, b] of overlappingTrack(p)) out.push({ kind: "overlap", severity: "bad", item: a, text: `Track ${a} and ${b} are laid on top of each other` });
   const an = analyze(p);
   for (const e of an.free) out.push({ kind: "open-end", severity: "info", item: e.item, at: { x: r1(e.x), y: r1(e.y) }, text: `Open end ${e.item}:${e.end} at (${Math.round(e.x)}, ${Math.round(e.y)}), facing ${Math.round(((e.h * 180) / Math.PI + 360) % 360)}°` });
   for (const e of an.bad) out.push({ kind: "misaligned", severity: "bad", item: e.item, at: { x: r1(e.x), y: r1(e.y) }, text: `Ends meet but don't line up at ${e.item}:${e.end} (${Math.round(e.x)}, ${Math.round(e.y)})` });

@@ -94,8 +94,12 @@ export class HubClient {
   }
 
   /** Send this device's layout. `merged`: the hub kept proposals this device hadn't got yet, so fetch the layout again. */
-  async pushLayout(text: string): Promise<{ v: number; merged: number }> {
-    const r = await fetch(`${this.base}/api/layout?cid=${CLIENT_ID}&base=${this.version}`, { method: "POST", body: text, headers: { "Content-Type": "text/plain" } });
+  async pushLayout(text: string, resolved?: Iterable<string>): Promise<{ v: number; merged: number }> {
+    // `resolved`: the proposals this device accepted or rejected; the hub keeps every other proposal it has.
+    // Without it (sending a whole new layout) the hub's proposals go with its old layout.
+    const headers: Record<string, string> = { "Content-Type": "text/plain" };
+    if (resolved) headers["X-Railplot-Resolved"] = [...resolved].join(",");
+    const r = await fetch(`${this.base}/api/layout?cid=${CLIENT_ID}${resolved ? `&base=${this.version}` : ""}`, { method: "POST", body: text, headers });
     if (!r.ok) throw new Error((await r.text().catch(() => "")) || `HTTP ${r.status}`);
     const j = await r.json();
     this.version = j.v;

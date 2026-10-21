@@ -131,7 +131,7 @@ export class ControlUI {
     };
     this.rt.setSuspended(true);
     if (useHubLayout) await this.pullLayout();
-    else await this.pushLayout();
+    else await this.pushLayout(true, true);
     this.ensureRunning();
     this.render();
     toast(`Connected to the hub at ${base}.`);
@@ -170,12 +170,12 @@ export class ControlUI {
     }
   }
 
-  private async pushLayout(pullIfMerged = true) {
+  private async pushLayout(pullIfMerged = true, replace = false) {
     const hub = this.hub;
     if (!hub) return;
     try {
       const { serialize } = await import("../io");
-      const r = await hub.pushLayout(serialize(this.app.p));
+      const r = await hub.pushLayout(serialize(this.app.p), replace ? undefined : this.app.resolvedProposals);
       if (r.merged && pullIfMerged && !this.pulling) await this.pullLayout();
       else if (r.merged) hub.version = -1;
     } catch (e) { toast(`Couldn't send the layout to the hub: ${(e as Error).message}`, "error"); }

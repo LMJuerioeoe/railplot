@@ -287,6 +287,65 @@ with sync_playwright() as p:
     check("Help explains how to connect Claude", pg.locator(".dialog >> text=railplot-claude-windows.mcpb").count() == 1)
     pg.click(".dialog button:has-text('Close')")
 
+    # F16d the Claude chat, with your own API key (Anthropic's API mocked here)
+    calls = []
+    def api(route):
+        req = route.request
+        if "/v1/models" in req.url:
+            return route.fulfill(json={"data": [{"id": "claude-haiku-test", "display_name": "Test Haiku"}, {"id": "claude-sonnet-test", "display_name": "Test Sonnet"}]})
+        body = json.loads(req.post_data)
+        calls.append({"headers": req.headers, "body": body})
+        n = len(calls)
+        if n == 1:
+            content = [{"type": "text", "text": "Let me look at the plan."}, {"type": "tool_use", "id": "u1", "name": "check_layout", "input": {}}]
+            return route.fulfill(json={"content": content, "stop_reason": "tool_use"})
+        if n == 2:
+            content = [{"type": "tool_use", "id": "u2", "name": "propose_plan", "input": {"title": "A short spur", "reason": "Room for a wagon.", "steps": [{"op": "add_flex", "at": {"near": {"x": 0, "y": 0}}, "sections": [{"straight": 100}]}]}}]
+            return route.fulfill(json={"content": content, "stop_reason": "tool_use"})
+        return route.fulfill(json={"content": [{"type": "text", "text": "I've proposed **a short spur**. Accept it if you like it."}], "stop_reason": "end_turn"})
+    pg.route("https://api.anthropic.com/**", api)
+    pg.click("#tb-claude"); pg.wait_for_timeout(300)
+    check("the chat asks for an API key first", pg.locator("#chat-key").count() == 1)
+    pg.fill("#chat-key", "sk-ant-test"); pg.click("#chat-check"); pg.wait_for_timeout(300)
+    check("checking the key lists the models and picks a Sonnet", pg.locator("#chat-model").input_value() == "claude-sonnet-test")
+    pg.click("#chat-save"); pg.wait_for_timeout(200)
+    n1 = js(pg, "railplot.p.items.length")
+    pg.fill("#chat-text", "Add a short spur please"); pg.press("#chat-text", "Enter")
+    pg.wait_for_selector(".chat-prop", timeout=5000); pg.wait_for_timeout(300)
+    check("the API is called with the key, from the browser, with Railplot's tools", calls and calls[0]["headers"].get("x-api-key") == "sk-ant-test" and calls[0]["headers"].get("anthropic-dangerous-direct-browser-access") == "true" and any(t["name"] == "propose_plan" for t in calls[0]["body"]["tools"]) and calls[0]["body"]["model"] == "claude-sonnet-test")
+    check("Claude is told about the plan", "Shunting plank with a traverser" in calls[0]["body"]["system"])
+    check("tool results go back to Claude", calls[1]["body"]["messages"][-1]["content"][0]["type"] == "tool_result")
+    check("the chat shows what Claude did", pg.locator(".msg.tool:has-text('Checked the plan')").count() == 1)
+    check("Claude's proposal appears as a card in the chat and in the list", pg.locator(".chat-prop:has-text('A short spur')").count() == 1 and pg.locator(".insp-props .prop-card:has-text('A short spur')").count() == 1)
+    check("the reply is shown with formatting", pg.locator(".msg.claude strong:has-text('a short spur')").count() == 1)
+    shot(pg, "08g-chat")
+    pg.click(".chat-prop button:has-text('Accept')"); pg.wait_for_timeout(200)
+    check("accepting from the chat changes the plan", js(pg, "railplot.p.items.length") == n1 + 1 and pg.locator(".chat-prop:has-text('Accepted')").count() == 1)
+    pg.click(".chat-head button[aria-label='Close the chat']")
+    pg.unroute("https://api.anthropic.com/**")
+
+    # F16e the Claude chat on claude.ai: your Claude account through the page's "sample" capability (mocked here)
+    ctx2 = b.new_context(viewport={"width": 1200, "height": 800})
+    ctx2.add_init_script("""window.claude = { use: async (n) => n !== 'sample' ? null : Object.assign(async (input, opts) => {
+        const t = opts.tools.find((x) => x.name === 'check_layout');
+        const r = await t.execute({}, { signal: new AbortController().signal });
+        const text = 'All good: ' + String(r).split('\\n')[0];
+        window.__sampled = { input, tools: opts.tools.map((x) => x.name), cache: opts.cache };
+        opts.onText({ text, delta: text });
+        return { text, truncated: false, modelTierApplied: 'default' };
+      }, { limits: async () => ({ maxPromptBytes: 262144, tools: { maxCount: 20 } }) }) };""")
+    pg2 = ctx2.new_page()
+    pg2.on("pageerror", lambda e: errors.append(str(e)))
+    pg2.goto(URL); pg2.wait_for_timeout(500)
+    pg2.click("#tb-claude"); pg2.wait_for_timeout(400)
+    check("on claude.ai the chat uses your Claude account, no key needed", pg2.locator("#chat-key").count() == 0 and "your Claude account" in pg2.locator(".chat-sub").inner_text())
+    pg2.fill("#chat-text", "Is my plan OK?"); pg2.press("#chat-text", "Enter")
+    pg2.wait_for_selector(".msg.claude:has-text('All good')", timeout=5000)
+    sampled = pg2.evaluate("window.__sampled")
+    check("the instructions go first, then the question, and Claude gets Railplot's tools", sampled["input"][0]["role"] == "user" and "Railplot" in sampled["input"][0]["content"] and sampled["input"][-1]["content"] == "Is my plan OK?" and "propose_plan" in sampled["tools"] and sampled["cache"] is False)
+    check("the account chat ran a tool in the page", pg2.locator(".msg.tool:has-text('Checked the plan')").count() == 1)
+    ctx2.close()
+
     # F17 control: the two-train demo on the simulator
     pg.click("text=File"); pg.click("text=Open the two-train control demo")
     if pg.is_visible("text=Discard and open demo"): pg.click("text=Discard and open demo")

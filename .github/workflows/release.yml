@@ -18,7 +18,7 @@ jobs:
           - platform: ubuntu-22.04
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Linux build dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -52,7 +52,7 @@ jobs:
     # The Railplot hub as single-file programs for Windows, Linux, Raspberry Pi (64-bit) and Mac.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - run: bun scripts/build-hub.ts --all
