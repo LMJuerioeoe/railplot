@@ -4,6 +4,9 @@ import peco from "./libraries/peco-setrack-oo.json";
 import hornby from "./libraries/hornby-oo.json";
 import piko from "./libraries/piko-a-h0.json";
 import pikoRoadbed from "./libraries/piko-a-roadbed-h0.json";
+import streamline from "./libraries/peco-streamline-oo.json";
+import maerklinC from "./libraries/maerklin-c-h0.json";
+import kato from "./libraries/kato-unitrack-ho.json";
 
 export type SegDef = { straight: number } | { radius: number; angle: number };
 export interface RouteDef { from?: [number, number, number]; segs: SegDef[] }
@@ -130,7 +133,10 @@ export function buildPart(lib: LibraryDef, def: PartDef): Part {
   };
 }
 
-export const LIBRARIES: LibraryDef[] = [peco as LibraryDef, hornby as LibraryDef, piko as LibraryDef, pikoRoadbed as LibraryDef];
+export const LIBRARIES: LibraryDef[] = [
+  peco as LibraryDef, streamline as LibraryDef, hornby as LibraryDef, piko as LibraryDef, pikoRoadbed as LibraryDef,
+  maerklinC as LibraryDef, kato as LibraryDef,
+];
 
 const partIndex = new Map<string, Part>();
 export function registerLibrary(lib: LibraryDef) {

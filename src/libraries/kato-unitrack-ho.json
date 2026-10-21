@@ -1,0 +1,138 @@
+{
+  "format": 1,
+  "id": "kato-unitrack-ho",
+  "name": "Kato Unitrack HO",
+  "producer": "Kato",
+  "system": "Unitrack",
+  "scale": "H0",
+  "gauge": 16.5,
+  "trackSpacing": 60,
+  "profile": {
+    "sleeperLength": 30,
+    "sleeperWidth": 2.6,
+    "sleeperSpacing": 8.6,
+    "railHeight": 2.1,
+    "roadbed": {
+      "top": 36,
+      "bottom": 48,
+      "height": 7
+    }
+  },
+  "sources": [
+    {
+      "title": "Kato USA: HO Unitrack ground level single track",
+      "url": "https://katousa.com/ho-unitrack-g-single"
+    },
+    {
+      "title": "Kato USA: HO Unitrack (curves R490, R550, R670, R730, R867)",
+      "url": "https://dev3.katousa.com/HO/Unitrack/g-single.html"
+    },
+    {
+      "title": "Rails of Sheffield: Kato 2-861 point, 867 mm radius",
+      "url": "https://railsofsheffield.com/products/kato-2-861-kato-2-861-right-hand-electric-point-867mm-radius"
+    },
+    {
+      "title": "Kato HO plan 6 manual (#6 turnouts with R867 curves)",
+      "url": "https://dev3.katousa.com/PDF/plans/HO-plan-6-manual.pdf"
+    }
+  ],
+  "parts": [
+    {
+      "id": "2-150",
+      "name": "S246 straight",
+      "type": "straight",
+      "length": 246
+    },
+    {
+      "id": "2-270",
+      "name": "R490 curve 22.5°",
+      "type": "curve",
+      "radius": 490,
+      "angle": 22.5
+    },
+    {
+      "id": "2-210",
+      "name": "R550 curve 22.5°",
+      "type": "curve",
+      "radius": 550,
+      "angle": 22.5
+    },
+    {
+      "id": "2-230",
+      "name": "R670 curve 22.5°",
+      "type": "curve",
+      "radius": 670,
+      "angle": 22.5
+    },
+    {
+      "id": "2-240",
+      "name": "R730 curve 22.5°",
+      "type": "curve",
+      "radius": 730,
+      "angle": 22.5
+    },
+    {
+      "id": "2-290",
+      "name": "R867 curve 10°",
+      "type": "curve",
+      "radius": 867,
+      "angle": 10
+    },
+    {
+      "id": "2-860",
+      "name": "#6 turnout left, R867",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 246
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 867,
+              "angle": 10
+            },
+            {
+              "straight": 96
+            }
+          ]
+        }
+      ],
+      "note": "Kato publishes the 867 mm diverging radius and pairs it with a 10° R867 curve; the 246 mm length and the straight after the curve are Railplot's estimate.",
+      "approximate": true
+    },
+    {
+      "id": "2-861",
+      "name": "#6 turnout right, R867",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 246
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 867,
+              "angle": -10
+            },
+            {
+              "straight": 96
+            }
+          ]
+        }
+      ],
+      "note": "Kato publishes the 867 mm diverging radius and pairs it with a 10° R867 curve; the 246 mm length and the straight after the curve are Railplot's estimate.",
+      "approximate": true
+    }
+  ]
+}

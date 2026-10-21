@@ -6,7 +6,7 @@ Railplot is a free, open-source track planner for OO and H0 model railways that 
 
 ## Plan
 
-- Real sectional track from Peco Setrack, Hornby and PIKO A-Gleis, plus flexible track.
+- Real sectional track from Peco Setrack, Peco Streamline, Hornby, PIKO A-Gleis, Märklin C-Gleis and Kato Unitrack, plus flexible track.
 - Snap pieces together, close gaps with flex, set heights and gradients, and look round it in 3D.
 - The laser-cut baseboard range: standard boards, corners, curves, traversers, turntables and canopy modules that join face to face, with a warning when a point motor would sit on a frame member.
 - Ready-made fiddle yards, run-round loops and the Inglenook sidings shunting puzzle, and example shunting layouts on the baseboard modules.

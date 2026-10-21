@@ -8,7 +8,7 @@ It runs as a small Windows (and Linux) desktop app, or in any modern browser wit
 
 ## What it does
 
-- **Real track libraries.** Peco Setrack (OO/HO code 100), Hornby OO sectional track (including the Y point, express points and power tracks) and PIKO A-Gleis H0 with and without roadbed (including Y, three-way, curved R2 and R3 points, crossings and the double slip). Every library lists the sources for its geometry, and parts whose geometry is an estimate are marked ≈.
+- **Real track libraries.** Peco Setrack (OO/HO code 100), Hornby OO sectional track (including the Y point, express points and power tracks) and PIKO A-Gleis H0 with and without roadbed (including Y, three-way, curved R2 and R3 points, crossings and the double slip), Peco Streamline code 100 points (small, medium and large radius), Märklin C-Gleis H0 (R1 to R5 and R9, standard and wide radius points, the double slip) and Kato Unitrack HO (R490 to R867, #6 points). Every library lists the sources for its geometry, and parts whose geometry is an estimate are marked ≈.
 - **Baseboard modules.** The whole laser-cut baseboard range: 25 torsion-box modules in 4 mm birch ply, from 400 × 200 to 1200 × 900, 90° and 45° corners, a 60° curve, sliding traversers, turntables and canopy modules with a lighting pelmet. They join face to face and snap together, and each can have 1 to 4 tracks crossing its faces at centred positions that line up from module to module: click one to build from it, or lay flexible track along the guides in one go. The plan shows the frame under the top, the openings in the bottom skin, the dowel and bolt holes, the engraved guide lines, traverser decks and turntable discs; Railplot warns when a point motor would land on a frame member, and adds modules, joint hardware and slides or bearings to the parts list. See [Baseboard modules](docs/baseboard-modules.md).
 - **Build by snapping.** Pick a part and it joins at the arrow on the plan. <kbd>Space</kbd> adds another, <kbd>F</kbd> turns a curve or point the other way, <kbd>Tab</kbd> joins a point by its next end. Ends that meet join automatically, and dragged pieces snap back into place.
 - **Ready-made yards.** Fiddle yards with 2 to 8 roads (one end or both), a run-round loop and the Inglenook sidings shunting puzzle, built from the track system's own points and curves at a start point, open end or module track position. File > Example shunting layouts opens complete plans on the baseboard modules (an Inglenook shelf, a shunting plank with a traverser fiddle yard, and an L-shaped layout), worked out for your track system. See [Ready-made yards](docs/yards.md).
@@ -104,7 +104,7 @@ Track libraries are plain JSON files in `src/libraries/`. [docs/library-format.m
 
 Next up, roughly in order:
 
-- More libraries: Peco Streamline points, Hornby curved points and diamond crossings, Roco geoLine, Märklin C, Tillig
+- More libraries: Hornby curved points and diamond crossings, Roco geoLine, Bachmann E-Z Track, Tillig, more Märklin C and Kato Unitrack points
 - Exact Hornby express point geometry (currently an estimate)
 - Transition curves, helix and parallel-track tools
 - Scenery: platforms, buildings, roads and signals with original artwork

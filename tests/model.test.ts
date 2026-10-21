@@ -44,6 +44,23 @@ describe("placing and joining", () => {
     expect(an.free.length).toBe(0);
     expect(an.bad.length).toBe(0);
   });
+  test("Märklin C, Kato and Streamline curves close circles", () => {
+    for (const [k, n] of [["maerklin-c-h0/24130", 12], ["maerklin-c-h0/24530", 12], ["kato-unitrack-ho/2-210", 16], ["kato-unitrack-ho/2-290", 36]] as const) {
+      const p = newProject();
+      chain(p, Array(n).fill(k));
+      expect(analyze(p).free.length).toBe(0);
+    }
+  });
+  test("a Märklin turnout and its counter-curve set the next track 77.5 mm over", () => {
+    const t = getPart("maerklin-c-h0/24611")!;
+    const p = newProject();
+    const it = placePart(p, t.key, { x: 0, y: 0, h: 0 });
+    const e = geom(it).ends[2];
+    const c = placePart(p, "maerklin-c-h0/24224", { ...e }, 0, true);
+    const out = geom(c).ends[1];
+    expect(Math.abs(out.y)).toBeCloseTo(77.5, 0);
+    expect(Math.cos(out.h)).toBeCloseTo(1, 4);
+  });
   test("12 PIKO R1 curves close a circle", () => {
     const p = newProject();
     chain(p, Array(12).fill("piko-a-h0/55211"));
