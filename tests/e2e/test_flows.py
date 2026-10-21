@@ -39,8 +39,20 @@ with sync_playwright() as p:
     check("sample loads with no open ends", js(pg, "railplot.an.free.length") == 0 and js(pg, "railplot.p.items.length") == 27)
     shot(pg, "01-sample")
 
+    # F00b will my trains fit?
+    pg.click("#train-fit button:has-text('Main line')"); pg.wait_for_timeout(150)
+    check("a long train is too long for the sample's loops", pg.locator("#train-fit .fit-row[data-kind='short-road']").count() == 2)
+    pg.locator("#train-fit .fit-row").first.click(); pg.wait_for_timeout(100)
+    check("clicking a finding selects its track", js(pg, "railplot.sel.size") >= 1)
+    shot(pg, "01b-train-fit")
+    pg.keyboard.press("Escape")
+    pg.fill("#train-length", "500"); pg.press("#train-length", "Enter"); pg.fill("#train-vehicle", "0"); pg.press("#train-vehicle", "Tab"); pg.wait_for_timeout(150)
+    check("a short train fits", pg.locator("#train-fit >> text=Your trains fit").count() == 1, js(pg, "JSON.stringify(railplot.p.train)"))
+
     # F02 new layout with a baseboard
     pg.click("#tb-new")
+    pg.wait_for_timeout(200)
+    if pg.is_visible("text=Discard and start new"): pg.click("text=Discard and start new"); pg.wait_for_timeout(200)
     pg.fill("#new-name", "Test layout")
     pg.fill("#new-w", "2000")
     pg.fill("#new-d", "1000")

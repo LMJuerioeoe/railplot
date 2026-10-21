@@ -383,3 +383,12 @@ table.keys td:first-child { width: 1%; white-space: nowrap; }
 .price-in { width: 6.5em; text-align: right; font: inherit; font-family: var(--font-num); padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); color: var(--ink); }
 .pl-total { margin: 10px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 #pl-boards h3 { margin: 14px 0 6px; font-size: 14px; }
+
+/* Your trains */
+.train-fit { display: grid; gap: 8px; margin-top: 10px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-btn { border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+.chip-btn:hover { border-color: var(--accent); }
+.fit-row { display: block; width: 100%; text-align: left; font: inherit; font-size: 12px; line-height: 1.4; padding: 6px 8px; border: 0; border-radius: var(--r); color: var(--ink); cursor: pointer; }
+.fit-warn { background: var(--warn-soft); }
+.fit-info { background: var(--info-soft, rgba(127,127,127,.12)); }

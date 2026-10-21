@@ -6,6 +6,7 @@ import {
 import { Part, getPart, routeLength } from "./library";
 import type { ControlConfig } from "./control/types";
 import type { Proposal } from "./proposals";
+import type { TrainSpec } from "./trainfit";
 import { MODULES, ModulePlacement, TrackGuide, endsTouch, facesMatching, getModule, moduleCorners, moduleEnds, moduleGuides, moduleMembers, modulePorts, moduleToWorld, placementAtEnd } from "./modules";
 
 export const FILE_FORMAT = "railplot";
@@ -38,6 +39,8 @@ export interface Project {
   nextId: number;
   /** How the real layout is wired for control (optional). */
   control?: ControlConfig;
+  /** The longest train and vehicle the owner runs, for the train-fit checks (optional). */
+  train?: TrainSpec;
   /** What the parts cost, entered by the owner in the parts list (optional). */
   prices?: Prices;
   /** Changes suggested through the Claude connector, waiting to be accepted or rejected. */

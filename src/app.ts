@@ -22,6 +22,7 @@ import { buildControlDemo, buildSample } from "./sample";
 import { clear, h, icon } from "./ui/dom";
 import { closeDialog, confirmDialog, dialog, field, isDialogOpen, numInput, toast } from "./ui/dialogs";
 import { View3D } from "./view3d";
+import { trainFit } from "./trainfit";
 import { ControlUI } from "./control/ui";
 import { fetchText, servedByController } from "./control/link";
 import { hubStatus } from "./control/hubclient";
@@ -2191,7 +2192,33 @@ export class App {
       h("div", { class: "btn-row" },
         h("button", { class: "btn", type: "button", onclick: () => this.showPartsList(), html: `${icon("list", 16)}<span>Parts list</span>` }),
         h("button", { class: "btn", type: "button", onclick: () => this.toggle3d(true), html: `${icon("cube", 16)}<span>3D view</span>` })),
+      this.trainPanel(),
     );
+  }
+
+  /** Your trains: the longest train and vehicle, and where the plan is too short or too tight for them. */
+  private trainPanel(): HTMLElement {
+    const t = this.p.train;
+    const wagon = wagonLength(this.trackLibId());
+    const set = (length: number, vehicle: number) => { this.p.train = { length: Math.max(0, Math.round(length)), vehicle: Math.max(0, Math.round(vehicle)) }; this.commit(); };
+    const lenIn = numInput("train-length", t?.length ?? 0, { min: 0, step: 10 }), vehIn = numInput("train-vehicle", t?.vehicle ?? 0, { min: 0, step: 5 });
+    const change = () => set(+lenIn.value || 0, +vehIn.value || 0);
+    lenIn.addEventListener("change", change); vehIn.addEventListener("change", change);
+    // rough lengths over buffers at this scale: a short wagon, a tender or tank engine, a long coach
+    const loco = Math.round(wagon * 2.7), coach = Math.round(wagon * 3.4);
+    const presets: [string, number, number][] = [
+      ["Short goods", loco + 5 * wagon, loco], ["Branch passenger", loco + 3 * coach, coach], ["Main line", loco + 8 * coach, coach],
+    ];
+    const wrap = h("div", { class: "train-fit", id: "train-fit" },
+      h("div", { class: "sub-head" }, "Your trains"),
+      h("div", { class: "row2" }, field("Longest train (mm)", lenIn), field("Longest vehicle (mm)", vehIn)),
+      h("div", { class: "chip-row" }, ...presets.map(([name, L, v]) => h("button", { class: "chip-btn", type: "button", title: `${L} mm train, ${v} mm vehicle`, onclick: () => set(L, v) }, name))));
+    if (!t?.length) { wrap.append(h("p", { class: "muted small" }, "Give the length of your longest train, or pick one above, to check that loops, sidings, blocks and curves suit it.")); return wrap; }
+    const issues = trainFit(this.p);
+    if (!issues.length) { wrap.append(h("div", { class: "health" }, chip("ok", "Your trains fit"))); return wrap; }
+    for (const f of issues) wrap.append(h("button", { class: `fit-row fit-${f.severity}`, type: "button", "data-kind": f.kind,
+      onclick: () => { this.sel = new Set(f.items.filter((id) => this.exists(id))); this.refresh(); } }, `${f.text}.`));
+    return wrap;
   }
 }
 

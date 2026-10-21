@@ -10,7 +10,8 @@ Railplot is a free, open-source track planner for OO and H0 model railways that 
 - Snap pieces together, close gaps with flex, set heights and gradients, and look round it in 3D.
 - The laser-cut baseboard range: standard boards, corners, curves, traversers, turntables and canopy modules that join face to face, with a warning when a point motor would sit on a frame member.
 - Ready-made fiddle yards, run-round loops and the Inglenook sidings shunting puzzle, and example shunting layouts on the baseboard modules.
-- A parts list to shop from, and true-scale SVG drawings for templates.
+- Checks that your longest train fits the loops, sidings and blocks, and that curves suit long coaches.
+- A parts list with prices to shop from, and true-scale SVG drawings for templates.
 - Plan with Claude from the Claude app: it reads and checks your plan and proposes changes that you accept or reject.
 
 ## Run
