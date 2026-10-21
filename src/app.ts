@@ -23,6 +23,7 @@ import { clear, h, icon } from "./ui/dom";
 import { closeDialog, confirmDialog, dialog, field, isDialogOpen, numInput, toast } from "./ui/dialogs";
 import { View3D } from "./view3d";
 import { trainFit } from "./trainfit";
+import { wiringParts } from "./control/wiringplan";
 import { DEFAULT_WAGONS, INGLENOOK, Siding, deal, planSidings } from "./shunting";
 import { ControlUI } from "./control/ui";
 import { fetchText, servedByController } from "./control/link";
@@ -1290,6 +1291,15 @@ export class App {
 
   // ---------- dialogs ----------
 
+  /** Save a file the way this copy of Railplot can (a download, a save dialog, or the claude.ai page). */
+  saveFile(...args: Parameters<typeof rawSaveBlob>) { return saveBlob(...args); }
+
+  /** The parts list with what the control wiring needs, when the layout is set up for control. */
+  allParts(visibleOnly = false, byLayer = false) {
+    const rows = partsList(this.p, { visibleOnly, byLayer });
+    return this.p.control?.blocks.length ? [...rows, ...wiringParts(this.p, this.p.control)] : rows;
+  }
+
   showPartsList() {
     let visibleOnly = false, byLayer = false;
     const table = h("div", { class: "table-wrap" });
@@ -1312,7 +1322,7 @@ export class App {
     };
     const fill = () => {
       clear(table); clear(boardsBox);
-      const rows = partsList(this.p, { visibleOnly, byLayer });
+      const rows = this.allParts(visibleOnly, byLayer);
       if (!rows.length) { table.append(h("p", { class: "muted" }, "No track on the layout yet.")); totalBox.textContent = ""; return; }
       const each = this.p.prices?.each ?? {};
       const t = h("table", { class: "parts" },
@@ -1346,7 +1356,7 @@ export class App {
       h("label", { class: "check" }, h("input", { id: "pl-visible", type: "checkbox", onchange: (e: Event) => { visibleOnly = (e.target as HTMLInputElement).checked; fill(); } }), "Only visible layers"),
       h("label", { class: "check" }, h("input", { id: "pl-layer", type: "checkbox", onchange: (e: Event) => { byLayer = (e.target as HTMLInputElement).checked; fill(); } }), "Group by layer"),
       h("label", { class: "check" }, "Currency ", cur));
-    const csv = () => partsCsv(partsList(this.p, { visibleOnly, byLayer }), this.p.prices);
+    const csv = () => partsCsv(this.allParts(visibleOnly, byLayer), this.p.prices);
     dialog("Parts list", h("div", {}, h("p", { class: "muted" }, "Flexible track is rounded up to whole lengths."), opts, table, totalBox, boardsBox), [
       { label: "Copy as CSV", onClick: async () => {
         try { await navigator.clipboard.writeText(csv()); toast("Parts list copied."); } catch { toast("Copy isn't available here. Use Save CSV instead.", "error"); }

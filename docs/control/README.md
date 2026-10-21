@@ -127,6 +127,16 @@ With analogue DC, each train needs its own section of track. Railplot uses **com
 - **Points under trains.** Railplot won't throw a point while a moving train is in that point's block.
 - **Shorts.** Each driver reports its current. Over 1.25 A, Railplot cuts that block, stops its train, and shows a **Fault** with a **Reset** button.
 
+### The wiring plan
+
+Once the track is split into blocks, **Set up** shows the wiring on the plan:
+
+- **Black ticks across the rails** mark every block joint. Cut both rails there with insulated joiners (on Märklin C, the centre rail only).
+- **Amber ticks** mark where the roads leave an **Electrofrog** point: insulated joiners on its two frog rails, and a frog feed through a changeover switch on the point's motor or servo, so the frog takes the polarity of the road it's set for.
+- **F** marks the track feeds, in the block's colour. Each block gets one on its longest plain piece, and more until no piece is further than 1.5 m from a feed, so the joiners don't have to carry the current.
+
+**Wiring diagram** draws each ESP32 controller with its power, its block drivers and the pins they use, the blocks they feed, and the sensor and servo boards on the I2C bus. Save it as SVG to print. The **Parts list** adds what the wiring needs: joiner packs, feed pairs, frog feeds, about how much bus wire, and the boards, drivers, sensors and servos.
+
 ### Budget block drivers
 
 DRV8871 modules cost a fraction of the DRV8876 carrier and are fine for OO and H0. Set `DRIVER_TYPE` to `DRIVER_DRV8871` in `config.h`, then wire each module's **IN1** where the table says EN, and **IN2** where it says PH. Leave CS unconnected.

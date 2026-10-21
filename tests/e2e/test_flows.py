@@ -339,6 +339,10 @@ with sync_playwright() as p:
     pg.locator("button:has-text('Wiring list')").click()
     check("wiring list shows block drivers", pg.locator("text=Driver 1: EN GPIO25").count() >= 1)
     pg.click("text=Done")
+    check("Set up shows the joiners and track feeds on the plan", js(pg, "railplot.ctl.wiringPlan().js.length") == js(pg, "railplot.ctl.engine.topo.boundaries.length") and js(pg, "railplot.ctl.wiringPlan().fs.length") >= js(pg, "railplot.p.control.blocks.length"))
+    pg.click("#wiring-diagram"); pg.wait_for_timeout(150)
+    check("the wiring diagram opens", pg.locator(".wiring-svg svg").count() == 1)
+    pg.click(".dialog button:has-text('Done')")
     shot(pg, "09-control")
 
     # F18 routes and automations

@@ -15,6 +15,7 @@ import { ControlRuntime } from "./runtime";
 import { Cmd, LinkSummary, applyCommand, applySnapshot } from "./remote";
 import { HubClient, hubBase, hubStatus } from "./hubclient";
 import { renderAuto } from "./autoui";
+import { Feed, Joiner, feeds, joiners, wiringSvg } from "./wiringplan";
 import { ORIGINAL_HTML } from "../original";
 import { ControlConfig, DCCEX_CAB_BASE, channelName, channelsOf, emptyControl } from "./types";
 
@@ -244,6 +245,29 @@ export class ControlUI {
       const s = toScreen(v, bnd);
       ctx.strokeStyle = "#e0413a"; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(s.x - 7, s.y - 7); ctx.lineTo(s.x + 7, s.y + 7); ctx.moveTo(s.x + 7, s.y - 7); ctx.lineTo(s.x - 7, s.y + 7); ctx.stroke();
+    }
+    // the wiring plan, while setting up: insulated joiners across the rails, and the track feeds
+    if (this.tab === "setup" && cfg.blocks.length) {
+      const { js, fs } = this.wiringPlan();
+      for (const j of js) {
+        const nx = -Math.sin(j.h), ny = Math.cos(j.h);
+        ctx.strokeStyle = j.why === "frog" ? "#b07c00" : "#111"; ctx.lineWidth = 3; ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        for (const side of [1, -1]) {
+          const a = toScreen(v, { x: j.x + nx * side * 5, y: j.y + ny * side * 5 }), b = toScreen(v, { x: j.x + nx * side * 13, y: j.y + ny * side * 13 });
+          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      for (const f of fs) {
+        const s = toScreen(v, f);
+        const b = cfg.blocks.find((x) => x.id === f.block);
+        ctx.fillStyle = b?.color ?? "#555"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(s.x, s.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#fff"; ctx.font = "bold 9px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("F", s.x, s.y + 0.5);
+      }
     }
     // points: show the route each is set to
     for (const pc of cfg.points) {
@@ -771,7 +795,8 @@ export class ControlUI {
       cfg.trains.length > Math.max(1, cfg.blocks.length / 2) ? h("p", { class: "warn-note" }, "Each train needs a block of its own and a free block between trains. Add more blocks before running this many trains.") : null));
 
     el.append(h("div", { class: "btn-row" },
-      h("button", { class: "btn", type: "button", onclick: () => this.showWiring(), html: `${icon("list", 16)}<span>Wiring list</span>` })));
+      h("button", { class: "btn", type: "button", onclick: () => this.showWiring(), html: `${icon("list", 16)}<span>Wiring list</span>` }),
+      h("button", { class: "btn", type: "button", id: "wiring-diagram", onclick: () => this.showWiringDiagram(), html: `${icon("control", 16)}<span>Wiring diagram</span>` })));
   }
 
   /** Connecting from Set up: whose layout wins? */
@@ -783,6 +808,28 @@ export class ControlUI {
       { label: "Use the hub's layout", onClick: () => { this.connectHub(host, true); } },
       { label: "Send this layout", primary: true, onClick: () => { this.connectHub(host, false); } },
     ]);
+  }
+
+  private wiringCache: { key: string; js: Joiner[]; fs: Feed[] } | null = null;
+  /** Joiners and feeds, worked out again only when the track or the blocks change. */
+  wiringPlan() {
+    const p = this.app.p, cfg = this.cfg;
+    const key = `${p.nextId}|${p.items.length}|${p.items.map((i) => `${i.x},${i.y},${i.rot}`).join(";")}|${JSON.stringify(cfg.blocks.map((b) => b.items))}`;
+    if (this.wiringCache?.key !== key) this.wiringCache = { key, js: joiners(p, cfg), fs: feeds(p, cfg) };
+    return this.wiringCache;
+  }
+
+  showWiringDiagram() {
+    const svg = wiringSvg(this.app.p, this.cfg);
+    const { js, fs } = this.wiringPlan();
+    const frogs = js.filter((j) => j.why === "frog").length;
+    const body = h("div", {},
+      h("p", { class: "muted" }, `On the plan (Set up), black ticks across the rails mark the ${js.length - frogs} block joint${js.length - frogs === 1 ? "" : "s"} that need insulated joiners${frogs ? `, amber ticks the ${frogs} Electrofrog exit${frogs === 1 ? "" : "s"}` : ""}, and F the ${fs.length} track feed${fs.length === 1 ? "" : "s"}, at most ${1.5} m apart along each block. Feed every block the same way round: OUT1 to the same rail all round the layout.`),
+      h("div", { class: "wiring-svg", html: svg }));
+    dialog("Wiring diagram", body, [
+      { label: "Save SVG", onClick: async () => { await this.app.saveFile(`${this.app.p.name} wiring.svg`, new Blob([svg], { type: "image/svg+xml" }), { name: "SVG drawing", extensions: ["svg"], mime: "image/svg+xml" }); return true; } },
+      { label: "Done", primary: true },
+    ], { wide: true });
   }
 
   showWiring() {

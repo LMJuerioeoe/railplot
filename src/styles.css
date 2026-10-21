@@ -411,3 +411,7 @@ table.keys td:first-child { width: 1%; white-space: nowrap; }
   body.printing-shunt .dialog { box-shadow: none; border: 0; max-height: none; width: auto; }
   body.printing-shunt .dialog-head, body.printing-shunt .dialog-foot, body.printing-shunt .shunt > :not(.shunt-print) { display: none !important; }
 }
+
+/* Wiring diagram */
+.wiring-svg { overflow: auto; max-height: 65vh; border: 1px solid var(--line); border-radius: var(--r); background: #fff; }
+.wiring-svg svg { display: block; max-width: 100%; height: auto; }
