@@ -1,34 +1,5 @@
 # Claude and Railplot
 
-There are two ways to work with Claude on a plan:
-
-- **The chat inside Railplot.** Press **Claude** on the toolbar and ask. This is the quickest way.
-- **The Railplot connector,** for the Claude desktop app or Claude Code. Use it to work on plans from a Claude conversation.
-
-Either way, Claude reads your plan and suggests changes as proposals that you accept or reject.
-
-## The chat inside Railplot
-
-Press **Claude** on the toolbar (or Help > Chat with Claude). A panel opens beside the plan.
-
-- **Ask anything about the plan:** "check my plan for problems", "what do I need to buy?", "will a 0-6-0 get round the corners?". Claude reads the plan before it answers.
-- **Ask for changes:** "add a three-road fiddle yard after Module 3", "put a crossover between the loops on Module 2". Each change arrives as a card in the chat, and under Claude's proposals in the Details panel. **Show**, **Accept** and **Reject** work the same in both places.
-- **Selection:** select something on the plan before you ask, and Claude knows what "this point" or "these boards" means.
-- **The controls:** if you've turned on **Let Claude use the controls**, Claude can also set routes, points and lights and run trains. It can never switch track power on or off.
-
-**How it reaches Claude:**
-
-- **Desktop app, offline file, or the page the hub serves:** the chat uses your own Anthropic API key. The first time you open the chat:
-  1. Get a key at console.anthropic.com (Settings > API keys).
-  2. Paste it in and press **Check**, then pick a model and **Save**. The newest Sonnet is chosen for you, and it's a good choice.
-
-  The key goes only to Anthropic, straight from Railplot, and messages are billed to that Anthropic account. Untick **Remember the key on this computer** if you'd rather paste it each time.
-- **Railplot on claude.ai:** the chat uses your Claude account, and no key is needed. The first message asks you to allow it.
-
-Press **Stop** to stop Claude mid-answer, and the page icon to start a new chat.
-
-## The connector
-
 The Railplot connector lets Claude work on your plans with you. Claude can read a plan, check it, and suggest changes such as baseboard modules, yards, track and example layouts. Each suggestion arrives in Railplot as a **proposal**. You look at it on the plan and accept or reject it. Claude never changes your plan by itself.
 
 If you allow it, Claude can also use the layout's controls through the [hub](control/hub.md). That covers routes, points, signals, lights, trains and automations.
@@ -44,9 +15,9 @@ The connector is a small program that runs on your computer. It reads only the f
 - "Make me a parts list I can take to the model shop."
 - With the controls allowed: "Set the route into the loop and run the goods shuttle."
 
-### Install
+## Install
 
-#### Claude desktop app (Windows or Mac)
+### Claude desktop app (Windows or Mac)
 
 1. Download the bundle for your computer from the Releases page:
    - `railplot-claude-windows.mcpb` for Windows
@@ -56,7 +27,7 @@ The connector is a small program that runs on your computer. It reads only the f
    - **Railplot hub address.** Leave it as `localhost:8080` if the hub runs on the same computer.
 3. In a new chat, the Railplot tools appear in the tools menu.
 
-#### By hand
+### By hand
 
 The connector is part of the hub program: `railplot-hub mcp`. Add it to Claude's settings file, `claude_desktop_config.json` (Claude: Settings > Developer > Edit config), using the path to your copy of the hub:
 

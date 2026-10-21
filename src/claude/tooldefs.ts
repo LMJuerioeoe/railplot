@@ -1,4 +1,4 @@
-// What a Railplot tool is: shared by the Claude connector (MCP over stdio) and the chat inside the app.
+// What a Railplot tool is: used by the Claude connector (MCP over stdio).
 
 export interface ToolDef {
   name: string;

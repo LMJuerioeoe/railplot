@@ -14,7 +14,6 @@ import { EXAMPLES, buildExample } from "./examples";
 import { YardKind, YardOptions, buildYard, minYardLength, partName, roadSpacings, wagonLength, yardParts } from "./yards";
 import { History } from "./history";
 import { Proposal, applyProposal, describeProposal, rejectProposal, staleIds } from "./proposals";
-import { ChatPanel } from "./claude/chatui";
 import { FileError, parseProject, serialize } from "./io";
 import { LabelMode, Palette, View, drawProject, fmtLen, hitItem, itemsInRect, projectToSvg, readPalette, toScreen, toWorldPt } from "./render2d";
 import { partThumb } from "./thumbs";
@@ -52,7 +51,7 @@ async function saveBlob(...args: Parameters<typeof rawSaveBlob>) {
 
 const AUTOSAVE_KEY = "railplot.autosave.v1";
 const PREFS_KEY = "railplot.prefs.v1";
-const VERSION = "0.10.0";
+const VERSION = "0.11.0";
 
 export class App {
   p: Project = newProject();
@@ -107,9 +106,6 @@ export class App {
   resolvedProposals = new Set<string>();
   /** The proposal drawn on the plan. */
   showProp: string | null = null;
-  /** What happened to proposals resolved in this window, for the chat's cards. */
-  proposalOutcome = new Map<string, "accepted" | "rejected">();
-  chat!: ChatPanel;
   /** Proposal ids in the file last time it was read (desktop app), to notice ones withdrawn. */
   private fileProposalIds = new Set<string>();
   private filePoll = 0;
@@ -120,8 +116,6 @@ export class App {
     this.buildShell();
     this.pal = readPalette(this.root);
     this.ctl = new ControlUI(this);
-    this.chat = new ChatPanel(this);
-    this.el.workspace.append(this.chat.el);
     this.boot();
     this.bindEvents();
     hostedNotice = () => this.showHostedNotice();
@@ -335,7 +329,6 @@ export class App {
       return;
     }
     this.resolvedProposals.add(id);
-    this.proposalOutcome.set(id, "accepted");
     if (this.showProp === id) this.showProp = null;
     this.sel = new Set(r.ids.filter((x) => this.exists(x)));
     this.commit();
@@ -347,33 +340,9 @@ export class App {
     if (!pr) return;
     rejectProposal(this.p, id);
     this.resolvedProposals.add(id);
-    this.proposalOutcome.set(id, "rejected");
     if (this.showProp === id) this.showProp = null;
     this.commit();
     toast(`Rejected: ${pr.title}.`);
-  }
-
-  /** A proposal made in this window (the chat): it joins the list, and goes to the hub if connected. */
-  addProposal(pr: Proposal) {
-    this.p.proposals = [...(this.p.proposals ?? []).filter((x) => x.id !== pr.id), pr];
-    this.seenProposals.add(pr.id);
-    this.hist.amend(this.p);
-    this.dirty = true;
-    this.scheduleAutosave();
-    this.refresh();
-    this.ctl.onCommitted();
-  }
-
-  /** Claude takes back one of its proposals. */
-  withdrawProposal(id: string): boolean {
-    if (!this.p.proposals?.some((x) => x.id === id)) return false;
-    rejectProposal(this.p, id);
-    this.resolvedProposals.add(id);
-    this.hist.amend(this.p);
-    this.scheduleAutosave();
-    this.refresh();
-    this.ctl.onCommitted();
-    return true;
   }
 
   private zoomToBox(minX: number, minY: number, maxX: number, maxY: number) {
@@ -425,7 +394,6 @@ export class App {
     this.renderLayers();
     if (this.showProp && !this.p.proposals?.some((x) => x.id === this.showProp)) this.showProp = null;
     this.renderProposals();
-    this.chat?.refresh();
     this.renderStatus();
     this.renderPlacementBar();
     this.renderToolbarState();
@@ -1595,7 +1563,6 @@ export class App {
     ] },
     { label: "Help", items: [
       { label: "Keyboard shortcuts", run: () => this.showShortcuts() },
-      { label: "Chat with Claude", run: () => this.chat.toggle(true) },
       { label: "Connect Claude…", run: () => this.showClaudeHelp() },
       { label: "About Railplot", run: () => this.showAbout() },
     ] },
@@ -1659,7 +1626,6 @@ export class App {
       tb("control", "control", "Control", () => this.setMode("control"), "C"),
       tb("edit", "select", "Edit plan", () => this.setMode("design"), "C"),
       h("span", { class: "tb-grow" }),
-      tb("claude", "spark", "Claude", () => this.chat.toggle()),
       tb("insp", "details", "Details", () => this.root.classList.toggle("show-insp")),
     );
 
@@ -1719,7 +1685,7 @@ export class App {
     const scrimLib = h("div", { class: "drawer-scrim", onclick: () => this.root.classList.remove("show-lib", "show-insp") });
     r.append(top, toolbar, lib, workspace, inspector, status, scrimLib);
     Object.assign(this.el, {
-      docName, docState, workspace, placeBar, chatBtn: toolbar.querySelector("#tb-claude")!, emptyHint, ctx: ctxMenu, view3d, canvas3d,
+      docName, docState, workspace, placeBar, emptyHint, ctx: ctxMenu, view3d, canvas3d,
       libGrid: lib.querySelector("#lib-grid")!, libSelect, libSrc: lib.querySelector("#lib-src")!,
       insp: inspector.querySelector("#insp-main")!, props: inspector.querySelector("#insp-props")!, layers: inspector.querySelector("#layers")!,
       stHint: status.querySelector("#st-hint")!, stSel: status.querySelector("#st-sel")!, stXy: status.querySelector("#st-xy")!, stZoom: status.querySelector("#st-zoom")!,
