@@ -57,6 +57,14 @@ export interface ElectricSpec {
   roofGrilles?: boolean;
   /** An emblem on each side, in the middle: a white disc standing in for the railway's logo. */
   emblem?: RGB;
+  /** A front made of several shapes stacked up it (nose, windscreen, brow), each from its bottom to its top. */
+  frontParts?: [number, number][][];
+  /** Which stretch of which part is the windscreen. */
+  screen?: { part: number; seg: number };
+  /** Heights of the low headlights and of the top one. */
+  lampZ?: number; topLampZ?: number;
+  /** Small fixed windows along the machine room, at these positions. */
+  sideWindows?: number[];
   /** Round the cab front's corners in plan, with this radius (the ČSD "Bardotka"). */
   cornerR?: number;
   /** A diesel-electric on the same kind of body: radiator fans and exhausts on the roof instead of pantographs. */
@@ -116,48 +124,59 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
   }
   for (const pg of p.pantographs) pantograph(s, pg.x, top + p.roofRise - 0.4, pg.kind, Math.sign(pg.x) || 1);
   // the two cabs
+  // the front may be several stacked shapes (a bulging nose, a recessed windscreen, an overhanging brow),
+  // each a run of (back from the face, height) points from its bottom to its top
+  const parts = p.frontParts ?? [p.front];
+  const allPts = parts.flat();
   for (const d of [1, -1]) {
-    const xf = d * (face - 0.6), xb = d * cb;
-    const prof = p.front.map(([back, z]) => [xf - d * back, z] as [number, number]);
-    const shape: [number, number][] = [[xb, p.floor], ...prof, [xb, top]];
-    const cr = p.cornerR ?? 0;
-    if (cr > 0) {
-      // the front across the middle, the sides stopping short of it, and a vertical curve joining them
-      s.prismY(shape, -w + cr, w - cr, L.body);
-      s.prismY([[xb, p.floor], ...prof.map(([x, z]) => [x - d * cr, z] as [number, number]), [xb, top]], -w + 0.3, w - 0.3, L.body);
-      const xAt = (z: number) => { for (let i = 0; i + 1 < prof.length; i++) { const [x0, z0] = prof[i], [x1, z1] = prof[i + 1]; if (z >= z0 && z <= z1) return x0 + ((x1 - x0) * (z - z0)) / (z1 - z0 || 1); } return prof[prof.length - 1][0]; };
-      const zTop = prof[prof.length - 1][1];
-      for (let z = p.floor; z < zTop - 0.01; z += 0.4) {
-        const z1 = Math.min(zTop, z + 0.4), xm = xAt((z + z1) / 2) - d * cr;
-        for (const e of SIDES) s.cyl("z", z, z1, xm, e * (w - cr), cr, cr, L.body, false);
-      }
-    } else s.prismY(shape, -w + 0.3, w - 0.3, L.body);
-    // the cab's roof, carried over to where the front leans back
-    const roofEnd = xf - d * Math.max(...p.front.filter(([, z]) => z >= top - 0.5).map(([b]) => b), 0);
-    s.roof(Math.min(xb, roofEnd), Math.max(xb, roofEnd), w - 1.6, top, p.roofRise, L.roof);
-    // the windscreen: the highest sloping stretch of the front, glazed across, a pillar in the middle
-    // the windscreen fills the longest stretch of the front above the buffer beam
-    let best = p.front.length - 2, bl = 0;
-    for (let i = 0; i + 1 < p.front.length; i++) {
-      const [b0, z0] = p.front[i], [b1, z1] = p.front[i + 1];
-      if (z0 < p.floor + 8) continue;
-      const l = Math.hypot(b1 - b0, z1 - z0);
-      if (l > bl) { bl = l; best = i; }
+    const xf = d * (face - 0.6), xb = d * cb, cr = p.cornerR ?? 0;
+    const at = (pt: [number, number]): [number, number] => [xf - d * pt[0], pt[1]];
+    for (const part of parts) {
+      const prof = part.map(at), z0 = prof[0][1], zN = prof[prof.length - 1][1];
+      if (cr > 0) {
+        // the front across the middle, the sides stopping short of it, and a vertical curve joining them
+        s.prismY([[xb, z0], ...prof, [xb, zN]], -w + cr, w - cr, L.body);
+        s.prismY([[xb, z0], ...prof.map(([x, z]) => [x - d * cr, z] as [number, number]), [xb, zN]], -w + 0.3, w - 0.3, L.body);
+        const xAt = (z: number) => { for (let i = 0; i + 1 < prof.length; i++) { const [xa, za] = prof[i], [xc, zc] = prof[i + 1]; if (z >= za && z <= zc) return xa + ((xc - xa) * (z - za)) / (zc - za || 1); } return prof[prof.length - 1][0]; };
+        for (let z = z0; z < zN - 0.01; z += 0.4) {
+          const z1 = Math.min(zN, z + 0.4), xm = xAt((z + z1) / 2) - d * cr;
+          for (const e of SIDES) s.cyl("z", z, z1, xm, e * (w - cr), cr, cr, L.body, false);
+        }
+      } else s.prismY([[xb, z0], ...prof, [xb, zN]], -w + 0.3, w - 0.3, L.body);
     }
-    const [ga, gb] = [p.front[best], p.front[best + 1]].map(([back, z]) => [xf - d * back, z] as [number, number]), gz0 = ga[1] + 0.8, gz1 = gb[1] - 1.2;
+    // the cab's roof, carried over to where the front leans back
+    const roofEnd = xf - d * Math.max(...allPts.filter(([, z]) => z >= top - 0.5).map(([b]) => b), 0);
+    s.roof(Math.min(xb, roofEnd), Math.max(xb, roofEnd), w - 1.6, top, p.roofRise, L.roof);
+    // the windscreen: a given stretch of the front, or the longest one above the buffer beam
+    let sp = 0, best = parts[0].length - 2;
+    if (p.screen) { sp = p.screen.part; best = p.screen.seg; }
+    else {
+      let bl = 0;
+      parts.forEach((part, pi) => { for (let i = 0; i + 1 < part.length; i++) { const [b0, z0] = part[i], [b1, z1] = part[i + 1]; if (z0 < p.floor + 8) continue; const l = Math.hypot(b1 - b0, z1 - z0); if (l > bl) { bl = l; best = i; sp = pi; } } });
+    }
+    const [ga, gb] = [parts[sp][best], parts[sp][best + 1]].map(at), gz0 = ga[1] + 0.8, gz1 = gb[1] - 0.8;
     const gx = (z: number) => ga[0] + ((gb[0] - ga[0]) * (z - ga[1])) / (gb[1] - ga[1] || 1);
     for (const e of SIDES) {
-      const ya = e * 1, yb = e * (w - Math.max(2.5, (p.cornerR ?? 0) + 0.8));
+      const ya = e * 1, yb = e * (w - Math.max(2.5, cr + 0.8));
       s.beam(gx(gz0) + d * 0.25, gz0, gx(gz1) + d * 0.25, gz1, Math.min(ya, yb), Math.max(ya, yb), 0.3, GLASS);
     }
     // headlights: two low, one high; tail lights beside them
-    const low = p.front[1] ?? p.front[0], fx = xf - d * low[0];
-    for (const y of [-w + 5, w - 5]) {
-      s.cyl("x", Math.min(fx, fx + d * 0.8), Math.max(fx, fx + d * 0.8), y, p.floor + 3.5, 1.5, 1.5, L.lamps ?? [0.92, 0.92, 0.82]);
-      s.cyl("x", Math.min(fx, fx + d * 0.6), Math.max(fx, fx + d * 0.6), y * 0.68, p.floor + 3.5, 0.9, 0.9, [0.55, 0.1, 0.08]);
+    const frontAt = (z: number) => {
+      let x = xb;
+      for (const part of parts) for (let i = 0; i + 1 < part.length; i++) {
+        const [pa, pb] = [at(part[i]), at(part[i + 1])];
+        if (z >= pa[1] && z <= pb[1]) { const xx = pa[0] + ((pb[0] - pa[0]) * (z - pa[1])) / (pb[1] - pa[1] || 1); if (d * xx > d * x) x = xx; }
+      }
+      return x;
+    };
+    const lz = p.lampZ ?? p.floor + 3.5, fx = frontAt(lz), ly = w - Math.max(5, cr + 2.5);
+    for (const y of [-ly, ly]) {
+      s.cyl("x", Math.min(fx - d * 0.3, fx + d * 0.7), Math.max(fx - d * 0.3, fx + d * 0.7), y, lz, 1.5, 1.5, L.lamps ?? [0.92, 0.92, 0.82]);
+      s.ring("x", Math.min(fx - d * 0.3, fx + d * 0.8), Math.max(fx - d * 0.3, fx + d * 0.8), y, lz, 1.9, 1.5, darker(L.body, 0.6));
+      s.cyl("x", Math.min(fx - d * 0.3, fx + d * 0.5), Math.max(fx - d * 0.3, fx + d * 0.5), y * 0.66, lz, 0.9, 0.9, [0.55, 0.1, 0.08]);
     }
-    const topLamp = gb, tx = topLamp[0] + d * 0.4;
-    s.cyl("x", Math.min(tx, tx + d * 0.6), Math.max(tx, tx + d * 0.6), 0, topLamp[1] - 0.3, 1.2, 1.2, L.lamps ?? [0.92, 0.92, 0.82]);
+    const tz = p.topLampZ ?? gb[1] - 0.3, tx = frontAt(tz);
+    s.cyl("x", Math.min(tx - d * 0.3, tx + d * 0.6), Math.max(tx - d * 0.3, tx + d * 0.6), 0, tz, 1.2, 1.2, L.lamps ?? [0.92, 0.92, 0.82]);
     // cab side windows and door, handrails and steps up to it
     const [c0, c1, z0, z1] = p.cabWindow;
     const wx0 = d > 0 ? xb + c0 : xb - c1, wx1 = d > 0 ? xb + c1 : xb - c0;
@@ -168,9 +187,11 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
       barZ(s, dx + d * 1.2, e * (w - 0.2), p.floor + 1, top - 10, 0.3, STEEL);
       step(s, dx + d * 3, e * (w - 0.3), p.floor - 0.4, L.frames);
     }
-    // wipers and a horn
+    // wipers
     for (const e of SIDES) s.beam(gx(gz0 + 1), gz0 + 1, gx(gz0 + 4), gz0 + 4, e * 6 - 0.2, e * 6 + 0.2, 0.25, BLACK);
   }
+  // windows along the machine room
+  for (const x of p.sideWindows ?? []) pane(s, w, x - 3.2, top - 11, x + 3.2, top - 5, 0.8, GLASS, darker(L.body, 0.6));
 }
 
 /** DB class 218: a centre cab between two long bonnets, on two B bogies, in DB wine red. */

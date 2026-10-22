@@ -431,17 +431,25 @@ const EUROPE: Model[] = [
   },
   {
     id: "roco-t478-2079", maker: "Roco", name: "ČSD T 478.2 'Bardotka' diesel", group: "diesel", kind: "loco", scale: "H0",
-    length: 190, width: 35, height: 49.5, color: "#8f1d24",
-    note: "Roco 7300090 (7310090 with sound): T 478.2079 of the ČSD, Era IV, in the standard cherry red with grey roof and underframe and yellow buffer beams; the goods version without the steam-heating boiler; Bo'Bo', 190 mm over buffers",
+    length: 190, width: 35.3, height: 47.2, color: "#8f1d24",
+    note: "Roco 7300090 (7310090 with sound): T 478.2079 of the ČSD, Era IV, in the standard cherry red with grey roof and underframe and yellow buffer beams; the goods version without the steam-heating boiler; Bo'Bo', 16.5 m (190 mm) over buffers, 3,074 mm wide, 4,103 mm high",
     draw: h0((s) => drawElectric(s, {
-      length: 190, width: 35, height: 49.5, floor: 17, eave: 44.5, roofRise: 3.6, cabBack: 64,
-      // the curvy front the class is nicknamed for: a rounded chin under a big two-piece windscreen
-      front: [[0, 17], [0, 22], [1.4, 26], [2.6, 29.5], [3.2, 31.5], [6.2, 41.5], [8.6, 44.5]],
-      bogies: { centre: 50.5, wheelbase: 27.6, r: 5.75, axles: 2 },
+      length: 190, width: 35.3, height: 47.2, floor: 16.5, eave: 43.4, roofRise: 2.8, cabBack: 66,
+      front: [[0, 16.5], [0, 43.4]],
+      // the front the class is nicknamed for: a big rounded nose pushed out under the windscreens, the
+      // windscreens recessed and leaning forward at the top (a negative slope), the roof's edge overhanging them
+      frontParts: [
+        [[1.6, 16.5], [1.0, 20], [0.4, 23], [0, 25.5], [0.3, 27.8], [1.3, 29.8], [3.0, 31.2], [5.4, 31.9]],
+        [[5.4, 31.9], [3.6, 40.4]],
+        [[3.6, 40.4], [2.4, 40.9], [2.2, 42.0], [3.4, 43.4], [6.5, 44.6], [11, 45.4]],
+      ],
+      screen: { part: 1, seg: 0 }, lampZ: 25.5, topLampZ: 42,
+      bogies: { centre: 51.7, wheelbase: 27.6, r: 5.75, axles: 2 },
       pantographs: [], cornerR: 6,
       diesel: { fans: [-30, -14], exhausts: [8, 18] },
+      sideWindows: [-46, -34, 34, 46],
       livery: { body: [0.56, 0.1, 0.13], roof: [0.5, 0.51, 0.5], frames: [0.42, 0.43, 0.42], beams: [0.95, 0.76, 0.1] },
-      cabWindow: [3, 11, 31, 40], grilles: [-40, -22, 14, 34],
+      cabWindow: [3, 11, 31.5, 39.5], grilles: [-18, 18],
     })),
   },
   {
