@@ -102,6 +102,10 @@ with sync_playwright() as p:
     dlg = pg.get_by_role("dialog", name="Trains and rolling stock")
     check("F02-H1", "T opens the Trains dialog on the selected train", dlg.count() == 1 and dlg.get_by_role("list", name="Vehicles, front first").get_by_role("button").count() >= 1)
     axe(pg, "F02-E7", ".dialog", "Trains dialog")
+    fit = js(pg, """(() => { const d = document.querySelector('.dialog').getBoundingClientRect(), b = [...document.querySelectorAll('.dialog button')].find(x => /on the track/.test(x.textContent)).getBoundingClientRect();
+      return [d.bottom <= innerHeight + 1, b.bottom <= d.bottom && b.top >= d.top]; })()""")
+    check("F02-E13", "with the whole catalogue in it, the dialog fits the window and its actions show without scrolling", fit == [True, True], fit)
+    check("F02-H4", "the catalogue lists classic locos, coaches and wagons by type", all(dlg.get_by_role("group", name=g).count() == 1 for g in ["Steam locomotives", "Diesel locomotives", "Coaches", "Wagons"]))
     dlg.get_by_role("button", name="New rake of wagons").click(); pg.wait_for_timeout(100)
     for _ in range(3): dlg.get_by_role("button", name="Add a box van").click(); pg.wait_for_timeout(50)
     strip = dlg.get_by_role("list", name="Vehicles, front first")

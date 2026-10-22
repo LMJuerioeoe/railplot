@@ -11,7 +11,7 @@ import { geom } from "../model";
 import { World, scaleOf, worldFor } from "./world";
 import { TrackPos, TrackPose } from "./track";
 import { STOCK, newVehicle } from "./stock";
-import { MODELS, modelById, vehicleOfModel } from "./models";
+import { MODELS, ModelGroup, modelById, vehiclesOfModel } from "./models";
 import { VehicleKind } from "../control/types";
 
 export type Camera = "tabletop" | "chase" | "cab";
@@ -21,6 +21,7 @@ const PREFS = "railplot.drive.v1";
 
 /** Side-on outlines of the stock kinds, drawn for the Trains dialog (64 × 22). */
 const SILHOUETTE: Record<VehicleKind, string> = {
+  tender: "M8 8h48v9H8z M16 19a2 2 0 1 0 0.1 0 M32 19a2 2 0 1 0 0.1 0 M48 19a2 2 0 1 0 0.1 0",
   loco: "M4 6h40v-3h12v3h4v11H4z M10 19a2 2 0 1 0 0.1 0 M22 19a2 2 0 1 0 0.1 0 M44 19a2 2 0 1 0 0.1 0 M54 19a2 2 0 1 0 0.1 0",
   coach: "M2 6q30-4 60 0v11H2z M10 19a2 2 0 1 0 0.1 0 M16 19a2 2 0 1 0 0.1 0 M48 19a2 2 0 1 0 0.1 0 M54 19a2 2 0 1 0 0.1 0",
   wagon: "M12 10h40v7H12z M20 19a2 2 0 1 0 0.1 0 M44 19a2 2 0 1 0 0.1 0",
@@ -484,6 +485,10 @@ export class DriveView {
     });
   }
 
+  /** The catalogue's models, for the Trains dialog and for checking them (tenders too, when asked). */
+  catalogue(tenders = false): string[] { return MODELS.filter((m) => tenders || m.group !== "tender").map((m) => m.id); }
+  vehiclesFor(id: string) { const md = modelById(id); let n = 0; return md ? vehiclesOfModel(md, () => `cat${n++}`) : []; }
+
   private token(name: string) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
   private consistName(id: string): string {
@@ -595,6 +600,12 @@ export class DriveView {
       body.append(row);
     }
 
+    // what to do with it
+    const acts = h("div", { class: "trains-acts" },
+      h("button", { class: "btn btn-primary", type: "button", id: "trains-place", disabled: !sc.vehicles.length, onclick: () => this.startPlacing(sc.id) }, onTrack ? "Move it on the track" : "Place on the track"),
+      h("button", { class: "btn", type: "button", id: "trains-turn", disabled: !onTrack, onclick: () => { w.turnRound(sc.id); this.app.commit(); this.renderTrains(); } }, "Turn round"));
+    if (!sc.train) acts.append(h("button", { class: "btn btn-danger-ghost", type: "button", id: "trains-remove", onclick: () => { w.remove(sc.id); this.editing = null; this.app.commit(); closeDialog(); this.openTrains(); } }, "Take off the layout"));
+    body.append(acts);
     // stock to add
     body.append(h("h3", {}, "Add to the back"));
     const tiles = h("div", { class: "stock-tiles" });
@@ -605,22 +616,20 @@ export class DriveView {
         silhouette(st.kind), h("span", { class: "name" }, st.name), h("span", { class: "len" }, `${len} mm`)));
     }
     body.append(tiles);
-    // detailed models, at their real lengths
-    body.append(h("h3", {}, "Models"));
-    const models = h("div", { class: "stock-tiles" });
-    for (const md of MODELS) {
-      models.append(h("button", { type: "button", class: "part-tile stock-tile", "data-model": md.id, "aria-label": `Add a ${md.maker ? md.maker + " " : ""}${md.name}, ${md.length} mm`, title: md.note,
-        onclick: () => { sc.vehicles.push(vehicleOfModel(md, `v${cfg.nextId++}`)); this.changed(); } },
-        silhouette(md.kind), h("span", { class: "name" }, md.name), h("span", { class: "len" }, `${md.maker ? md.maker + " · " : ""}${md.length} mm`)));
+    // detailed models, at their real lengths, by type
+    const GROUPS: [ModelGroup, string][] = [["steam", "Steam locomotives"], ["diesel", "Diesel locomotives"], ["coach", "Coaches"], ["wagon", "Wagons"]];
+    for (const [g, title] of GROUPS) {
+      body.append(h("h3", {}, title));
+      const models = h("div", { class: "stock-tiles", role: "group", "aria-label": title });
+      for (const md of MODELS.filter((x) => x.group === g)) {
+        const t = modelById(md.tender), len = md.length + (t ? t.length + 2 : 0);
+        models.append(h("button", { type: "button", class: "part-tile stock-tile", "data-model": md.id, "aria-label": `Add a ${md.maker ? md.maker + " " : ""}${md.name}${t ? " and its tender" : ""}, ${len} mm`, title: md.note,
+          onclick: () => { sc.vehicles.push(...vehiclesOfModel(md, () => `v${cfg.nextId++}`)); this.changed(); } },
+          h("span", { class: "swatch", style: `background:${md.color}`, "aria-hidden": "true" }), silhouette(md.kind), h("span", { class: "name" }, md.name), h("span", { class: "len" }, `${md.maker ? md.maker + " · " : ""}${len} mm${t ? " with tender" : ""}`)));
+      }
+      body.append(models);
     }
-    body.append(models);
 
-    // what to do with it
-    const acts = h("div", { class: "trains-acts" },
-      h("button", { class: "btn btn-primary", type: "button", id: "trains-place", disabled: !sc.vehicles.length, onclick: () => this.startPlacing(sc.id) }, onTrack ? "Move it on the track" : "Place on the track"),
-      h("button", { class: "btn", type: "button", id: "trains-turn", disabled: !onTrack, onclick: () => { w.turnRound(sc.id); this.app.commit(); this.renderTrains(); } }, "Turn round"));
-    if (!sc.train) acts.append(h("button", { class: "btn btn-danger-ghost", type: "button", id: "trains-remove", onclick: () => { w.remove(sc.id); this.editing = null; this.app.commit(); closeDialog(); this.openTrains(); } }, "Take off the layout"));
-    body.append(acts);
   }
 
   private focusVehicle() {

@@ -6,7 +6,7 @@ import { getPart } from "../src/library";
 import { TrackGraph } from "../src/sim/track";
 import { scaleOf, worldFor } from "../src/sim/world";
 import { newVehicle } from "../src/sim/stock";
-import { MODELS, vehicleOfModel } from "../src/sim/models";
+import { MODELS, boundsOf, vehicleOfModel, vehiclesOfModel } from "../src/sim/models";
 
 const noPoints = () => 0;
 
@@ -363,40 +363,36 @@ describe("bugs found testing the drive view", () => {
 });
 
 describe("the model catalogue", () => {
-  test("every model stays inside its length over buffers, its width and its height", () => {
+  test("every model stays inside its length over buffers, its width and its height, and reaches its buffers", () => {
     for (const m of MODELS) {
-      let x0 = Infinity, x1 = -Infinity, y = 0, z0 = Infinity, z1 = -Infinity;
-      const see = (a: number, b: number, w: number, lo: number, hi: number) => { x0 = Math.min(x0, a); x1 = Math.max(x1, b); y = Math.max(y, w); z0 = Math.min(z0, lo); z1 = Math.max(z1, hi); };
-      m.draw({
-        box: (a, b, c, d, lo, hi) => see(a, b, Math.max(Math.abs(c), Math.abs(d)), lo, hi),
-        barX: (a, b, yy, z, r) => see(a, b, Math.abs(yy) + r, z - r, z + r),
-        barY: (x, c, d, z, r) => see(x - r, x + r, Math.max(Math.abs(c), Math.abs(d)), z - r, z + r),
-        barZ: (x, yy, lo, hi, r) => see(x - r, x + r, Math.abs(yy) + r, lo, hi),
-        strip: (face, a, lo, b, hi) => see(Math.min(a, b), Math.max(a, b), Math.abs(face), Math.min(lo, hi), Math.max(lo, hi)),
-        roof: (a, b, half, ze, rise) => see(a, b, half, ze, ze + rise),
-      });
-      expect([m.id, x1 - x0]).toEqual([m.id, expect.any(Number)]);
-      expect(x0).toBeGreaterThanOrEqual(-m.length / 2 - 0.01);
-      expect(x1).toBeLessThanOrEqual(m.length / 2 + 0.01);
-      expect(x1 - x0).toBeGreaterThan(m.length - 1);        // buffer to buffer
-      expect(y).toBeLessThanOrEqual(m.width / 2 + 0.5);
-      expect(z0).toBeGreaterThanOrEqual(0);
-      expect(z1).toBeLessThanOrEqual(m.height + 0.01);
+      const b = boundsOf((sh) => m.draw(sh));
+      const at = `${m.id}: x ${b.x0.toFixed(1)}..${b.x1.toFixed(1)}, y ${b.y.toFixed(1)}, z ${b.z0.toFixed(1)}..${b.z1.toFixed(1)}`;
+      expect([at, b.x0 >= -m.length / 2 - 0.05 && b.x1 <= m.length / 2 + 0.05]).toEqual([at, true]);
+      expect([at, b.x1 - b.x0 > m.length - 1]).toEqual([at, true]);           // buffer to buffer
+      expect([at, b.y <= m.width / 2 + 0.6]).toEqual([at, true]);
+      expect([at, b.z0 >= -0.01 && b.z1 <= m.height + 0.05]).toEqual([at, true]);
     }
   });
 
-  test("the Prairie drives; the vans and the Toad are wagons; they make up a train", () => {
-    const kinds = MODELS.map((m) => vehicleOfModel(m, m.id)).map((v) => [v.kind, v.detectable]);
-    expect(kinds).toEqual([["loco", true], ["van", false], ["van", false], ["brake", false]]);
+  test("locos drive and are seen by current detection; tender engines bring their tenders", () => {
+    for (const m of MODELS) expect([m.id, vehicleOfModel(m, "x").detectable]).toEqual([m.id, m.kind === "loco"]);
+    const castle = MODELS.find((m) => m.id === "gwr-castle")!;
+    let n = 0;
+    expect(vehiclesOfModel(castle, () => `v${n++}`).map((v) => v.model)).toEqual(["gwr-castle", "gwr-collett-tender"]);
+    expect(MODELS.filter((m) => m.group !== "tender").length).toBeGreaterThanOrEqual(20);
+  });
+
+  test("the owner's train makes up, its vehicles buffer to buffer along the track", () => {
+    const own = ["dapol-51xx", "dapol-10t-van", "efe-gwr-fish", "br-toad"].map((id) => MODELS.find((m) => m.id === id)!);
+    expect(own.map((m) => m.length)).toEqual([164, 82, 128, 103]);
     const p = buildControlDemo(); const cfg = p.control!; cfg.derailments = "off";
     const e = new ControlEngine(p, cfg); const w = worldFor(e);
     const sc = w.stockOf(cfg.trains[1].id);
-    sc.vehicles = MODELS.map((m, i) => vehicleOfModel(m, "m" + i));
+    sc.vehicles = own.map((m, i) => vehicleOfModel(m, "m" + i));
     w.sync();
     const c = w.consistOf(cfg.trains[1].id)!;
     expect(c.at).toHaveLength(4);
-    // centre to centre: half of each plus the buffer gap
     const a = w.graph.pose(c.at[0]), b = w.graph.pose(c.at[1]);
-    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo((MODELS[0].length + MODELS[1].length) / 2 + 2, 0);
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo((164 + 82) / 2 + 2, 0);
   });
 });

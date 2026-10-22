@@ -151,3 +151,16 @@ Steps
 Expected: the dialog closes. Actual: nothing; redrawing the dialog dropped the keyboard focus to the page.
 Evidence: tests/e2e/test_drive.py F02-E10
 Status: fixed: focus stays on the same button through a redraw
+
+### BUG-011: With the full model catalogue, the Trains dialog's actions fall off the bottom
+
+- Severity: S2
+- Flow / case: F02 / F02-E13
+- Screen: S07
+
+Steps
+1. T in the drive view (1440 × 900).
+
+Expected: "Place on the track" can be clicked. Actual: the dialog grew taller than the window and its body didn't scroll (a flex child without `min-height: 0`), so the button was out of reach.
+Evidence: tests/e2e/test_drive.py timed out on "Place on the track"; F02-E13
+Status: fixed: dialogs now cap their height at the window (`100dvh`; the old `100%` resolved against the dialog's own content, so no long dialog anywhere in the app ever scrolled), the body scrolls, and the actions sit under the train they act on, above the catalogue

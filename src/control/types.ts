@@ -109,7 +109,7 @@ export interface AutomationCfg {
 /** A place on the track: a piece, one of its routes, a distance along it (mm) and which way along it. */
 export interface TrackPosCfg { item: string; route: number; s: number; dir: 1 | -1 }
 
-export type VehicleKind = "loco" | "coach" | "wagon" | "van" | "tank" | "brake";
+export type VehicleKind = "loco" | "tender" | "coach" | "wagon" | "van" | "tank" | "brake";
 
 export interface VehicleCfg {
   id: string;

@@ -189,19 +189,25 @@ function mul(a: M4, b: M4): M4 {
 const VS = `#version 300 es
 in vec3 aPos; in vec3 aNrm; in vec3 aCol;
 uniform mat4 uMvp; uniform mat4 uModel; uniform vec3 uEye; uniform vec3 uTint;
-out vec3 vN; out vec3 vC; out float vD;
-void main(){ vec4 w=uModel*vec4(aPos,1.0); vN=mat3(uModel)*aNrm; vC=aCol*uTint; vD=distance(w.xyz,uEye); gl_Position=uMvp*w; }`;
+out vec3 vN; out vec3 vC; out float vD; out vec3 vW;
+void main(){ vec4 w=uModel*vec4(aPos,1.0); vN=mat3(uModel)*aNrm; vC=aCol*uTint; vD=distance(w.xyz,uEye); vW=w.xyz; gl_Position=uMvp*w; }`;
 const FS = `#version 300 es
 precision highp float;
-in vec3 vN; in vec3 vC; in float vD;
-uniform vec3 uBg; uniform float uFog;
+in vec3 vN; in vec3 vC; in float vD; in vec3 vW;
+uniform vec3 uBg; uniform float uFog; uniform vec3 uEye; uniform float uSpec;
 out vec4 o;
 void main(){
   vec3 n=normalize(vN);
+  vec3 V=normalize(uEye-vW);
+  if(dot(n,V)<0.0) n=-n;   // lit from whichever side is seen
   vec3 L=normalize(vec3(-0.45,0.85,0.35));
   float d=max(dot(n,L),0.0);
   float hemi=0.5+0.5*n.y;
   vec3 c=vC*(0.38+0.22*hemi+0.55*d);
+  // paint and metal catch the light: a soft highlight, and a little sky reflected at grazing angles
+  float sp=pow(max(dot(n,normalize(L+V)),0.0),28.0)*uSpec;
+  float rim=pow(1.0-max(dot(n,V),0.0),3.0)*uSpec*0.35;
+  c+=vec3(sp)+uBg*rim;
   float f=clamp((vD-uFog)/(uFog*3.0),0.0,0.6);
   o=vec4(mix(c,uBg,f),1.0);
 }`;
@@ -222,10 +228,24 @@ export interface DynamicVehicle { kind: string; length: number; width: number; h
 function modelMesh(md: Model): MeshBuilder {
   const m = new MeshBuilder();
   const L = md.length, Wd = md.width, H = md.height;
-  const P = (x: number, y: number, z: number): V3 => W(x / L, y / Wd, z / H);
-  const N = (x: number, y: number, z: number): V3 => W(x / (L * L), y / (Wd * Wd), z / (H * H));
-  const quad = (a: V3, b: V3, c: V3, d: V3, n: V3, col: RGB) => m.quad(P(...a), P(...b), P(...c), P(...d), N(...n), col);
-  const SEG = 14;
+  type P3 = [number, number, number];
+  const P = (p: P3): V3 => W(p[0] / L, p[1] / Wd, p[2] / H);
+  const N = (n: P3): V3 => W(n[0] / (L * L), n[1] / (Wd * Wd), n[2] / (H * H));
+  const quad = (a: P3, b: P3, c: P3, d: P3, n: P3, col: RGB) => m.quad(P(a), P(b), P(c), P(d), N(n), col);
+  // a quad with a normal at each corner, for smooth curved surfaces
+  const quadN = (a: P3, b: P3, c: P3, d: P3, na: P3, nb: P3, nc: P3, nd: P3, col: RGB) => {
+    const i = m.vert(P(a), N(na), col), j = m.vert(P(b), N(nb), col), k = m.vert(P(c), N(nc), col), l = m.vert(P(d), N(nd), col);
+    m.idx.push(i, j, k, i, k, l);
+  };
+  // a point on a round section about an axis: (along, angle, radius) to x, y, z
+  const around = (axis: "x" | "y" | "z", a: number, u: number, v: number, t: number, r: number): P3 =>
+    axis === "x" ? [a, u + Math.cos(t) * r, v + Math.sin(t) * r] : axis === "y" ? [u + Math.cos(t) * r, a, v + Math.sin(t) * r] : [u + Math.cos(t) * r, v + Math.sin(t) * r, a];
+  const dirOf = (axis: "x" | "y" | "z", t: number): P3 => around(axis, 0, 0, 0, t, 1);
+  const unit = (axis: "x" | "y" | "z", sgn: number): P3 => (axis === "x" ? [sgn, 0, 0] : axis === "y" ? [0, sgn, 0] : [0, 0, sgn]);
+  // round things get more sides the bigger they are
+  const segs = (r: number) => Math.max(10, Math.min(32, Math.round(r * 2.4)));
+  /** A polygon (convex) as a fan, with one normal. */
+  const fan = (pts: P3[], n: P3, col: RGB) => { for (let i = 1; i + 1 < pts.length; i++) quad(pts[0], pts[i], pts[i + 1], pts[i + 1], n, col); };
   const s: Shapes = {
     box(x0, x1, y0, y1, z0, z1, col) {
       quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], col);
@@ -235,50 +255,75 @@ function modelMesh(md: Model): MeshBuilder {
       quad([x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [x0, y0, z0], [-1, 0, 0], col);
       quad([x1, y1, z1], [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [1, 0, 0], col);
     },
-    barX(x0, x1, y, z, r, col) {
-      for (let k = 0; k < SEG; k++) {
-        const a = (k / SEG) * Math.PI * 2, b = ((k + 1) / SEG) * Math.PI * 2, mid = (a + b) / 2;
-        const p = (x: number, t: number): [number, number, number] => [x, y + Math.cos(t) * r, z + Math.sin(t) * r];
-        quad(p(x1, a), p(x0, a), p(x0, b), p(x1, b), [0, Math.cos(mid), Math.sin(mid)], col);
-        quad(p(x1, a), p(x1, b), [x1, y, z], [x1, y, z], [1, 0, 0], col);
-        quad(p(x0, b), p(x0, a), [x0, y, z], [x0, y, z], [-1, 0, 0], col);
+    cyl(axis, a0, a1, u, v, r0, r1, col, caps = true) {
+      const n = segs(Math.max(r0, r1));
+      const slope = (r0 - r1) / Math.max(1e-6, a1 - a0);   // a cone's normal leans along the axis
+      for (let k = 0; k < n; k++) {
+        const t0 = (k / n) * Math.PI * 2, t1 = ((k + 1) / n) * Math.PI * 2;
+        const nrm = (t: number): P3 => { const d = dirOf(axis, t), ax = unit(axis, slope); return [d[0] + ax[0], d[1] + ax[1], d[2] + ax[2]]; };
+        quadN(around(axis, a0, u, v, t0, r0), around(axis, a1, u, v, t0, r1), around(axis, a1, u, v, t1, r1), around(axis, a0, u, v, t1, r0), nrm(t0), nrm(t0), nrm(t1), nrm(t1), col);
+        if (caps) {
+          if (r1 > 0) quad(around(axis, a1, u, v, t0, r1), around(axis, a1, u, v, t1, r1), around(axis, a1, u, v, 0, 0), around(axis, a1, u, v, 0, 0), unit(axis, 1), col);
+          if (r0 > 0) quad(around(axis, a0, u, v, t1, r0), around(axis, a0, u, v, t0, r0), around(axis, a0, u, v, 0, 0), around(axis, a0, u, v, 0, 0), unit(axis, -1), col);
+        }
       }
     },
-    barY(x, y0, y1, z, r, col) {
-      for (let k = 0; k < SEG; k++) {
-        const a = (k / SEG) * Math.PI * 2, b = ((k + 1) / SEG) * Math.PI * 2, mid = (a + b) / 2;
-        const p = (y: number, t: number): [number, number, number] => [x + Math.cos(t) * r, y, z + Math.sin(t) * r];
-        quad(p(y0, a), p(y1, a), p(y1, b), p(y0, b), [Math.cos(mid), 0, Math.sin(mid)], col);
-        quad(p(y1, b), p(y1, a), [x, y1, z], [x, y1, z], [0, 1, 0], col);
-        quad(p(y0, a), p(y0, b), [x, y0, z], [x, y0, z], [0, -1, 0], col);
+    ring(axis, a0, a1, u, v, rOut, rIn, col) {
+      const n = segs(rOut);
+      for (let k = 0; k < n; k++) {
+        const t0 = (k / n) * Math.PI * 2, t1 = ((k + 1) / n) * Math.PI * 2;
+        quadN(around(axis, a0, u, v, t0, rOut), around(axis, a1, u, v, t0, rOut), around(axis, a1, u, v, t1, rOut), around(axis, a0, u, v, t1, rOut), dirOf(axis, t0), dirOf(axis, t0), dirOf(axis, t1), dirOf(axis, t1), col);
+        quadN(around(axis, a0, u, v, t0, rIn), around(axis, a1, u, v, t0, rIn), around(axis, a1, u, v, t1, rIn), around(axis, a0, u, v, t1, rIn), dirOf(axis, t0 + Math.PI), dirOf(axis, t0 + Math.PI), dirOf(axis, t1 + Math.PI), dirOf(axis, t1 + Math.PI), col);
+        for (const [a, sg] of [[a0, -1], [a1, 1]] as const)
+          quad(around(axis, a, u, v, t0, rIn), around(axis, a, u, v, t0, rOut), around(axis, a, u, v, t1, rOut), around(axis, a, u, v, t1, rIn), unit(axis, sg), col);
       }
     },
-    barZ(x, y, z0, z1, r, col) {
-      for (let k = 0; k < SEG; k++) {
-        const a = (k / SEG) * Math.PI * 2, b = ((k + 1) / SEG) * Math.PI * 2, mid = (a + b) / 2;
-        const p = (z: number, t: number): [number, number, number] => [x + Math.cos(t) * r, y + Math.sin(t) * r, z];
-        quad(p(z1, a), p(z0, a), p(z0, b), p(z1, b), [Math.cos(mid), Math.sin(mid), 0], col);
-        quad(p(z1, a), p(z1, b), [x, y, z1], [x, y, z1], [0, 0, 1], col);
-      }
+    beam(x0, z0, x1, z1, y0, y1, t, col) {
+      const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz) || 1;
+      const ox = (-dz / len) * t / 2, oz = (dx / len) * t / 2;
+      const c = (x: number, z: number, y: number): P3 => [x, y, z];
+      const a = [x0 - ox, z0 - oz], b = [x1 - ox, z1 - oz], cc = [x1 + ox, z1 + oz], d = [x0 + ox, z0 + oz];
+      for (const [y, sg] of [[y0, -1], [y1, 1]] as const) quad(c(a[0], a[1], y), c(b[0], b[1], y), c(cc[0], cc[1], y), c(d[0], d[1], y), [0, sg, 0], col);
+      const side = (p: number[], q: number[], n: P3) => quad(c(p[0], p[1], y0), c(q[0], q[1], y0), c(q[0], q[1], y1), c(p[0], p[1], y1), n, col);
+      side(a, b, [-oz, 0, -ox]); side(d, cc, [oz, 0, ox]); side(a, d, [-dx, 0, -dz]); side(b, cc, [dx, 0, dz]);
     },
-    strip(face, x0, z0, x1, z1, width, col) {
-      // a thin band standing just proud of the side, square across its run
-      const y = face + Math.sign(face) * 0.15, dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz) || 1;
-      const ox = (-dz / len) * width / 2, oz = (dx / len) * width / 2;
-      const n: [number, number, number] = [0, Math.sign(face), 0];
-      const pts: [number, number, number][] = [[x0 - ox, y, z0 - oz], [x1 - ox, y, z1 - oz], [x1 + ox, y, z1 + oz], [x0 + ox, y, z0 + oz]];
-      if (face > 0) quad(pts[3], pts[2], pts[1], pts[0], n, col); else quad(pts[0], pts[1], pts[2], pts[3], n, col);
+    prismX(profile, x0, x1, col) {
+      // a convex outline across the vehicle (y, z), run along it from x0 to x1
+      fan(profile.map(([y, z]) => [x0, y, z] as P3), [-1, 0, 0], col);
+      fan(profile.map(([y, z]) => [x1, y, z] as P3), [1, 0, 0], col);
+      profile.forEach(([y, z], i) => {
+        const [y2, z2] = profile[(i + 1) % profile.length];
+        quad([x0, y, z], [x1, y, z], [x1, y2, z2], [x0, y2, z2], [0, z2 - z, -(y2 - y)], col);
+      });
+    },
+    prismY(profile, y0, y1, col) {
+      // a convex outline seen from the side (x, z), between y0 and y1
+      fan(profile.map(([x, z]) => [x, y0, z] as P3), [0, -1, 0], col);
+      fan(profile.map(([x, z]) => [x, y1, z] as P3), [0, 1, 0], col);
+      profile.forEach(([x, z], i) => {
+        const [x2, z2] = profile[(i + 1) % profile.length];
+        quad([x, y0, z], [x2, y0, z2], [x2, y1, z2], [x, y1, z], [z2 - z, 0, -(x2 - x)], col);
+      });
     },
     roof(x0, x1, half, zEave, rise, col) {
-      const zAt = (u: number) => zEave + rise * (1 - u * u);   // u from -1 to 1 across
-      for (let k = 0; k < SEG; k++) {
-        const u0 = -1 + (2 * k) / SEG, u1 = -1 + (2 * (k + 1)) / SEG, um = (u0 + u1) / 2;
-        const ny = (2 * rise * um) / half;   // slope of the arch, as a normal
-        quad([x0, u0 * half, zAt(u0)], [x1, u0 * half, zAt(u0)], [x1, u1 * half, zAt(u1)], [x0, u1 * half, zAt(u1)], [0, -ny, 1], col);
-        for (const [x, nx] of [[x0, -1], [x1, 1]] as const) {
-          const a: [number, number, number] = [x, u0 * half, zAt(u0)], b: [number, number, number] = [x, u1 * half, zAt(u1)];
-          if (nx > 0) quad(a, [x, u0 * half, zEave], [x, u1 * half, zEave], b, [1, 0, 0], col);
-          else quad(b, [x, u1 * half, zEave], [x, u0 * half, zEave], a, [-1, 0, 0], col);
+      const n = 16, zAt = (u: number) => zEave + rise * (1 - u * u);
+      const nAt = (u: number): P3 => [0, (2 * rise * u) / half, 1];
+      for (let k = 0; k < n; k++) {
+        const u0 = -1 + (2 * k) / n, u1 = -1 + (2 * (k + 1)) / n;
+        quadN([x0, u0 * half, zAt(u0)], [x1, u0 * half, zAt(u0)], [x1, u1 * half, zAt(u1)], [x0, u1 * half, zAt(u1)], nAt(u0), nAt(u0), nAt(u1), nAt(u1), col);
+        for (const [x, nx] of [[x0, -1], [x1, 1]] as const)
+          quad([x, u0 * half, zAt(u0)], [x, u0 * half, zEave], [x, u1 * half, zEave], [x, u1 * half, zAt(u1)], [nx, 0, 0], col);
+      }
+    },
+    dome(x, y, z, r, col, squash = 1) {
+      const n = segs(r), rings = 6;
+      for (let i = 0; i < rings; i++) {
+        const p0 = (i / rings) * Math.PI / 2, p1 = ((i + 1) / rings) * Math.PI / 2;
+        for (let k = 0; k < n; k++) {
+          const t0 = (k / n) * Math.PI * 2, t1 = ((k + 1) / n) * Math.PI * 2;
+          const pt = (p: number, t: number): P3 => [x + Math.cos(t) * Math.cos(p) * r, y + Math.sin(t) * Math.cos(p) * r, z + Math.sin(p) * r * squash];
+          const nn = (p: number, t: number): P3 => [Math.cos(t) * Math.cos(p), Math.sin(t) * Math.cos(p), Math.sin(p) / squash];
+          quadN(pt(p0, t0), pt(p0, t1), pt(p1, t1), pt(p1, t0), nn(p0, t0), nn(p0, t1), nn(p1, t1), nn(p1, t0), col);
         }
       }
     },
@@ -476,8 +521,10 @@ export class View3D {
     gl.uniform3fv(loc("uEye"), eye);
     gl.uniform3fv(loc("uBg"), this.bg);
     gl.uniform1f(loc("uFog"), f ? this.extent * 1.2 : this.distance * 1.4);
+    gl.uniform1f(loc("uSpec"), 0);
     gl.bindVertexArray(this.vao);
     gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_INT, 0);
+    gl.uniform1f(loc("uSpec"), 0.32);
     for (const v of this.dynamic) {
       const mesh = this.vehicleVao(v.kind);
       gl.uniformMatrix4fv(loc("uModel"), false, vehicleMatrix(v));
