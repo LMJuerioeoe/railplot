@@ -404,7 +404,7 @@ export const MODELS: Model[] = [
     marks: [
       side(14.45, -32, -10, 30, 35, WHITE_T("MINERAL OIL", "condensed")), side(14.45, 10, 24, 30.8, 33.2, DATA("CLASS B")),
     ],
-    draw: (s) => drawTankWagon(s, { length: 85, width: 31, body: [0.1, 0.1, 0.11], bodyHalf: 37.5, r: 14.4, wheelbase: 41.6, wheelR: 6.3 }),
+    draw: (s) => drawTankWagon(s, { length: 85, width: 31, body: [0.1, 0.1, 0.11], bodyHalf: 37.5, r: 14.4, wheelbase: 41.6, wheelR: 6.3, tieRods: true }),
   },
   {
     id: "br-20t-brake", maker: "", name: "BR standard 20 ton brake van, bauxite", group: "wagon", kind: "brake",
@@ -488,8 +488,8 @@ const EUROPE: Model[] = [
       // traced from Trix's side view of 11141: the body skirted down over the bogies, three big
       // machine-room windows, grilles along the roof shoulders
       length: 177, width: 34, height: 50.5, floor: 16.5, eave: 41.5, roofRise: 2.2, cabBack: 48,
-      front: [[6.5, 16.5], [6.5, 27.7], [7.3, 33], [8.3, 38.4], [9.6, 41.5]],
-      screen: { part: 0, seg: 2 },
+      front: [[6.5, 16.5], [6.5, 27], [8.3, 38.6], [9.6, 41.5]],
+      screen: { part: 0, seg: 1 }, lampZ: 20, topLampZ: 40,
       bogies: { centre: 43, wheelbase: 31, r: 7.2, axles: 2 },
       pantographs: [{ x: 44, kind: "single" }, { x: -44, kind: "single" }],
       livery: { body: SBB_GREEN, roof: [0.45, 0.46, 0.46], frames: [0.18, 0.18, 0.19], stripe: { z: 24, col: [0.8, 0.82, 0.83] } },
@@ -523,40 +523,43 @@ const EUROPE: Model[] = [
   {
     id: "db-silberling", maker: "", name: "DB n-Wagen 'Silberling', 2nd class", group: "coach", kind: "coach", scale: "H0",
     length: 303, width: 32.5, height: 46.6, color: "#b8bdc2",
-    note: "The DB's local train coach: fluted stainless steel sides, two doors a side, Minden-Deutz bogies, 26.4 m over buffers",
+    note: "The DB's local train coach: fluted stainless steel sides, two doors a side, Minden-Deutz bogies, 26.4 m over buffers; windows laid out from Piko's side view",
     marks: [
       side(16.3, -4, 4, 16.5, 20.5, { logo: "db", color: "#1a1a1a" }), side(16.3, 108, 136, 14.4, 15.9, DATA("50 80 22-34 123-4", "#1a1a1a")),
     ],
     draw: h0(coach({
       length: 303, width: 32.5, height: 46.6, bodyHalf: 143, floor: 13.5, waist: 21.5, eave: 40, rise: 5.6, tumblehome: 0.6,
-      bogieCentre: 109, bogieWheelbase: 28.7, wheelR: 5.5, layout: "T W W D W W W W W W D W W T", vents: 6, windowRadius: 1.4, fluted: true,
+      bogieCentre: 106, bogieWheelbase: 28.9, wheelR: 5.5, layout: "T _ W - W - W _ D _ W - W - W - W - W - W _ D _ W - W - W _ T", vents: 6, windowRadius: 1.4, fluted: true,
+      widths: { T: 8, W: 14.6, "-": 4.9, _: 4, D: 10.6 },
       livery: { lower: STAINLESS, roof: [0.42, 0.42, 0.43], frames: [0.12, 0.12, 0.12], ends: [0.22, 0.32, 0.27] },
     })),
   },
   {
     id: "db-uicx-green", maker: "", name: "DB UIC-X compartment coach, bottle green", group: "coach", kind: "coach", scale: "H0",
     length: 303, width: 32.5, height: 46.6, color: "#214d36",
-    note: "The 26.4 m UIC-X express coach of the 1950s and 60s in DB bottle green: compartments, aluminium window frames",
+    note: "The 26.4 m UIC-X express coach of the 1950s and 60s in DB bottle green: compartments, aluminium window frames; windows laid out from Piko's side view",
     marks: [
       side(16.3, -42, 42, 37.2, 39.1, WHITE_T("DEUTSCHE BUNDESBAHN")), side(16.3, 108, 136, 15, 16.6, DATA("51 80 22-40 123-4")),
     ],
     draw: h0(coach({
       length: 303, width: 32.5, height: 46.6, bodyHalf: 143, floor: 14, waist: 25.5, eave: 39.5, rise: 6, tumblehome: 1.2,
-      bogieCentre: 109, bogieWheelbase: 28.7, wheelR: 5.5, layout: "D T W W W W W W W W W W T D", vents: 10, windowRadius: 1,
+      bogieCentre: 104.8, bogieWheelbase: 30, wheelR: 5.5, layout: "D _ W - W - W - W - W - W - W - W - W - W - W - W - W - W _ D", vents: 10, windowRadius: 1,
+      widths: { D: 10, _: 3.8, W: 11.7, "-": 7.6 },
       livery: { lower: DB_GREEN, roof: [0.4, 0.4, 0.41], frames: [0.75, 0.76, 0.77], ends: [0.15, 0.17, 0.16] },
     })),
   },
   {
     id: "sncf-corail", maker: "", name: "SNCF Corail coach", group: "coach", kind: "coach", scale: "H0",
     length: 303, width: 33, height: 46, color: "#9fa1a0",
-    note: "The French intercity coach of 1975 onwards: grey with a light window band and orange doors, 26.4 m over buffers",
+    note: "The French intercity coach of 1975 onwards: light grey with a dark window band and orange doors, 26.4 m over buffers; windows laid out from Piko's side view",
     marks: [
-      side(16.55, 96, 116, 16.5, 21.5, { logo: "sncf", color: "#ef7d1a" }), side(16.55, -116, -96, 16.5, 21.5, { logo: "sncf", color: "#ef7d1a" }),
+      side(16.55, 80, 96, 17, 21.5, { logo: "sncf", color: "#ef7d1a" }),
     ],
     draw: h0(coach({
       length: 303, width: 33, height: 46, bodyHalf: 143, floor: 14, waist: 24, eave: 39, rise: 5.8, tumblehome: 1.4,
-      bogieCentre: 109, bogieWheelbase: 28.7, wheelR: 5.5, layout: "D T W W W W W W W W W W T D", vents: 0, windowRadius: 1.6,
-      livery: { lower: CORAIL_GREY, upper: [0.86, 0.87, 0.86], roof: [0.5, 0.5, 0.5], frames: [0.1, 0.1, 0.1], ends: CORAIL_GREY, doors: [0.92, 0.45, 0.12] },
+      bogieCentre: 100.5, bogieWheelbase: 30, wheelR: 5.5, layout: "= D + W - W - W - W - W - W - W - W - W - W + D T =", vents: 0, windowRadius: 1.6,
+      widths: { "=": 6, D: 9, "+": 12, W: 15.5, "-": 6.3, T: 7 },
+      livery: { lower: [0.84, 0.85, 0.84], upper: [0.33, 0.35, 0.37], roof: [0.74, 0.75, 0.75], frames: [0.12, 0.12, 0.12], ends: CORAIL_GREY, doors: [0.92, 0.45, 0.12] },
     })),
   },
   {
@@ -571,23 +574,23 @@ const EUROPE: Model[] = [
   },
   {
     id: "db-gbs", maker: "", name: "DB Gbs covered wagon", group: "wagon", kind: "van", scale: "H0",
-    length: 181, width: 33, height: 46, color: "#733823",
-    note: "The two-axle covered wagon of the DB, with big sliding doors and a 10 m wheelbase: 15.7 m over buffers",
+    length: 162, width: 33, height: 48, color: "#733823",
+    note: "The two-axle covered wagon of the DB, with big sliding doors, cross-braced loading hatches and an 8 m wheelbase: 14 m over buffers; traced from Märklin's side view",
     marks: [
-      side(15.95, -70, -62, 30, 36, { logo: "db", color: "#f2f2ee" }), side(15.95, -70, -50, 18, 20.6, WHITE_T("Gbs 254", "condensed")),
-      side(15.95, 50, 80, 18, 19.6, DATA("21 80 151 1 234-5")),
+      side(15.95, -50, -44, 31.5, 35.5, { logo: "db", color: "#f2f2ee" }), side(15.95, -52, -42, 20, 22.6, WHITE_T("Gbs 254", "condensed")),
+      side(15.95, -52, -38, 23.6, 25, DATA("21 80 151 1 234-5")),
     ],
-    draw: h0((s) => drawVan(s, { length: 181, width: 33, height: 46, bodyHalf: 84, wheelbase: 115, top: 40.5, rise: 5, wheelR: 5.3, body: [0.45, 0.22, 0.14], roof: [0.55, 0.55, 0.53], doors: [0], doorWidth: 32, marks: [{ x0: -80, x1: -55, z: 18, chars: 10 }] })),
+    draw: h0((s) => drawVan(s, { length: 162, width: 33, height: 48, bodyHalf: 74, wheelbase: 93, top: 40.5, rise: 7, wheelR: 5.3, body: [0.45, 0.22, 0.14], roof: [0.62, 0.63, 0.63], doors: [0], doorWidth: 30, hatches: { xs: [-58.8, -25.5, 25.8, 59], half: 6, z0: 30, z1: 37 }, marks: [{ x0: -80, x1: -55, z: 18, chars: 10 }] })),
   },
   {
     id: "eu-tank-2axle", maker: "", name: "Two-axle tank wagon, silver", group: "wagon", kind: "tank", scale: "H0",
-    length: 111, width: 34, height: 46.5, color: "#bdbfbd",
-    note: "A Uerdingen-type two-axle tank wagon for mineral oil: a long barrel, dome, ladders and walkway",
+    length: 111, width: 34, height: 49, color: "#bdbfbd",
+    note: "A two-axle tank wagon for mineral oil: the barrel on cradles, a dome with its ladder, a brake platform at one end; traced from Märklin's side view",
     marks: [
-      side(12.55, -30, -6, 27, 29.6, { text: "MINERALÖL", color: "#1a1a1a", font: "condensed" }),
-      side(12.55, 32, 44, 25.5, 30.5, { text: "33 / 1203", bg: "#f08a1c", color: "#111", border: "#111", font: "plate" }),
+      side(10.65, -26, -4, 31.5, 34.1, { text: "MINERALÖL", color: "#1a1a1a", font: "condensed" }),
+      side(10.65, 30, 40, 30.5, 35.5, { text: "33 / 1203", bg: "#f08a1c", color: "#111", border: "#111", font: "plate" }),
     ],
-    draw: h0((s) => drawTankWagon(s, { length: 111, width: 34, body: [0.74, 0.75, 0.74], bodyHalf: 48, r: 12.5, wheelbase: 57.5, wheelR: 5.3 })),
+    draw: h0((s) => drawTankWagon(s, { length: 111, width: 34, body: [0.74, 0.75, 0.74], bodyHalf: 40.8, r: 10.6, barrelX: 4.9, barrelZ: 32.8, domeX: 10.3, wheelbase: 50.8, wheelR: 5.3, brakePlatform: -36.5 })),
   },
   {
     id: "roco-t478-2079", maker: "Roco", name: "ČSD T 478.2 'Bardotka' diesel", group: "diesel", kind: "loco", scale: "H0",

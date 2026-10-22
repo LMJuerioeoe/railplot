@@ -35,6 +35,8 @@ export interface VanSpec {
   crosses?: { x: number; half: number }[];
   /** Doors braced with an inverted V, two diagonals meeting at the top (the GWR's Bloaters). */
   doorChevron?: boolean;
+  /** Loading hatches high on the sides, cross-braced (the DB Gbs): centres, half width, bottom and top. */
+  hatches?: { xs: number[]; half: number; z0: number; z1: number };
 }
 
 /** A closed van: planked body, strapping, doors, ends and a white roof. */
@@ -60,6 +62,14 @@ export function drawVan(s: Shapes, p: VanSpec) {
       s.box(c + 1, c + 2.6, Math.min(f, f + e * 0.6), Math.max(f, f + e * 0.6), (z0 + t) / 2 - 0.5, (z0 + t) / 2 + 0.5, DARK_STEEL);   // bolt
       if (p.doorChevron) { strip(s, f, c - dw / 2 + 1, z0 + 1, c, t - 1, 0.7, strap); strip(s, f, c + dw / 2 - 1, z0 + 1, c, t - 1, 0.7, strap); }
       else if (p.diagonals && !p.braceDown) strip(s, f, c - dw / 2 + 0.8, z0 + 1, c + dw / 2 - 0.8, t - 1, 0.7, strap);
+    }
+    if (p.hatches) for (const x of p.hatches.xs) {
+      const { half: hh, z0: h0, z1: h1 } = p.hatches, hc: RGB = [0.62, 0.63, 0.63];
+      s.box(x - hh, x + hh, Math.min(f, f + e * 0.3), Math.max(f, f + e * 0.3), h0, h1, hc);
+      strip(s, f + e * 0.3, x - hh + 0.5, h0 + 0.5, x + hh - 0.5, h1 - 0.5, 0.5, darker(hc, 0.6), 0.15);
+      strip(s, f + e * 0.3, x - hh + 0.5, h1 - 0.5, x + hh - 0.5, h0 + 0.5, 0.5, darker(hc, 0.6), 0.15);
+      // the struts below each hatch, in a V down to the solebar
+      strip(s, f, x - hh + 1, h0, x, z0 + 6, 0.5, darker(p.body, 0.6)); strip(s, f, x + hh - 1, h0, x, z0 + 6, 0.5, darker(p.body, 0.6));
     }
     for (const c of p.crosses ?? []) {
       strip(s, f, c.x - c.half, z0 + 1, c.x + c.half, t - 1, 0.8, strap); strip(s, f, c.x - c.half, t - 1, c.x + c.half, z0 + 1, 0.8, strap);
@@ -147,31 +157,49 @@ export function drawMineral(s: Shapes, p: { length: number; width: number; body:
 }
 
 /** A 14 ton tank wagon: barrel on cradles, dome with its lid, ladders and tie bars. */
-export function drawTankWagon(s: Shapes, p: { length: number; width: number; body: RGB; bands?: RGB; bodyHalf?: number; r?: number; wheelbase?: number; wheelR?: number }) {
-  const half = p.length / 2, w = p.width / 2, bh = p.bodyHalf ?? 36, z0 = 14.6, r = p.r ?? 12, zc = z0 + r + 1.2;
+export function drawTankWagon(s: Shapes, p: {
+  length: number; width: number; body: RGB; bands?: RGB; bodyHalf?: number; r?: number; wheelbase?: number; wheelR?: number;
+  /** The barrel's middle along the wagon, and its height (centre) when not just above the frame. */
+  barrelX?: number; barrelZ?: number; domeX?: number;
+  /** British tanks: end stanchions with tie rods from their tops down to the middle of the underframe. */
+  tieRods?: boolean;
+  /** A brake platform with its handbrake column at the back end (the -x end). */
+  brakePlatform?: number;
+}) {
+  const half = p.length / 2, w = p.width / 2, bh = p.bodyHalf ?? 36, z0 = 14.6, r = p.r ?? 12, zc = p.barrelZ ?? z0 + r + 1.2;
+  const bx = p.barrelX ?? 0, dx = p.domeX ?? bx;
   headstocks(s, half, UNDER, { width: w - 1.4 });
-  wagonGear(s, bh, p.wheelbase ?? 40, p.wheelR ?? 6.1, UNDER, w - 1.2);
-  for (const x of [-bh * 0.6, bh * 0.6]) s.prismX([[-r * 0.85, z0], [r * 0.85, z0], [r * 0.75, z0 + 4], [-r * 0.75, z0 + 4]], x - 1.5, x + 1.5, UNDER);   // cradles
-  s.cyl("x", -bh + 2.5, bh - 2.5, 0, zc, r, r, p.body, false);
-  // the barrel ends, as squashed domes turned outward: drawn as discs with a rounded rim
-  for (const e of SIDES) s.dish("x", e * (bh - 2.5), e, 0, zc, r, 2.6, p.body);                    // dished barrel ends
-  for (const x of [-bh + 6, -12, 12, bh - 6]) s.ring("x", x - 0.4, x + 0.4, 0, zc, r + 0.3, r - 0.2, p.bands ?? darker(p.body, 0.7));
-  s.cyl("z", zc + r - 1, zc + r + 3.6, 0, 0, 4.6, 4.2, p.body);                                     // dome
-  s.cyl("z", zc + r + 3.6, zc + r + 4.4, 0, 0, 4.9, 4.9, darker(p.body, 0.8));
-  barZ(s, 2.5, 2.5, zc + r + 4.4, zc + r + 5.6, 0.6, BRASS);                                        // valve
+  wagonGear(s, half - 6, p.wheelbase ?? 40, p.wheelR ?? 6.1, UNDER, w - 1.2);
+  for (const x of [bx - bh * 0.6, bx + bh * 0.6]) s.prismX([[-r * 0.85, z0], [r * 0.85, z0], [r * 0.75, zc - r * 0.55], [-r * 0.75, zc - r * 0.55]], x - 1.5, x + 1.5, UNDER);   // cradles
+  s.cyl("x", bx - bh + 2.5, bx + bh - 2.5, 0, zc, r, r, p.body, false);
+  // the barrel ends, as squashed domes turned outward
+  for (const e of SIDES) s.dish("x", bx + e * (bh - 2.5), e, 0, zc, r, 2.6, p.body);
+  for (const x of [-bh + 6, -12, 12, bh - 6]) s.ring("x", bx + x - 0.4, bx + x + 0.4, 0, zc, r + 0.3, r - 0.2, p.bands ?? darker(p.body, 0.7));
+  s.cyl("z", zc + r - 1, zc + r + 3.6, dx, 0, 4.6, 4.2, p.body);                                     // dome
+  s.cyl("z", zc + r + 3.6, zc + r + 4.4, dx, 0, 4.9, 4.9, darker(p.body, 0.8));
+  barZ(s, dx + 2.5, 2.5, zc + r + 4.4, zc + r + 5.6, 0.6, BRASS);                                   // valve
   for (const e of SIDES) {
-    // ladder up the side to the dome, a walkway rail
+    // ladder up the side to the dome
     const y = e * (r + 0.6);
-    for (const x of [-4, 0]) s.beam(x, z0 + 1, x + 2.5, zc + r - 2, Math.min(y, y + e * 0.4), Math.max(y, y + e * 0.4), 0.4, STEEL);
-    for (let z = z0 + 3; z < zc + r - 3; z += 2.5) s.beam(-4 + ((z - z0 - 1) / (zc + r - 3 - z0)) * 2.5, z, ((z - z0 - 1) / (zc + r - 3 - z0)) * 2.5, z, Math.min(y, y + e * 0.4), Math.max(y, y + e * 0.4), 0.35, STEEL);
-    // end stanchions up to the barrel's waist, and the tie rods running from their tops down to the middle of the underframe
-    const ya = e * (w - 1.6), yb = e * (w - 0.9), zt = zc + 1;
-    for (const d of SIDES) {
-      s.box(d * (bh + 0.2) - 0.6, d * (bh + 0.2) + 0.6, Math.min(ya, yb), Math.max(ya, yb), z0 - 1, zt, UNDER);
-      s.beam(d * (bh + 0.2), zt, 0, 5, Math.min(ya, yb), Math.max(ya, yb), 0.5, UNDER);
+    for (const x of [dx - 4, dx]) s.beam(x, z0 + 1, x + 2.5, zc + r - 2, Math.min(y, y + e * 0.4), Math.max(y, y + e * 0.4), 0.4, STEEL);
+    for (let z = z0 + 3; z < zc + r - 3; z += 2.5) { const t = (z - z0 - 1) / (zc + r - 3 - z0); s.beam(dx - 4 + t * 2.5, z, dx + t * 2.5, z, Math.min(y, y + e * 0.4), Math.max(y, y + e * 0.4), 0.35, STEEL); }
+    if (p.tieRods) {
+      // end stanchions up to the barrel's waist, and the tie rods running from their tops down to the middle of the underframe
+      const ya = e * (w - 1.6), yb = e * (w - 0.9), zt = zc + 1;
+      for (const d of SIDES) {
+        s.box(d * (bh + 0.2) - 0.6, d * (bh + 0.2) + 0.6, Math.min(ya, yb), Math.max(ya, yb), z0 - 1, zt, UNDER);
+        s.beam(d * (bh + 0.2), zt, 0, 5, Math.min(ya, yb), Math.max(ya, yb), 0.5, UNDER);
+      }
+      s.beam(-bh, zt - 0.3, bh, zt - 0.3, Math.min(e * (r + 0.2), e * (r + 0.7)), Math.max(e * (r + 0.2), e * (r + 0.7)), 0.4, UNDER);   // the band round the barrel's waist
     }
-    s.beam(-bh, zt - 0.3, bh, zt - 0.3, Math.min(e * (r + 0.2), e * (r + 0.7)), Math.max(e * (r + 0.2), e * (r + 0.7)), 0.4, UNDER);   // the band round the barrel's waist
     lettering(s, r - 0.5, -bh + 10, -10, zc - 2, 2.4, WHITE, 6);
+  }
+  if (p.brakePlatform !== undefined) {
+    // the brakeman's platform over the back buffer beam, its railing and the handbrake column
+    const x0 = -half + 6.5, x1 = p.brakePlatform;
+    s.box(x0, x1, -w + 1, w - 1, z0 + 0.6, z0 + 1.2, UNDER);
+    for (const e of SIDES) { barZ(s, x0 + 1, e * (w - 1.5), z0 + 1.2, z0 + 12, 0.35, UNDER); barX(s, x0 + 1, x1 - 1, e * (w - 1.5), z0 + 9, 0.3, UNDER); }
+    barZ(s, x0 + 4, -w + 4, z0 + 1.2, z0 + 15, 0.7, UNDER); s.cyl("y", -w + 2, -w + 6, x0 + 4, z0 + 15, 1.8, 1.8, UNDER);
   }
 }
 
