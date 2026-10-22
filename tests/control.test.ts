@@ -216,7 +216,9 @@ describe("demo", () => {
     // points set straight: the goods train in the loop has nowhere to go
     expect([...e.claimedBy].filter(([, t]) => t === goods.id).length).toBe(1);
     const sim = new SimLink(cfg.controllers[0], () => e);
+    // fast, to keep the test short: at this speed a train would fly off the curves, so derailments are off
     sim.fullSpeed = 3000;
+    cfg.derailments = "off";
     let clock = 0;
     const realNow = performance.now.bind(performance);
     (performance as any).now = () => clock;

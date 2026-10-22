@@ -121,6 +121,8 @@ export interface ControlConfig {
    * `threshold` mA is occupied. Backs up the infrared sensors.
    */
   detection?: { current: boolean; threshold: number };
+  /** In the simulator: how forgiving derailments are (default "realistic"). */
+  derailments?: "off" | "forgiving" | "realistic";
   /** Through a Railplot hub, let Claude set routes, points, signals and lights, drive trains and run automations (never track power). */
   claude?: boolean;
   nextId: number;

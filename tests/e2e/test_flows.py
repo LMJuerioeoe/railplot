@@ -368,7 +368,7 @@ with sync_playwright() as p:
     check("control mode opens with the demo", js(pg, "railplot.mode") == "control" and js(pg, "railplot.p.control.trains.length") == 2)
     ex = js(pg, "railplot.p.control.trains[1].id")
     start_block = js(pg, "railplot.p.control.trains[1].block")
-    pg.fill(f"#thr-{ex}", "100"); pg.evaluate(f"document.getElementById('thr-{ex}').dispatchEvent(new Event('input'))")
+    pg.fill(f"#thr-{ex}", "60"); pg.evaluate(f"document.getElementById('thr-{ex}').dispatchEvent(new Event('input'))")
     pg.wait_for_timeout(6000)
     check("the express moves on to another block", js(pg, "railplot.p.control.trains[1].block") != start_block)
     pg.click("text=Stop all trains")
@@ -386,6 +386,15 @@ with sync_playwright() as p:
     for _ in range(3): cams.append(pg.locator("#drive-camera").inner_text().split()[0]); pg.keyboard.press("c"); pg.wait_for_timeout(150)
     check("C cycles chase, cab and tabletop", sorted(cams) == ["Cab", "Chase", "Tabletop"], cams)
     shot(pg, "09b-drive")
+    # flat out round a second-radius curve: it comes off, and R puts it back
+    for _ in range(12): pg.keyboard.press("e")
+    try: pg.wait_for_selector("#drive-derailed", timeout=20000); came_off = True
+    except Exception: came_off = False
+    check("too fast round a curve, the train derails", came_off and "curve" in pg.locator("#drive-derailed").inner_text(), js(pg, "railplot.drive.world().consistOf(railplot.drive.train).speed"))
+    check("a derailment shorts its block, as on the real layout", js(pg, "railplot.ctl.engine.faults.size") >= 1)
+    shot(pg, "09c-derailed")
+    pg.keyboard.press("r"); pg.wait_for_timeout(400)
+    check("R re-rails it and clears the fault", pg.locator("#drive-derailed").count() == 0 and not js(pg, "!!railplot.drive.world().consistOf(railplot.drive.train).derailed") and js(pg, "railplot.ctl.engine.faults.size") == 0)
     pg.keyboard.press("Space"); pg.wait_for_timeout(100)
     check("Space stops the selected train", js(pg, "railplot.ctl.engine.run(railplot.drive.train).target") == 0)
     pg.keyboard.press("Escape"); pg.wait_for_timeout(200)

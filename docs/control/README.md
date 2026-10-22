@@ -16,6 +16,8 @@ You can try all of this without hardware: in Railplot press **Control**, then **
 
 **Drive in 3D** (Control > Drive, View > Drive in 3D, or <kbd>D</kbd>) shows the simulated trains on your layout in 3D. Pick a train at the bottom (or <kbd>1</kbd>–<kbd>9</kbd>), drive with the slider or <kbd>Q</kbd> and <kbd>E</kbd> (<kbd>Shift</kbd> for bigger steps), stop it with <kbd>Space</kbd> (<kbd>Shift</kbd>+<kbd>Space</kbd> stops all), change the camera with <kbd>C</kbd> (behind the train, from the cab, or the whole layout) and switch km/h and mph with <kbd>U</kbd>. <kbd>Esc</kbd> goes back to the plan. The simulated trains follow the real track through the points as they're set, trip the sensors they pass over and draw current in the blocks they stand in, so everything in Control works on them as on a real layout. A train stopped across a block joint is in both blocks, as it would be for real.
 
+Simulated trains can **derail**: too fast round a curve (sideways acceleration over 0.8 m/s², about 0.6 m/s on second radius), through a point set against them, or into the end of the line at more than 0.12 m/s. The train stops and tips off, its block shorts and shows a fault, as on a real layout, and the HUD says why and how fast was the limit; the speed turns amber when you're close. **Re-rail here** (<kbd>R</kbd>) or **Re-rail where it last stood** puts it back and clears the fault. In Set up > Simulator, choose **Realistic** (the default), **Forgiving** (curves at half as fast again, points at walking pace) or **Off** (trains are held at the curve limit instead).
+
 ---
 
 ## Phase 1: one train, points and lights

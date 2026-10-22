@@ -16,7 +16,7 @@ One line per screen: id, date, done or partial, what's missing, what was harder 
 | S10 | — | not started | Points and signals in 3D | |
 | S11 | — | not started | Auto drive from the HUD (trips already run, from the Auto tab) | |
 | S12 | — | not started | Settings and help overlay (U and C work as keys) | |
-| S13 | — | not started | Derailments and re-railing | |
+| S13 | 2026-10-22 | done | Collisions between trains (with S09); the slide is not animated (vehicles appear tipped at rest) | **Speeds.** At the old simulated top speed (450 mm/s) no train could ever come off a Setrack curve. Real OO and H0 locos run at 0.6–1 m/s on 12 V and do fly off, so full speed is now 800 mm/s, and the default is Realistic, not Forgiving as `architecture.md` planned, so the feature is felt. The two-train demo's fast test runs with derailments off; the click-through drives the express at 60% where it checks block changes. |
 
 ## Notes
 

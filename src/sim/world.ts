@@ -31,7 +31,34 @@ export interface Consist {
   travel: 1 | -1;
   /** The sign of the power last time it had any, to notice the driver reversing. */
   lastSign: number;
+  /** Off the rails: why, and where each vehicle came to rest. Nothing moves until it's re-railed. */
+  derailed?: Derailment;
+  /** Where it last stood still on the rails, for "re-rail where it last stood". */
+  lastStop?: TrackPos[];
+  /** Held at the curve limit (derailments off): the HUD says so. */
+  held?: boolean;
 }
+
+export type DerailCause = "curve" | "trailing" | "open-end";
+
+export interface Derailment {
+  cause: DerailCause;
+  /** mm/s when it came off, and the most it could have done there. */
+  speed: number;
+  limit: number;
+  /** The radius it came off on (curve), the point it ran through (trailing), or the piece whose end it ran off. */
+  radius?: number;
+  item: string;
+  /** Each vehicle's resting place off the rails. */
+  poses: { x: number; y: number; z: number; h: number; tilt: number }[];
+}
+
+/** Sideways acceleration a vehicle stays on the rails at, mm/s² (realistic). About 0.6 m/s on second radius. */
+export const CURVE_ACCEL = 800;
+/** Running through a point set against the train, mm/s: forgiving lets a sprung point through at walking pace. */
+const TRAIL_SPEED = 80;
+/** Hitting the end of the line faster than this, mm/s, tips the front vehicle off (forgiving: 1.5 times). */
+const BUFFER_SPEED = 120;
 
 /** Room between two vehicles' bodies (buffers just touching), mm. */
 const GAP = 2;
@@ -57,8 +84,8 @@ export function worldFor(engine: ControlEngine): World {
 export class World {
   graph!: TrackGraph;
   consists: Consist[] = [];
-  /** mm/s at full power. */
-  fullSpeed = 450;
+  /** mm/s at full power: a typical OO or H0 loco on 12 V, about 0.8 m/s. */
+  fullSpeed = 800;
   private graphKey = "";
   private lastClock: number | null = null;
   private latched = new Map<string, Set<number>>();   // controller -> sensor inputs seen since its last reading
@@ -203,24 +230,114 @@ export class World {
     return out;
   }
 
+  get mode() { return this.engine().cfg.derailments ?? "realistic"; }
+
+  /** The fastest a vehicle can take a curve of radius r, mm/s (Infinity on the straight). */
+  curveLimit(r: number): number {
+    if (!isFinite(r)) return Infinity;
+    const v = Math.sqrt(CURVE_ACCEL * r);
+    return this.mode === "forgiving" ? v * 1.5 : v;
+  }
+
   step(dt: number) {
     for (const c of this.consists) {
+      if (c.derailed) { c.speed = 0; continue; }
       const target = c.travel * Math.abs(this.powerOf(c)) * this.fullSpeed;
       c.speed += (target - c.speed) * Math.min(1, dt / MOTOR_LAG);
       if (Math.abs(c.speed) < 0.01 && target === 0) c.speed = 0;
+      // the tightest curve under any vehicle
+      let limit = Infinity, at = 0;
+      c.at.forEach((a, i) => { const l = this.curveLimit(this.graph.pose(a).r); if (l < limit) { limit = l; at = i; } });
+      c.held = false;
+      if (Math.abs(c.speed) > limit) {
+        if (this.mode === "off") { c.speed = Math.sign(c.speed) * limit; c.held = true; }
+        else { this.derail(c, "curve", at, limit, this.graph.pose(c.at[at]).r); continue; }
+      }
+      if (c.speed === 0 && !c.lastStop) c.lastStop = c.at.map((a) => ({ ...a }));
+      if (c.speed !== 0) c.lastStop = undefined;
       const ds = c.speed * dt;
       if (ds !== 0) this.move(c, ds);
     }
   }
 
-  /** Move every vehicle of a consist the same distance; the leading vehicle finds the way, and an open end stops the lot. */
+  /**
+   * Move every vehicle of a consist the same distance. The leading vehicle's end finds the way: an open
+   * end stops the lot (tipping the front vehicle off if it hits too hard), and running through a point
+   * set against the train derails it, unless derailments are off (or forgiving, at walking pace).
+   */
   private move(c: Consist, ds: number) {
     const lead = ds > 0 ? 0 : c.at.length - 1;
-    const first = this.graph.advance(c.at[lead], ds, this.points);
-    const go = first.stop ? first.moved * Math.sign(ds) : ds;
-    if (first.stop) c.speed = 0;
+    const half = c.vehicles[lead].length / 2, sgn = Math.sign(ds);
+    const probe = this.graph.advance(c.at[lead], sgn * (half + Math.abs(ds)), this.points);
+    let go = ds;
+    const speed = Math.abs(c.speed);
+    if (probe.trailed && this.mode !== "off" && (this.mode === "realistic" || speed > TRAIL_SPEED)) {
+      this.derail(c, "trailing", lead, this.mode === "realistic" ? 0 : TRAIL_SPEED, undefined, probe.trailed);
+      return;
+    }
+    if (probe.stop) {
+      go = sgn * Math.max(0, probe.moved - half);
+      const hard = BUFFER_SPEED * (this.mode === "forgiving" ? 1.5 : 1);
+      if (this.mode !== "off" && speed > hard) { this.derail(c, "open-end", lead, hard, undefined, probe.pos.item); return; }
+      c.speed = 0;
+    }
     if (go === 0) return;
-    c.at = c.at.map((a, i) => (i === lead ? first.pos : this.graph.advance(a, go, this.points).pos));
+    c.at = c.at.map((a) => this.graph.advance(a, go, this.points).pos);
+  }
+
+  /** Take a consist off the rails: every vehicle slews outwards and tips, the train stops, its block shorts. */
+  private derail(c: Consist, cause: DerailCause, vehicle: number, limit: number, radius?: number, item?: string) {
+    const e = this.engine();
+    const speed = Math.abs(c.speed);
+    const poses = c.at.map((a, i) => {
+      const p = this.graph.pose(a);
+      // the vehicle that came off goes furthest; the rest follow it off, less and less
+      const k = Math.max(0.2, 1 - Math.abs(i - vehicle) * 0.25);
+      // outwards on a curve; otherwise to whichever side
+      const side = cause === "curve" ? -Math.sign(this.turnOf(a)) || 1 : (i % 2 ? 1 : -1);
+      const off = 18 * k, ahead = cause === "open-end" && i === vehicle ? Math.sign(c.speed || 1) * c.vehicles[i].length * 0.35 : 0;
+      return {
+        x: p.x - Math.sin(p.h) * off * side + Math.cos(p.h) * ahead, y: p.y + Math.cos(p.h) * off * side + Math.sin(p.h) * ahead,
+        z: p.z, h: p.h + side * 0.25 * k, tilt: side * 1.1 * k,
+      };
+    });
+    c.derailed = { cause, speed, limit, radius, item: item ?? c.at[vehicle].item, poses };
+    c.speed = 0;
+    const t = e.cfg.trains.find((x) => x.id === c.train);
+    e.events.push(`${t?.name ?? "A train"} derailed: ${this.describe(c.derailed)}.`);
+  }
+
+  /** Which way the track turns under a position, for a train facing along it: +1 left, -1 right, 0 straight. */
+  private turnOf(a: TrackPos): number {
+    const h0 = this.graph.pose(a).h, h1 = this.graph.pose(this.graph.advance(a, 10, this.points).pos).h;
+    const d = Math.atan2(Math.sin(h1 - h0), Math.cos(h1 - h0));
+    return Math.abs(d) < 1e-6 ? 0 : Math.sign(d);
+  }
+
+  /** "47 km/h on a 371 mm curve, about 35 km/h is the limit" in the units of the layout's scale. */
+  describe(d: Derailment): string {
+    const lib = this.p.items.find((i) => i.id === d.item)?.part.split("/")[0] ?? "";
+    const k = scaleOf(lib);
+    const sp = (v: number) => (k ? `${Math.round((v * k * 3600) / 1e6)} km/h` : `${Math.round(v)} mm/s`);
+    if (d.cause === "curve") return `${sp(d.speed)} on a ${Math.round(d.radius ?? 0)} mm curve, where about ${sp(d.limit)} is the limit`;
+    if (d.cause === "trailing") return `it ran through a point set for the other road${d.limit ? ` faster than ${sp(d.limit)}` : ""}`;
+    return `it ran into the end of the line at ${sp(d.speed)}`;
+  }
+
+  /**
+   * Back on the rails: "here" puts every vehicle back on the track where it came off; "last-stop" where
+   * the train last stood still. The block's fault is cleared and the train stays stopped.
+   */
+  rerail(consistId: string, how: "here" | "last-stop" = "here"): boolean {
+    const c = this.consists.find((x) => x.id === consistId);
+    if (!c?.derailed) return false;
+    if (how === "last-stop" && c.lastStop?.every((a) => this.graph.has(a))) c.at = c.lastStop.map((a) => ({ ...a }));
+    c.derailed = undefined;
+    c.speed = 0;
+    const e = this.engine();
+    if (c.train) e.setThrottle(c.train, 0, false);
+    for (const b of this.blocksOf(c)) e.clearFault(b);
+    return true;
   }
 
   /** Sensors with a vehicle over them; each one that becomes covered is latched for its controller. */
@@ -256,15 +373,32 @@ export class World {
       if (b.controller !== controller || b.channel === undefined) continue;
       const here = this.consists.flatMap((c) => c.vehicles.map((v, i) => ({ v, a: c.at[i] }))).filter(({ a }) => e.topo.blockOfItem.get(a.item) === b.id);
       const powered = (e.power.get(b.id) ?? 0) !== 0;
-      mA[b.channel] = powered && here.some(({ v }) => v.kind === "loco") ? 150 : 0;
+      const shorted = this.consists.some((c) => c.derailed && this.blocksOf(c).has(b.id));
+      mA[b.channel] = powered && shorted ? 2000 : powered && here.some(({ v }) => v.kind === "loco") ? 150 : 0;
       idle[b.channel] = here.some(({ v }) => v.detectable) || strays.has(b.id) ? 25 : 0;
     }
     return { inputs, mA, idle };
   }
 
   /** Every vehicle and where it is, for drawing. */
-  vehiclePoses(): { consist: Consist; vehicle: Vehicle; pose: TrackPose }[] {
-    return this.consists.flatMap((c) => c.vehicles.map((vehicle, i) => ({ consist: c, vehicle, pose: this.graph.pose(c.at[i]) })));
+  vehiclePoses(): { consist: Consist; vehicle: Vehicle; pose: TrackPose & { tilt?: number } }[] {
+    return this.consists.flatMap((c) => c.vehicles.map((vehicle, i) => {
+      const off = c.derailed?.poses[i];
+      return { consist: c, vehicle, pose: off ? { ...off, r: Infinity } : this.graph.pose(c.at[i]) };
+    }));
+  }
+
+  /** How close a train is to the curve limit just ahead of it (0..1+), for the HUD's warning. */
+  curveMargin(train: string): number {
+    const c = this.consistOf(train);
+    if (!c || c.derailed || !c.speed) return 0;
+    const lead = c.speed > 0 ? 0 : c.at.length - 1;
+    let worst = 0;
+    for (const d of [0, 100, 200, 300]) {
+      const r = this.graph.pose(this.graph.advance(c.at[lead], Math.sign(c.speed) * d, this.points).pos).r;
+      worst = Math.max(worst, Math.abs(c.speed) / this.curveLimit(r));
+    }
+    return worst;
   }
 
   consistOf(train: string) { return this.consists.find((c) => c.train === train); }

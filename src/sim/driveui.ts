@@ -30,7 +30,8 @@ export class DriveView {
   private raf = 0;
   private eye: [number, number, number] | null = null;
   private look: [number, number, number] | null = null;
-  private refs: { speed?: HTMLElement; unit?: HTMLElement; throttle?: HTMLInputElement; throttleLabel?: HTMLElement; trains?: HTMLElement; camera?: HTMLElement } = {};
+  private refs: { speed?: HTMLElement; speedBox?: HTMLElement; unit?: HTMLElement; tag?: HTMLElement; throttle?: HTMLInputElement; throttleLabel?: HTMLElement; trains?: HTMLElement; camera?: HTMLElement; card?: HTMLElement } = {};
+  private cardFor: string | null = null;
 
   constructor(private app: App) {
     try { const d = JSON.parse(store.get(PREFS) ?? "{}"); if (d.units === "mph") this.units = "mph"; if (CAMERAS.includes(d.camera)) this.camera = d.camera; } catch { /* defaults */ }
@@ -74,6 +75,7 @@ export class DriveView {
     this.open = false;
     cancelAnimationFrame(this.raf);
     this.hud?.remove(); this.hud = null;
+    this.refs.card?.remove(); this.refs = {}; this.cardFor = null;
     this.app.root.classList.remove("is-driving");
     if (this.app.view3d) { this.app.view3d.follow = null; this.app.view3d.setDynamic([]); }
   }
@@ -87,19 +89,20 @@ export class DriveView {
     const throttle = h("input", { type: "range", min: "-100", max: "100", step: "1", value: "0", id: "drive-throttle", "aria-label": "Throttle",
       oninput: () => this.setThrottle(+throttle.value / 100) }) as HTMLInputElement;
     const throttleLabel = h("span", {}, "Stopped");
-    const speed = h("b", { id: "drive-speed" }, "0"), unit = h("span", {}, this.unitName());
+    const speed = h("b", { id: "drive-speed" }, "0"), unit = h("span", {}, this.unitName()), tag = h("span", { class: "hud-tag warn", hidden: true }, "Curve");
+    const speedBox = h("div", { class: "hud-speed", "aria-label": "Speed" }, speed, h("span", {}, unit, " ", tag));
     const cam = h("button", { class: "hud-chip", type: "button", id: "drive-camera", onclick: () => this.nextCamera() });
     this.hud = h("div", { class: "hud", role: "toolbar", "aria-label": "Train controls", id: "drive-hud" },
       trains,
       h("div", { class: "hud-throttle" }, h("label", { for: "drive-throttle" }, h("span", {}, "Back"), throttleLabel, h("span", {}, "Forward")), throttle),
-      h("div", { class: "hud-speed", "aria-label": "Speed" }, speed, h("span", {}, unit)),
+      speedBox,
       h("button", { class: "hud-btn", type: "button", id: "drive-stop", title: "Stop this train (Space)", onclick: () => this.setThrottle(0, true) }, "Stop"),
       cam,
       h("button", { class: "hud-btn", type: "button", id: "drive-exit", title: "Back to the plan (Esc)", onclick: () => this.app.toggle3d(false) }, "Exit"));
-    this.refs = { speed, unit, throttle, throttleLabel, trains, camera: cam };
+    this.refs = { speed, speedBox, unit, tag, throttle, throttleLabel, trains, camera: cam };
     for (const t of cfg.trains.filter((x) => x.block)) {
       trains.append(h("button", { class: "hud-chip", type: "button", role: "radio", "data-train": t.id, style: `--train:${t.color}`,
-        onclick: () => { this.train = t.id; this.eye = null; this.syncHud(); } }, h("span", { class: "dot" }), t.name));
+        onclick: () => { this.train = t.id; this.eye = null; this.syncHud(); } }, h("span", { class: "dot" }), t.name, h("span", { class: "hud-tag danger", hidden: true, "data-derailed": t.id }, "Derailed")));
     }
     this.app.el.view3d.append(this.hud);
     this.syncHud();
@@ -112,11 +115,41 @@ export class DriveView {
 
   private syncHud() {
     const r = this.refs;
+    const w = this.world();
+    for (const tag of r.trains?.querySelectorAll<HTMLElement>("[data-derailed]") ?? []) tag.hidden = !w?.consistOf(tag.dataset.derailed!)?.derailed;
+    const off = this.train ? w?.consistOf(this.train)?.derailed : undefined;
+    if (r.throttle) r.throttle.disabled = !!off;
+    this.derailCard(w, off ? this.train : null);
     for (const b of r.trains?.querySelectorAll<HTMLElement>("[data-train]") ?? []) b.setAttribute("aria-checked", String(b.dataset.train === this.train));
     if (r.camera) { clear(r.camera); r.camera.append(`${CAMERA_NAMES[this.camera]} `, h("kbd", {}, "C")); r.camera.title = "Change the camera (C)"; }
     const target = this.train ? this.ctl.engine.run(this.train)?.target ?? 0 : 0;
     if (r.throttle && document.activeElement !== r.throttle) r.throttle.value = String(Math.round(target * 100));
-    if (r.throttleLabel) r.throttleLabel.textContent = target === 0 ? "Stopped" : `${Math.round(Math.abs(target) * 100)}% ${target > 0 ? "forward" : "back"}`;
+    if (r.throttleLabel) r.throttleLabel.textContent = off ? "Derailed" : target === 0 ? "Stopped" : `${Math.round(Math.abs(target) * 100)}% ${target > 0 ? "forward" : "back"}`;
+  }
+
+  /** The derailment card for the selected train, while it's off the rails. */
+  private derailCard(w: World | null, train: string | null) {
+    if (this.cardFor === train) return;
+    this.cardFor = train;
+    this.refs.card?.remove(); this.refs.card = undefined;
+    const c = train && w ? w.consistOf(train) : undefined;
+    if (!c?.derailed || !train) return;
+    const name = this.ctl.cfg.trains.find((t) => t.id === train)?.name ?? "The train";
+    const here = h("button", { class: "hud-btn primary", type: "button", id: "drive-rerail", onclick: () => this.rerail("here") }, "Re-rail here");
+    const card = h("div", { class: "hud-card", role: "alertdialog", "aria-label": `${name} derailed`, id: "drive-derailed" },
+      h("h3", {}, `${name} derailed`),
+      h("p", {}, `${w!.describe(c.derailed)[0].toUpperCase()}${w!.describe(c.derailed).slice(1)}.`),
+      h("div", { class: "row" }, here,
+        h("button", { class: "hud-btn", type: "button", onclick: () => this.rerail("last-stop") }, "Re-rail where it last stood")));
+    this.app.el.view3d.append(card);
+    this.refs.card = card;
+    setTimeout(() => here.focus(), 0);
+  }
+
+  private rerail(how: "here" | "last-stop") {
+    if (!this.train) return;
+    this.ctl.act({ c: "rerail", train: this.train, how });
+    this.cardFor = "~";   // redraw on the next frame
   }
 
   private setThrottle(v: number, show = false) {
@@ -143,6 +176,7 @@ export class DriveView {
     if (k === "q" || k === "Q" || k === "ArrowLeft" || k === "ArrowDown") { this.setThrottle(target - step, true); return true; }
     if (e.code === "Space") { e.preventDefault(); if (e.shiftKey) this.ctl.act({ c: "stopAll" }); else this.setThrottle(0, true); return true; }
     if (k === "c" || k === "C") { this.nextCamera(); return true; }
+    if (k === "r" || k === "R") { this.rerail("here"); return true; }
     if (k === "u" || k === "U") { this.units = this.units === "kmh" ? "mph" : "kmh"; this.savePrefs(); if (this.refs.unit) this.refs.unit.textContent = this.unitName(); return true; }
     if (/^[1-9]$/.test(k)) {
       const t = this.ctl.cfg.trains.filter((x) => x.block)[+k - 1];
@@ -164,7 +198,7 @@ export class DriveView {
       const gauge = 16.5, railTop = 5;
       const vehicles: DynamicVehicle[] = w.vehiclePoses().map(({ vehicle, pose }) => ({
         kind: vehicle.kind, length: vehicle.length - 2, width: gauge * 1.9, height: vehicle.kind === "loco" ? gauge * 3 : gauge * 2.6,
-        color: hexRgb(vehicle.color), x: pose.x, y: pose.y, z: pose.z + railTop, h: pose.h,
+        color: hexRgb(vehicle.color), x: pose.x, y: pose.y, z: pose.z + railTop, h: pose.h, tilt: pose.tilt,
       }));
       v3.setDynamic(vehicles);
       const at = this.train ? w.poseOf(this.train) : null;
@@ -207,6 +241,11 @@ export class DriveView {
     const c = w.consistOf(this.train);
     const shown = kmh === null ? Math.abs(c?.speed ?? 0) : this.units === "mph" ? kmh / 1.609 : kmh;
     r.speed.textContent = String(Math.round(shown));
+    // amber close to the curve limit ahead, red over it (only seen with derailments off: the train is held)
+    const m = w.curveMargin(this.train);
+    r.speedBox?.classList.toggle("near", m >= 0.85 && m <= 1 && !c?.held);
+    r.speedBox?.classList.toggle("over", m > 1 || !!c?.held);
+    if (r.tag) { r.tag.hidden = !(m >= 0.85 || c?.held); r.tag.textContent = c?.held ? "Held" : "Curve"; }
     this.syncHud();
   }
 }

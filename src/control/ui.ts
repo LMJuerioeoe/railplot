@@ -765,6 +765,15 @@ export class ControlUI {
         del("Delete sensor", () => { cfg.sensors = cfg.sensors.filter((x) => x !== s); }))),
       cfg.blocks.length > 1 ? h("div", { class: "btn-row" }, h("button", { class: "btn btn-sm", type: "button", onclick: () => { const n = addSensorsAtBoundaries(p, cfg); this.commitSetup(); this.render(); toast(n ? `${n} sensor${n === 1 ? "" : "s"} added.` : "Every block joint already has a sensor."); } }, "Add sensors at block joints")) : h("p", { class: "muted small" }, "Sensors need two or more blocks.")));
 
+    // the simulator
+    if (cfg.controllers.some((c) => c.kind === "sim")) {
+      const mode = h("select", { id: "sim-derail", "aria-label": "Derailments", onchange: (ev: Event) => { this.act({ c: "derailMode", mode: (ev.target as HTMLSelectElement).value as "off" }); this.commitSetup(); } },
+        ...([["realistic", "Realistic"], ["forgiving", "Forgiving"], ["off", "Off: hold trains at the limit"]] as const).map(([v, t]) => h("option", { value: v, selected: (cfg.derailments ?? "realistic") === v }, t)));
+      el.append(sec("Simulator",
+        h("div", { class: "setup-row" }, h("span", { class: "small grow" }, "Derailments"), mode),
+        h("p", { class: "muted small" }, "Simulated trains come off when driven too fast round a curve, through a point set against them, or into the end of the line. Forgiving lets them take curves half as fast again and run through points at walking pace. Re-rail them in Drive in 3D.")));
+    }
+
     // detection by current
     const det = cfg.detection ?? { current: false, threshold: 3 };
     const sim = [...this.links.values()].find((l) => l instanceof SimLink) as SimLink | undefined;

@@ -141,7 +141,7 @@ export class SimLink implements Link {
   /** Blocks with a simulated wagon left in them, for trying current detection. */
   strays = new Set<string>();
   /** Full speed in mm per second at full power. */
-  fullSpeed = 450;
+  fullSpeed = 800;
   /** The clock, in ms (tests replace it). */
   clock: () => number = () => performance.now();
 
