@@ -1,6 +1,6 @@
 // European rolling stock at H0 scale (1:87): electric locomotives with their cab fronts, roof gear and
-// pantographs, the DB class 218 diesel, and a bogie open wagon. Steam, coaches, vans and tank wagons
-// use the shared builders.
+// pantographs (and the DB class 218 diesel on the same kind of body), and a bogie open wagon. Steam,
+// coaches, vans and tank wagons use the shared builders.
 import {
   BLACK, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER, WHITE, barX, barZ, coal, darker, discWheels,
   headstocks, ladder, lettering, pane, step, strip,
@@ -81,8 +81,10 @@ export interface ElectricSpec {
   frontColors?: RGB[];
   /** The cab sides above this height in another colour (ÖBB's dark grey cab tops). */
   cabTop?: { z0: number; col: RGB; len?: number };
-  /** A deep skirt below the body, down to z0. */
-  skirt?: { z0: number; col: RGB };
+  /** A deep skirt below the body, down to z0; `half` stops it short of the buffer beams. */
+  skirt?: { z0: number; col: RGB; half?: number };
+  /** Big fixed windows along the machine room: [x0, x1, z0, z1]. */
+  bigWindows?: [number, number, number, number][];
   /** A striped snow plough under each buffer beam. */
   plough?: { col: RGB; stripe: RGB };
   /** Louvred grilles on the sides: [x0, x1, z0, z1]. */
@@ -112,7 +114,7 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
   const face = headstocks(s, half, L.beams ?? L.frames, { z0: p.floor - 8, z1: p.floor - 1, width: w - 2.5 });
   // frame and skirt along the sides, a cowcatcher-like apron under each end
   s.box(-face, face, -w + 0.6, w - 0.6, p.floor - 2.4, p.floor, L.frames);
-  if (p.skirt) s.box(-face + 0.2, face - 0.2, -w + 0.4, w - 0.4, p.skirt.z0, p.floor, p.skirt.col);
+  if (p.skirt) { const sh = p.skirt.half ?? face - 0.2; s.box(-sh, sh, -w + 0.4, w - 0.4, p.skirt.z0, p.floor, p.skirt.col); }
   if (p.plough) for (const d of [1, -1]) {
     // a wedge under the buffer beam, painted in diagonal stripes
     const x0 = d * (face - 0.2), x1 = d * (face - 3.2), z0 = 1.6, z1 = p.floor - 8.2;
@@ -156,7 +158,7 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
     const bandEnd = face - 0.6 - (p.cornerR ?? 0) - p.front[1][0];
     if (L.band) s.box(-bandEnd, bandEnd, Math.min(f, f + e * 0.1), Math.max(f, f + e * 0.1), L.band.z0, L.band.z1, L.band.col);
     if (p.emblem) s.cyl("y", Math.min(f, f + e * 0.3), Math.max(f, f + e * 0.3), 0, (p.floor + top) / 2 + 2, 3.2, 3.2, p.emblem);
-    if (L.stripe) strip(s, f, -face, L.stripe.z, face, L.stripe.z, 0.7, L.stripe.col, 0.15);
+    if (L.stripe) strip(s, f, -bandEnd, L.stripe.z, bandEnd, L.stripe.z, 0.7, L.stripe.col, 0.15);
     if (!p.plates) lettering(s, w, -8, 8, p.floor + 6, 2.2, WHITE, 6);
     for (const [x0, x1, z0, z1] of p.louvres ?? []) {
       const lc = p.louvreCol ?? darker(L.body, 0.45);
@@ -300,52 +302,9 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
   }
   // windows along the machine room
   for (const x of p.sideWindows ?? []) pane(s, w, x - 3.2, top - 11, x + 3.2, top - 5, 0.8, GLASS, darker(L.body, 0.6));
+  for (const [x0, x1, z0, z1] of p.bigWindows ?? []) pane(s, w, x0, z0, x1, z1, 1.2, GLASS, [0.12, 0.12, 0.12]);
 }
 
-/** DB class 218: a centre cab between two long bonnets, on two B bogies, in DB wine red. */
-export function drawClass218(s: Shapes, p: { length: number; width: number; body: RGB; stripe: RGB }) {
-  const half = p.length / 2, w = p.width / 2, floor = 16.5, hood = 43.5, cabTop = 46.5, hw = 15.3;
-  const face = headstocks(s, half, BLACK, { z0: floor - 8, z1: floor - 1, width: w - 2.5 });
-  s.box(-face, face, -w + 0.4, w - 0.4, floor - 2.4, floor, BLACK);                                  // frame and walkways
-  for (const e of SIDES) { strip(s, e * (w - 0.4), -face, floor - 1.2, face, floor - 1.2, 1.4, p.stripe, 0.1); barX(s, -face + 4, face - 4, e * (w - 0.6), floor + 9, 0.3, STEEL); for (const x of [-face + 4, -40, -20, 20, 40, face - 4]) barZ(s, x, e * (w - 0.6), floor, floor + 9, 0.25, STEEL); }
-  for (const c of [49.4, -49.4]) bogie(s, c, 31, 5.75, floor - 2.4, BLACK);
-  // the two bonnets: rounded shoulders, rounded ends, doors and grilles along them
-  const cab0 = 14.5;
-  for (const d of [1, -1]) {
-    const a = d * cab0, b = d * (face - 6);
-    s.prismX(section(hw, floor, hood, 4), Math.min(a, b), Math.max(a, b), p.body, true);
-    // the bonnet's nose: its top slopes down to the front, its corners are rounded in plan
-    const nose = d * (face - 2.5), r = 2.5;
-    s.prismY([[b, floor], [nose, floor], [nose, hood - 7], [b, hood]], -hw + r, hw - r, p.body, true);
-    for (const e of SIDES) {
-      s.cyl("z", floor, hood - 7.5, nose - d * r, e * (hw - r), r, r, p.body);
-      s.prismY([[b, floor], [nose - d * r, floor], [nose - d * r, hood - 6.5], [b, hood - 0.5]], Math.min(e * (hw - r), e * hw), Math.max(e * (hw - r), e * hw), p.body);
-    }
-    const bf = nose;
-    for (const e of SIDES) {
-      const f = e * hw;
-      for (let x = cab0 + 8; x < face - 10; x += 12) strip(s, f, d * x, floor + 2, d * x, hood - 6, 0.3, darker(p.body, 0.5), 0.1);
-      s.box(Math.min(d * (cab0 + 20), d * (cab0 + 44)), Math.max(d * (cab0 + 20), d * (cab0 + 44)), Math.min(f, f + e * 0.12), Math.max(f, f + e * 0.12), hood - 13, hood - 6.5, darker(p.body, 0.5));
-      for (let z = hood - 12.5; z < hood - 6.5; z += 0.9) strip(s, f, d * (cab0 + 20.5), z, d * (cab0 + 43.5), z, 0.35, darker(p.body, 0.3), 0.2);
-    }
-    // the bonnet front: headlights, a light stripe, the exhaust and fan on top
-    for (const y of [-9, 9]) s.cyl("x", Math.min(bf, bf + d * 0.9), Math.max(bf, bf + d * 0.9), y, floor + 4, 1.4, 1.4, [0.92, 0.92, 0.82]);
-    s.cyl("x", Math.min(bf, bf + d * 0.9), Math.max(bf, bf + d * 0.9), 0, hood - 8.5, 1.2, 1.2, [0.92, 0.92, 0.82]);
-    s.cyl("z", hood - 0.4, hood + 0.6, d * 34, 0, 4.5, 4.5, darker(p.body, 0.6));                   // radiator fan
-    barZ(s, d * 62, 0, hood - 0.4, hood + 1.4, 1.6, BLACK);                                          // exhaust
-  }
-  // the centre cab: full width, windows all round, a curved roof
-  s.prismX(section(w - 0.2, floor, cabTop, 3), -cab0, cab0, p.body, true);
-  s.roof(-cab0, cab0, w - 1.4, cabTop - 0.2, 0.01, darker(p.body, 0.9));
-  for (const d of [1, -1]) {
-    const x = d * cab0;
-    for (const e of SIDES) { const ya = e * 2, yb = e * (w - 3); s.box(Math.min(x, x + d * 0.15), Math.max(x, x + d * 0.15), Math.min(ya, yb), Math.max(ya, yb), hood - 1, cabTop - 3, GLASS); }
-  }
-  pane(s, w - 0.2, -cab0 + 2, hood - 4, -2, cabTop - 3.5, 1, GLASS, darker(p.body, 0.6));
-  pane(s, w - 0.2, 2, hood - 4, cab0 - 2, cabTop - 3.5, 1, GLASS, darker(p.body, 0.6));
-  for (const e of SIDES) { step(s, cab0 - 2, e * (w - 0.3), floor - 0.4, BLACK); step(s, -cab0 + 2, e * (w - 0.3), floor - 0.4, BLACK); }
-  lettering(s, w - 0.2, -8, 8, floor + 6, 2.2, WHITE, 6);
-}
 
 /** A bogie open wagon (DB Eaos type): steel sides on stanchions, two doors a side, Y25 bogies, a load of coal. */
 export function drawBogieOpen(s: Shapes, p: { length: number; width: number; height: number; body: RGB; load: boolean }) {

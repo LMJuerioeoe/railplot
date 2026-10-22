@@ -3,7 +3,7 @@
 // published sizes. The drawing is in steam.ts, diesels.ts, coaches.ts and wagons.ts.
 import { VehicleCfg, VehicleKind } from "../control/types";
 import { BLACK, BRASS, BUFFER_Z_H0, COPPER, Label, RED_BEAM, RGB, Shapes, WHITE, boundsOf, withBufferHeight } from "./parts";
-import { drawBogieOpen, drawClass218, drawElectric, ElectricSpec } from "./europe";
+import { drawBogieOpen, drawElectric, ElectricSpec } from "./europe";
 import { drawSteam, drawTender, SteamSpec, TenderSpec } from "./steam";
 import { drawClass08, drawClass37 } from "./diesels";
 import { CoachSpec, drawCoach } from "./coaches";
@@ -479,29 +479,46 @@ const EUROPE: Model[] = [
   {
     id: "sbb-re44ii", maker: "", name: "SBB Re 4/4 II electric", group: "electric", kind: "loco", scale: "H0",
     length: 177, width: 34, height: 50.5, color: "#215c38",
-    note: "The Swiss all-rounder in SBB green: Bo'Bo', single-arm pantographs, 15.4 m over buffers",
+    note: "The Swiss all-rounder in SBB green: Bo'Bo', single-arm pantographs, 15.4 m over buffers; traced from Trix's side view",
     marks: [
-      side(17.05, -9, 9, 22.5, 25.4, WHITE_T("11130", "plate")), side(17.05, -24, 24, 33, 36.2, { logo: "sbb", color: "#f2f2ee" }),
+      side(17.05, -4, 4, 21, 23.6, WHITE_T("11130", "plate")), side(17.05, -48, 32, 13.4, 17.4, { text: "S B B          C F F          F F S", color: "#e8e8e4", font: "sans" }),
       ...ends(82.45, -5, 5, 22.5, 25.5, WHITE_T("11130", "plate")),
     ],
     draw: h0((s) => drawElectric(s, {
-      length: 177, width: 34, height: 50.5, floor: 16.5, eave: 43.5, roofRise: 2.2, cabBack: 66,
-      front: [[0, 16.5], [0, 29], [1.6, 31], [4.6, 42], [5.6, 43.5]],
-      bogies: { centre: 45.4, wheelbase: 32.2, r: 7.2, axles: 2 },
-      pantographs: [{ x: 35, kind: "single" }, { x: -35, kind: "single" }],
+      // traced from Trix's side view of 11141: the body skirted down over the bogies, three big
+      // machine-room windows, grilles along the roof shoulders
+      length: 177, width: 34, height: 50.5, floor: 16.5, eave: 41.5, roofRise: 2.2, cabBack: 48,
+      front: [[6.5, 16.5], [6.5, 27.7], [7.3, 33], [8.3, 38.4], [9.6, 41.5]],
+      screen: { part: 0, seg: 2 },
+      bogies: { centre: 43, wheelbase: 31, r: 7.2, axles: 2 },
+      pantographs: [{ x: 44, kind: "single" }, { x: -44, kind: "single" }],
       livery: { body: SBB_GREEN, roof: [0.45, 0.46, 0.46], frames: [0.18, 0.18, 0.19], stripe: { z: 24, col: [0.8, 0.82, 0.83] } },
-      cabWindow: [3, 11, 31, 39], grilles: [-48, -22, 0, 22, 48],
+      skirt: { z0: 10.1, col: SBB_GREEN, half: 75.9 },
+      cabWindow: [13.5, 20.4, 27.7, 37.3], doorWindow: [2.4, 8.8, 29, 37.3], grilles: [], roofGrilles: true,
+      bigWindows: [[-46.1, -31.7, 28.8, 37.3], [-9.2, 5.2, 28.8, 37.3], [24.8, 39.2, 28.8, 37.3]],
     })),
   },
   {
     id: "db-br218", maker: "", name: "DB class 218 diesel-hydraulic", group: "diesel", kind: "loco", scale: "H0",
     length: 188.5, width: 35.6, height: 48.9, color: "#80141f",
-    note: "The DB's standard main-line diesel in wine red with a grey stripe: centre cab, two bonnets, B'B', 16.4 m over buffers",
+    note: "The DB's standard main-line diesel in wine red: a cab at each end, the engine room between with its band of grilles, B'B', 16.4 m over buffers; traced from Trix's side view",
     marks: [
-      side(17.65, -10, 10, 19.5, 22.6, WHITE_T("218 128-8", "plate")),
-      side(15.35, 36, 46, 30, 36, { logo: "db", color: "#f2f2ee" }), side(15.35, -46, -36, 30, 36, { logo: "db", color: "#f2f2ee" }),
+      side(17.85, -4, 10, 23.5, 26.5, WHITE_T("218 128-8", "plate")), side(17.85, 9, 15, 27.5, 31.5, { logo: "db", color: "#f2f2ee" }),
     ],
-    draw: h0((s) => drawClass218(s, { length: 188.5, width: 35.6, body: DB_WINE, stripe: [0.78, 0.78, 0.75] })),
+    draw: h0((s) => drawElectric(s, {
+      length: 188.5, width: 35.6, height: 48.9, floor: 16.5, eave: 42, roofRise: 4.5, cabBack: 56,
+      front: [[0, 16.5], [0, 24], [4, 31], [6.4, 33.5], [9.4, 40], [12.5, 44.7]],
+      frontParts: [[[0, 16.5], [0, 24], [4, 31], [6.4, 33.5]], [[6.4, 33.5], [9.4, 40], [12.5, 44.7]]],
+      screen: { part: 1, seg: 0 }, lampZ: 24.5, topLampZ: 42.6,
+      bogies: { centre: 47.5, wheelbase: 29, r: 5.5, axles: 2 },
+      pantographs: [], diesel: { fans: [-30, 30], exhausts: [0] },
+      livery: { body: DB_WINE, roof: [0.42, 0.43, 0.43], frames: [0.2, 0.2, 0.21] },
+      skirt: { z0: 10.3, col: [0.62, 0.62, 0.6] }, tank: [-23.2, 19.7],
+      cabWindow: [2.3, 19.9, 33.5, 40.5], grilles: [],
+      plates: [{ x0: -54, x1: 54, z0: 33.5, z1: 40.5, col: [0.3, 0.3, 0.32] }],
+      louvres: [[-60, -52, 20.1, 28.5], [-44, -36, 20.1, 28.5], [-28, -16, 20.1, 28.5], [-12, 0.6, 20.1, 28.5], [24, 32, 20.1, 28.5]],
+      doors: [[-60, 8], [52, 8]],
+    })),
   },
   {
     id: "db-silberling", maker: "", name: "DB n-Wagen 'Silberling', 2nd class", group: "coach", kind: "coach", scale: "H0",
