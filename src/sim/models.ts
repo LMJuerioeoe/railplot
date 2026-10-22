@@ -258,10 +258,10 @@ export const MODELS: Model[] = [
   // ---------- diesel ----------
   {
     id: "br-class08", maker: "", name: "BR Class 08 diesel shunter", group: "diesel", kind: "loco",
-    length: 117, width: 34, height: 50, color: "#1c4d30",
-    note: "The 350 hp yard shunter in BR green with wasp-striped ends: jackshaft drive, 4 ft 6 in wheels, 29 ft 3 in over buffers",
+    length: 117, width: 34, height: 51.5, color: "#1c4d30",
+    note: "The 350 hp yard shunter in BR green with wasp-striped ends: jackshaft drive, 4 ft 6 in wheels, 29 ft 3 in over buffers; traced from Hornby's side view",
     marks: [
-      side(17.05, -50, -35, 19.2, 22.6, CREAM_T("D3083")), side(12.65, 13, 25, 24, 33, { logo: "br-crest-late" }),
+      side(17.05, -38.5, -30.5, 26.6, 29.8, CREAM_T("D3083")), side(12.65, 8.5, 15.5, 31.5, 37.5, { logo: "br-crest-late" }),
     ],
     draw: drawClass08,
   },
@@ -366,11 +366,11 @@ export const MODELS: Model[] = [
   },
   {
     id: "br-toad", maker: "Oxford Rail", name: "GWR Toad brake van, BR grey", group: "wagon", kind: "brake",
-    length: 103, width: 32, height: 50, color: "#888f88",
-    note: "Oxford Rail OR76TOB003: W35717 in BR grey, lettered Basingstoke; the early 20 ft-bodied Toad. 103 mm, measured from the owner's model",
+    length: 103, width: 32, height: 51, color: "#888f88",
+    note: "Oxford Rail OR76TOB003: W35717 in BR grey, lettered Basingstoke; the early 20 ft-bodied Toad. 103 mm, traced from Oxford Rail's side view",
     marks: [
-      side(15.45, 4, 23, 32, 34.2, WHITE_T("BASINGSTOKE")), side(15.45, 4, 23, 29.6, 31, DATA("NOT IN COMMON USE")),
-      side(15.45, 26, 42, 17.4, 19.6, WHITE_T("W35717", "condensed")), side(15.45, 26, 34, 20.2, 21.6, DATA("20 T")),
+      side(15.45, -13.2, -1.1, 35.8, 37.6, WHITE_T("BASINGSTOKE")), side(15.45, -12, -3, 31.3, 32.9, DATA("NOT IN")), side(15.45, -13, -2, 29.3, 30.9, DATA("COMMON USE")),
+      side(15.45, -11, -3.3, 19.5, 21.7, WHITE_T("W35717", "condensed")), side(15.45, 22.5, 25.5, 19.6, 20.8, DATA("16T")),
     ],
     draw: (s) => drawToad(s, { length: 103, width: 32, body: BR_GREY, roof: [0.8, 0.8, 0.77] }),
   },

@@ -28,9 +28,11 @@ function wasp(s: Shapes, x: number, dir: number, y0: number, y1: number, z0: num
 
 /** BR Class 08 0-6-0 diesel-electric shunter, BR green with wasp-striped ends. */
 export function drawClass08(s: Shapes) {
-  const half = 58.5, w = 17, plate = 15.6;
-  const face = headstocks(s, half, BLACK, { z0: 9.4, z1: plate, width: 15.5 });
-  for (const e of SIDES) wasp(s, e * face, e, -15.5, 15.5, 9.4, plate);
+  // traced from Hornby's side view of D3760: the plate 18.3 mm up, the bonnet nearly as tall as the cab
+  const half = 58.5, w = 17, plate = 18.3;
+  const face = headstocks(s, half, BLACK, { z0: 10.5, z1: 17.5, width: 15.5 });
+  for (const e of SIDES) wasp(s, e * face, e, -15.5, 15.5, 10.5, 17.5);
+  s.box(-face, face, -w, w, 17.5, plate - 0.7, BLACK);
   // frames and the running plate
   for (const e of SIDES) { const a = e * 5.2, b = e * 6.4; s.box(-face + 2, face - 2, Math.min(a, b), Math.max(a, b), 5, plate, BLACK); }
   s.box(-face, face, -w, w, plate - 0.7, plate, BLACK);
@@ -57,8 +59,13 @@ export function drawClass08(s: Shapes) {
     for (const x of xs) s.box(x - 2, x + 2, Math.min(e * 10.3, e * 12), Math.max(e * 10.3, e * 12), r - 2.5, r + 2.5, BLACK);   // axleboxes
   }
   // the long bonnet: doors, louvres, radiator, exhaust
-  const bx0 = -21.5, bx1 = face - 2, bt = 38.5, bw = 12.6;
-  s.prismX(shoulders(bw, plate, bt, 2.4), bx0, bx1, BR_GREEN, true);
+  const bx0 = -29, bx1 = 49.5, bt = 48.5, bw = 12.6;
+  s.prismX(shoulders(bw, plate, bt, 4), bx0, bx1, BR_GREEN, true);
+  // the wider boxes low on the bonnet sides: batteries and tool lockers, and the air tank cabinet behind the cab
+  s.box(-4.2, 37.8, -w + 1.2, w - 1.2, plate, 25.5, BR_GREEN);
+  s.box(bx0, -19.4, -w + 1.2, w - 1.2, plate, 35, BR_GREEN);
+  // the front plate ahead of the radiator
+  s.box(bx1, face - 0.5, -w, w, plate - 0.7, plate, BLACK);
   for (const e of SIDES) {
     const f = e * bw;
     for (let x = bx0 + 9; x < bx1 - 2; x += 9.5) strip(s, f, x, plate + 1.5, x, bt - 3, 0.3, darker(BR_GREEN, 0.5), 0.08);   // door edges
@@ -76,20 +83,22 @@ export function drawClass08(s: Shapes) {
   for (const e of SIDES) {
     const out = e * w, inn = e * (w - 0.8);
     const lo = Math.min(out, inn), hi = Math.max(out, inn);
-    s.box(cx0, cx1, lo, hi, plate, ct - 9, BR_GREEN);
-    s.box(cx0, cx1, lo, hi, ct - 2, ct, BR_GREEN);
-    for (const [x0, x1] of [[cx0, cx0 + 3], [cx1 - 3, cx1], [(cx0 + cx1) / 2 - 1.2, (cx0 + cx1) / 2 + 1.2]]) s.box(x0, x1, lo, hi, ct - 9, ct - 2, BR_GREEN);
-    s.box(cx0 + 3, cx1 - 3, Math.min(out, out - e * 0.3), Math.max(out, out - e * 0.3), ct - 9, ct - 2, GLASS);
-    barZ(s, cx1 - 1, e * (w - 0.3), plate + 2, ct - 10, 0.28, STEEL);
+    // the side: the door at the back with its drop light, a window ahead of it
+    const sill = 31.4, top = 40.1;
+    s.box(cx0, cx1, lo, hi, plate, sill, BR_GREEN);
+    s.box(cx0, cx1, lo, hi, top, ct, BR_GREEN);
+    for (const [x0, x1] of [[cx0, -45.5], [-41.4, -38], [-31.8, cx1]]) s.box(x0, x1, lo, hi, sill, top, BR_GREEN);
+    for (const [x0, x1] of [[-45.5, -41.4], [-38, -31.8]]) s.box(x0, x1, Math.min(out, out - e * 0.3), Math.max(out, out - e * 0.3), sill, top, GLASS);
+    strip(s, out, -47, plate + 0.5, -47, top + 1, 0.3, darker(BR_GREEN, 0.5)); strip(s, out, -40, plate + 0.5, -40, top + 1, 0.3, darker(BR_GREEN, 0.5));   // door edges
+    barZ(s, cx1 - 1, e * (w - 0.3), plate + 2, 37, 0.28, STEEL);
     step(s, cx1 - 2.5, e * (w - 0.2), plate - 0.6);
   }
   for (const [x, d] of [[cx1, 1], [cx0, -1]] as const) {
     s.box(Math.min(x, x - d * 0.8), Math.max(x, x - d * 0.8), -w, w, plate, ct, BR_GREEN);
-    for (const e of SIDES) s.box(Math.min(x, x + d * 0.12), Math.max(x, x + d * 0.12), Math.min(e * 3, e * 14), Math.max(e * 3, e * 14), ct - 10, ct - 2.5, GLASS);
+    for (const e of SIDES) s.box(Math.min(x, x + d * 0.12), Math.max(x, x + d * 0.12), Math.min(e * 3, e * 14), Math.max(e * 3, e * 14), 33, 41.5, GLASS);
   }
   s.box(cx0 + 1, cx1 - 1, -w + 1, w - 1, plate, ct - 1, [0.1, 0.11, 0.1]);
   s.roof(cx0 - 0.6, cx1 + 0.6, w + 0.2, ct, 2.4, ROOF_GREY);
-  wasp(s, -face, -1, -15.5, 15.5, 9.4, plate);
   // the BR emblem on the bonnet side, and a number on the cab
 
 }

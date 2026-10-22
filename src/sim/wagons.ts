@@ -200,34 +200,36 @@ export function drawBRBrakeVan(s: Shapes, p: { length: number; width: number; bo
 
 /** The GWR Toad: a long closed body with one verandah, at the tail. */
 export function drawToad(s: Shapes, p: { length: number; width: number; body: RGB; roof: RGB }) {
-  const half = p.length / 2, w = p.width / 2, z0 = 14.6, t = 41, face = half - 5.5;
+  // traced from Oxford Rail's side view: a 57.7 mm wheelbase, the body 43.4 mm to the eaves,
+  // planked lengthways, and the verandah boarded up to waist height
+  const half = p.length / 2, w = p.width / 2, z0 = 16.5, t = 43.4, face = half - 5.5;
   headstocks(s, half, UNDER, { width: w - 1.4 });
-  wagonGear(s, face - 1, 70, 6.3, UNDER, w - 1.2);
-  const strap = darker(p.body, 0.6);
-  const v0 = -face + 1, v1 = -15;                                                                   // verandah at the back
-  s.box(-face + 1, face - 1, -w + 1, w - 1, z0 - 0.4, z0 + 0.6, darker(p.body, 0.8));
+  wagonGear(s, face - 1, 57.7, 6.3, UNDER, w - 1.2);
+  const strap = darker(p.body, 0.72);
+  const v0 = -face + 1, v1 = -15.1, waist = 30.9;                                                    // verandah at the back
+  s.box(-face + 1, face - 1, -w + 1, w - 1, z0 - 4, z0 + 0.6, UNDER);                               // solebars and floor
   s.box(v1, face - 1, -w + 0.6, w - 0.6, z0, t, p.body);
   for (const e of SIDES) {
     const f = e * (w - 0.6);
-    planking(s, f, v1, face - 1, z0, t, 13, darker(p.body, 0.75));
-    strip(s, f, v1, z0 + 0.6, face - 1, z0 + 0.6, 1, strap); strip(s, f, v1, t - 0.6, face - 1, t - 0.6, 1, strap);
-    for (const x of [v1 + 0.6, 4, 24, face - 1.6]) strip(s, f, x, z0, x, t, 1.1, strap);
-    barX(s, v1 + 2, face - 3, e * (w + 0.1), z0 + 13, 0.35, WHITE);                                   // white handrail
-    s.box(-6, 0, Math.min(f, f + e * 0.15), Math.max(f, f + e * 0.15), t - 12, t - 5, GLASS);        // window
-    lettering(s, w - 0.5, 6, 22, t - 9, 1.8, WHITE, 6);                                              // the home depot
-    lettering(s, w - 0.5, 28, 40, z0 + 3, 1.6, WHITE, 6);                                            // the number
-    // verandah: a half-height side, posts, white rails
-    s.box(v0, v1, Math.min(f, f - e * 0.8), Math.max(f, f - e * 0.8), z0, z0 + 6, p.body);
+    planking(s, f, v1, face - 1, z0, t, 12, darker(p.body, 0.8), true);
+    for (const x of [v1 + 0.6, 0.4, 15.8, 30.9, face - 1.6]) strip(s, f, x, z0, x, t, 1.1, strap);
+    // white handrails framing the lower panels
+    for (const z of [18.4, 25.7]) barX(s, v1 + 1, face - 2.5, e * (w + 0.1), z, 0.35, WHITE);
+    for (const x of [v1 + 1, face - 2.5]) barZ(s, x, e * (w + 0.1), 18.4, 25.7, 0.35, WHITE);
+    // verandah: boarded to the waist, open above, the corner post up to the roof
+    s.box(v0, v1, Math.min(f, f - e * 0.8), Math.max(f, f - e * 0.8), z0, waist, p.body);
+    planking(s, f, v0, v1, z0, waist, 6, darker(p.body, 0.8), true);
     s.box(v0, v0 + 1.6, Math.min(f, f - e * 1.4), Math.max(f, f - e * 1.4), z0, t, p.body);
-    barX(s, v0 + 1.6, v1, f, z0 + 11.5, 0.35, WHITE); barX(s, v0 + 1.6, v1, f, z0 + 6.5, 0.35, WHITE);
-    step(s, v0 + 5, e * (w - 0.3), z0 - 0.4);
+    barX(s, v0 + 2, v1 - 1, e * (w + 0.1), 25.7, 0.35, WHITE); barX(s, v0 + 2, v1 - 1, e * (w + 0.1), 18.4, 0.35, WHITE);
+    for (const x of [v0 + 2, v1 - 1]) barZ(s, x, e * (w + 0.1), 18.4, 25.7, 0.35, WHITE);
+    step(s, v0 + 5, e * (w - 0.3), z0 - 4.4);
   }
-  s.box(v0, v0 + 0.8, -w + 0.6, w - 0.6, z0, z0 + 6, p.body);
-  barY3(s, v0 + 0.4, z0 + 11.5, w - 1);
+  s.box(v0, v0 + 0.8, -w + 0.6, w - 0.6, z0, waist, p.body);
+  barY3(s, v0 + 0.4, waist + 2, w - 1);
   s.box(v1 - 0.6, v1, -6, 6, z0 + 0.6, t - 4, darker(p.body, 0.8));                                // the door into the body
-  s.roof(v0 - 0.6, face - 0.4, w, t, 5.6, p.roof);
-  barZ(s, 25, 5, t + 4.6, t + 8.5, 0.9, BLACK);                                                   // stove chimney
-  s.box(10, 16, -w + 1, w - 1, z0 + 0.6, z0 + 4.4, darker(p.body, 0.8));                            // sandboxes
+  s.box(v1 + 0.5, v1 + 6, w - 7, w - 1.5, waist - 1, waist, darker(p.body, 0.7));                  // the hand brake's column top
+  s.roof(v0 - 0.6, face - 0.4, w, t, 4.4, p.roof);
+  barZ(s, 23.9, 5, t + 3.6, t + 7, 0.9, BLACK);                                                   // stove chimney
 }
 
 function barY3(s: Shapes, x: number, z: number, half: number) { s.cyl("y", -half, half, x, z, 0.35, 0.35, WHITE); }
