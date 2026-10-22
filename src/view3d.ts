@@ -2,6 +2,7 @@
 import { Pose, Prim, primAt, triangulate } from "./geom";
 import { Item, Project, geom, isVisible, projectBounds } from "./model";
 import { getModule, moduleToWorld, overallDepth } from "./modules";
+import { Model, RGB, Shapes, modelById } from "./sim/models";
 
 type V3 = [number, number, number];
 
@@ -213,7 +214,81 @@ export interface DynamicVehicle { kind: string; length: number; width: number; h
  * length; widths and heights are in units of the vehicle's width and height. White parts take the
  * vehicle's colour; grey parts stay dark.
  */
+/**
+ * A detailed model's shapes as a unit mesh, like the plain vehicles: x along it from -0.5 to 0.5, y across,
+ * z up from 0 to 1. Its millimetres are divided by its size here and multiplied back by the vehicle's matrix,
+ * so normals are divided twice to come out square to the surface after that stretch.
+ */
+function modelMesh(md: Model): MeshBuilder {
+  const m = new MeshBuilder();
+  const L = md.length, Wd = md.width, H = md.height;
+  const P = (x: number, y: number, z: number): V3 => W(x / L, y / Wd, z / H);
+  const N = (x: number, y: number, z: number): V3 => W(x / (L * L), y / (Wd * Wd), z / (H * H));
+  const quad = (a: V3, b: V3, c: V3, d: V3, n: V3, col: RGB) => m.quad(P(...a), P(...b), P(...c), P(...d), N(...n), col);
+  const SEG = 14;
+  const s: Shapes = {
+    box(x0, x1, y0, y1, z0, z1, col) {
+      quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], col);
+      quad([x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [x1, y0, z0], [0, 0, -1], col);
+      quad([x1, y0, z1], [x0, y0, z1], [x0, y0, z0], [x1, y0, z0], [0, -1, 0], col);
+      quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0], col);
+      quad([x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [x0, y0, z0], [-1, 0, 0], col);
+      quad([x1, y1, z1], [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [1, 0, 0], col);
+    },
+    barX(x0, x1, y, z, r, col) {
+      for (let k = 0; k < SEG; k++) {
+        const a = (k / SEG) * Math.PI * 2, b = ((k + 1) / SEG) * Math.PI * 2, mid = (a + b) / 2;
+        const p = (x: number, t: number): [number, number, number] => [x, y + Math.cos(t) * r, z + Math.sin(t) * r];
+        quad(p(x1, a), p(x0, a), p(x0, b), p(x1, b), [0, Math.cos(mid), Math.sin(mid)], col);
+        quad(p(x1, a), p(x1, b), [x1, y, z], [x1, y, z], [1, 0, 0], col);
+        quad(p(x0, b), p(x0, a), [x0, y, z], [x0, y, z], [-1, 0, 0], col);
+      }
+    },
+    barY(x, y0, y1, z, r, col) {
+      for (let k = 0; k < SEG; k++) {
+        const a = (k / SEG) * Math.PI * 2, b = ((k + 1) / SEG) * Math.PI * 2, mid = (a + b) / 2;
+        const p = (y: number, t: number): [number, number, number] => [x + Math.cos(t) * r, y, z + Math.sin(t) * r];
+        quad(p(y0, a), p(y1, a), p(y1, b), p(y0, b), [Math.cos(mid), 0, Math.sin(mid)], col);
+        quad(p(y1, b), p(y1, a), [x, y1, z], [x, y1, z], [0, 1, 0], col);
+        quad(p(y0, a), p(y0, b), [x, y0, z], [x, y0, z], [0, -1, 0], col);
+      }
+    },
+    barZ(x, y, z0, z1, r, col) {
+      for (let k = 0; k < SEG; k++) {
+        const a = (k / SEG) * Math.PI * 2, b = ((k + 1) / SEG) * Math.PI * 2, mid = (a + b) / 2;
+        const p = (z: number, t: number): [number, number, number] => [x + Math.cos(t) * r, y + Math.sin(t) * r, z];
+        quad(p(z1, a), p(z0, a), p(z0, b), p(z1, b), [Math.cos(mid), Math.sin(mid), 0], col);
+        quad(p(z1, a), p(z1, b), [x, y, z1], [x, y, z1], [0, 0, 1], col);
+      }
+    },
+    strip(face, x0, z0, x1, z1, width, col) {
+      // a thin band standing just proud of the side, square across its run
+      const y = face + Math.sign(face) * 0.15, dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz) || 1;
+      const ox = (-dz / len) * width / 2, oz = (dx / len) * width / 2;
+      const n: [number, number, number] = [0, Math.sign(face), 0];
+      const pts: [number, number, number][] = [[x0 - ox, y, z0 - oz], [x1 - ox, y, z1 - oz], [x1 + ox, y, z1 + oz], [x0 + ox, y, z0 + oz]];
+      if (face > 0) quad(pts[3], pts[2], pts[1], pts[0], n, col); else quad(pts[0], pts[1], pts[2], pts[3], n, col);
+    },
+    roof(x0, x1, half, zEave, rise, col) {
+      const zAt = (u: number) => zEave + rise * (1 - u * u);   // u from -1 to 1 across
+      for (let k = 0; k < SEG; k++) {
+        const u0 = -1 + (2 * k) / SEG, u1 = -1 + (2 * (k + 1)) / SEG, um = (u0 + u1) / 2;
+        const ny = (2 * rise * um) / half;   // slope of the arch, as a normal
+        quad([x0, u0 * half, zAt(u0)], [x1, u0 * half, zAt(u0)], [x1, u1 * half, zAt(u1)], [x0, u1 * half, zAt(u1)], [0, -ny, 1], col);
+        for (const [x, nx] of [[x0, -1], [x1, 1]] as const) {
+          const a: [number, number, number] = [x, u0 * half, zAt(u0)], b: [number, number, number] = [x, u1 * half, zAt(u1)];
+          if (nx > 0) quad(a, [x, u0 * half, zEave], [x, u1 * half, zEave], b, [1, 0, 0], col);
+          else quad(b, [x, u1 * half, zEave], [x, u0 * half, zEave], a, [-1, 0, 0], col);
+        }
+      }
+    },
+  };
+  md.draw(s);
+  return m;
+}
+
 function vehicleMesh(kind: string): MeshBuilder {
+  if (kind.startsWith("model:")) { const md = modelById(kind.slice(6)); if (md) return modelMesh(md); }
   const m = new MeshBuilder();
   if (kind === "box") {
     // a plain unit box in the object's colour: signal masts, lamps, point levers

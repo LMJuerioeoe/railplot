@@ -1078,6 +1078,11 @@ export class App {
   private onKey(e: KeyboardEvent) {
     const t = e.target as HTMLElement;
     if (isDialogOpen()) return;
+    // the drive HUD's throttle is a slider: it takes the arrows itself, but every other drive key still works
+    if (this.drive.open && t?.id === "drive-throttle" && !e.key.startsWith("Arrow") && !e.ctrlKey && !e.metaKey) {
+      if (this.drive.onKey(e)) { e.preventDefault(); return; }
+      if (e.key === "Escape") { this.toggle3d(false); return; }
+    }
     if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) {
       if (e.key === "Escape") t.blur();
       return;

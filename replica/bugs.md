@@ -122,3 +122,32 @@ Status: fixed
 - Through a hub the browser doesn't see vehicle positions, so the drive view isn't offered; when it is, the Trains dialog will need the hub to run `placeConsist` and friends.
 - A train pushing a wagon at between 70 and 210 mm/s bumps, stops, and couples on the next gentle touch; the original pushes the wagon away instead.
 - Undo is off in Control mode, so a change in the Trains dialog can be undone only from Plan mode.
+
+## Found later the same day
+
+### BUG-009: After touching the throttle slider, the drive keys stop working
+
+- Severity: S3
+- Flow / case: F01 / F01-E12
+- Screen: S06
+
+Steps
+1. Drive in 3D; drag the throttle slider.
+2. Press C (or T, U, Space, Esc).
+
+Expected: the camera changes (and so on). Actual: nothing, until you click somewhere else: the app treated the slider like a text box.
+Evidence: tests/e2e/test_drive.py F01-E12, F01-H2
+Status: fixed: the slider keeps its arrows; every other drive key works
+
+### BUG-010: After adding a vehicle, Esc doesn't close the Trains dialog
+
+- Severity: S4
+- Flow / case: F02 / F02-E10
+- Screen: S07
+
+Steps
+1. T, click a stock tile, press Esc.
+
+Expected: the dialog closes. Actual: nothing; redrawing the dialog dropped the keyboard focus to the page.
+Evidence: tests/e2e/test_drive.py F02-E10
+Status: fixed: focus stays on the same button through a redraw

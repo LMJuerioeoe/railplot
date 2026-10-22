@@ -4,7 +4,7 @@ each part of the drive view.
 
 Run:  bun install && bun run build && python3 tests/e2e/test_drive.py [screenshot-dir]
 """
-import json, os, sys
+import json, os, re, sys
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -79,6 +79,11 @@ with sync_playwright() as p:
     for _ in range(6): pg.keyboard.press("e")
     pg.wait_for_timeout(1500)
     check("F01-H1", "E opens the throttle and the speed shows", int(pg.locator("#drive-speed").inner_text()) > 0 and "forward" in pg.get_by_role("toolbar", name="Train controls").inner_text())
+    # after dragging the throttle slider, the keys still drive
+    pg.get_by_role("slider", name="Throttle").focus()
+    cam = pg.get_by_role("button", name=re.compile("^Camera:")).inner_text().split()[0]
+    pg.keyboard.press("c"); pg.wait_for_timeout(100)
+    check("F01-E12", "with the throttle slider focused, C still changes the camera", pg.get_by_role("button", name=re.compile("^Camera:")).inner_text().split()[0] != cam)
     pg.keyboard.press("Space"); pg.wait_for_timeout(1200)
     check("F01-H2", "Space stops the train", js(pg, "railplot.ctl.engine.run(railplot.drive.train).target") == 0)
     axe(pg, "F01-E9", "#drive-hud", "HUD")
@@ -100,6 +105,7 @@ with sync_playwright() as p:
     dlg.get_by_role("button", name="New rake of wagons").click(); pg.wait_for_timeout(100)
     for _ in range(3): dlg.get_by_role("button", name="Add a box van").click(); pg.wait_for_timeout(50)
     strip = dlg.get_by_role("list", name="Vehicles, front first")
+    check("F02-E10", "after adding a vehicle the keyboard stays on the button", js(pg, "document.activeElement.getAttribute('data-kind')") == "van")
     check("F02-H1", "stock buttons add vehicles to the back", strip.get_by_role("button", name="Box van").count() == 3 and strip.get_by_role("button").count() == 4)
     rake = js(pg, "railplot.drive.editing")
     # keyboard only: Tab into the stock, Enter adds; Delete takes one out again

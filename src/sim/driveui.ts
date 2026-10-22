@@ -11,6 +11,7 @@ import { geom } from "../model";
 import { World, scaleOf, worldFor } from "./world";
 import { TrackPos, TrackPose } from "./track";
 import { STOCK, newVehicle } from "./stock";
+import { MODELS, modelById, vehicleOfModel } from "./models";
 import { VehicleKind } from "../control/types";
 
 export type Camera = "tabletop" | "chase" | "cab";
@@ -152,7 +153,7 @@ export class DriveView {
     if (r.throttle) r.throttle.disabled = !!off;
     this.derailCard(w, off ? this.train : null);
     for (const b of r.trains?.querySelectorAll<HTMLElement>("[data-train]") ?? []) b.setAttribute("aria-checked", String(b.dataset.train === this.train));
-    if (r.camera) { clear(r.camera); r.camera.append(`${CAMERA_NAMES[this.camera]} `, h("kbd", {}, "C")); r.camera.title = "Change the camera (C)"; }
+    if (r.camera) { clear(r.camera); r.camera.append(`${CAMERA_NAMES[this.camera]} `, h("kbd", {}, "C")); r.camera.title = "Change the camera (C)"; r.camera.setAttribute("aria-label", `Camera: ${CAMERA_NAMES[this.camera]} (C)`); }
     const target = this.train ? this.ctl.engine.run(this.train)?.target ?? 0 : 0;
     if (r.throttle && document.activeElement !== r.throttle) r.throttle.value = String(Math.round(target * 100));
     if (r.throttleLabel) r.throttleLabel.textContent = off ? "Derailed" : target === 0 ? "Stopped" : `${Math.round(Math.abs(target) * 100)}% ${target > 0 ? "forward" : "back"}`;
@@ -248,10 +249,10 @@ export class DriveView {
     if (w && v3) {
       // run the world to now, so trains glide between the control loop's ticks
       w.advanceTo(performance.now());
-      const gauge = 16.5, railTop = 5;
+      const railTop = 5;
       const vehicles: DynamicVehicle[] = w.vehiclePoses().map(({ vehicle, pose }) => ({
-        kind: vehicle.kind, length: vehicle.length - 2, width: gauge * 1.9, height: vehicle.kind === "loco" ? gauge * 3 : gauge * 2.6,
-        color: hexRgb(vehicle.color), x: pose.x, y: pose.y, z: pose.z + railTop, h: pose.h, tilt: pose.tilt,
+        ...this.shape(vehicle), color: vehicle.model && modelById(vehicle.model) ? [1, 1, 1] : hexRgb(vehicle.color),
+        x: pose.x, y: pose.y, z: pose.z + railTop, h: pose.h, tilt: pose.tilt,
       }));
       v3.setDynamic([...vehicles, ...this.scenery(w), ...this.ghost(w)]);
       const at = this.train ? w.poseOf(this.train) : null;
@@ -260,6 +261,14 @@ export class DriveView {
       this.updateSpeed(w);
     }
     this.raf = requestAnimationFrame(() => this.frame());
+  }
+
+  /** What a vehicle is drawn as: its model, at the model's own size, or a plain body of its kind. */
+  private shape(v: { kind: string; length: number; model?: string }) {
+    const md = modelById(v.model);
+    if (md) return { kind: `model:${md.id}`, length: md.length, width: md.width, height: md.height };
+    const gauge = 16.5;
+    return { kind: v.kind, length: v.length - 2, width: gauge * 1.9, height: v.kind === "loco" ? gauge * 3 : gauge * 2.6 };
   }
 
   /** Signal masts with their lamps lit as the engine sets them, and a lever beside each point. */
@@ -471,7 +480,7 @@ export class DriveView {
     const at = pl.ghost ?? [{ ...pl.front, dir: pl.dir }];
     return at.map((a, i) => {
       const p = w.graph.pose(a), v = c.vehicles[i];
-      return { kind: v.kind, length: v.length - 2, width: 16.5 * 1.9, height: 16.5 * (v.kind === "loco" ? 3 : 2.6), color: pl.ghost ? ok : bad, x: p.x, y: p.y, z: p.z + 5, h: p.h };
+      return { ...this.shape(v), color: pl.ghost ? ok : bad, x: p.x, y: p.y, z: p.z + 5, h: p.h };
     });
   }
 
@@ -509,7 +518,11 @@ export class DriveView {
     const body = this.trainsBody, w = this.world();
     if (!body || !w) return;
     const cfg = this.ctl.cfg;
+    // redrawing replaces the buttons: keep the keyboard where it was (and Esc working)
+    const was = document.activeElement as HTMLElement | null;
+    const key = was && body.contains(was) ? (["id", "data-kind", "data-model", "data-i"].map((k) => was.getAttribute(k) !== null ? `[${k}="${was.getAttribute(k)}"]` : "").find((x) => x) ?? null) : null;
     clear(body);
+    if (key) queueMicrotask(() => { if (!body.contains(document.activeElement)) (body.querySelector<HTMLElement>(key) ?? body.querySelector<HTMLElement>("button"))?.focus(); });
     const sc = cfg.consists?.find((x) => x.id === this.editing);
     // which train or rake
     const which = h("select", { id: "trains-which", onchange: () => {
@@ -572,6 +585,9 @@ export class DriveView {
         h("button", { class: "btn btn-sm", type: "button", disabled: i === 0, onclick: () => this.moveVehicle(-1) }, "Move forward"),
         h("button", { class: "btn btn-sm", type: "button", disabled: i === sc.vehicles.length - 1, onclick: () => this.moveVehicle(1) }, "Move back"),
         h("button", { class: "btn btn-sm btn-danger-ghost", type: "button", id: "trains-remove-veh", onclick: () => this.removeVehicle() }, "Remove"));
+      const len = h("input", { type: "number", id: "trains-length", min: "20", max: "400", step: "1", value: String(pv.length), "aria-label": "Length over buffers (mm)",
+        onchange: () => { const v = Math.round(+len.value); if (v >= 20 && v <= 400) { pv.length = v; this.changed(); } } }) as HTMLInputElement;
+      row.append(h("label", { class: "check" }, "Length ", len, " mm"));
       if (pv.kind !== "loco") {
         const cb = h("input", { type: "checkbox", id: "trains-resistor", checked: !!pv.detectable, onchange: () => { pv.detectable = cb.checked; this.app.commit(); } }) as HTMLInputElement;
         row.append(h("label", { class: "check" }, cb, " Resistor wheelset (current detection sees it)"));
@@ -589,6 +605,15 @@ export class DriveView {
         silhouette(st.kind), h("span", { class: "name" }, st.name), h("span", { class: "len" }, `${len} mm`)));
     }
     body.append(tiles);
+    // detailed models, at their real lengths
+    body.append(h("h3", {}, "Models"));
+    const models = h("div", { class: "stock-tiles" });
+    for (const md of MODELS) {
+      models.append(h("button", { type: "button", class: "part-tile stock-tile", "data-model": md.id, "aria-label": `Add a ${md.maker ? md.maker + " " : ""}${md.name}, ${md.length} mm`, title: md.note,
+        onclick: () => { sc.vehicles.push(vehicleOfModel(md, `v${cfg.nextId++}`)); this.changed(); } },
+        silhouette(md.kind), h("span", { class: "name" }, md.name), h("span", { class: "len" }, `${md.maker ? md.maker + " · " : ""}${md.length} mm`)));
+    }
+    body.append(models);
 
     // what to do with it
     const acts = h("div", { class: "trains-acts" },

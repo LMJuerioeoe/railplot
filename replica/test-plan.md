@@ -21,6 +21,7 @@ Automated cases live in `tests/e2e/test_drive.py` (drive view, axe scans, fails 
 | F01-E8 | | edge: keyboard only | D, 1–9, E/Q, Space, C, Esc | all reachable without a mouse | e2e drive + flows | pass |
 | F01-E9 | | edge: screen reader labels | axe on the HUD | no WCAG 2.1 AA violations | e2e drive | pass |
 | F01-E10 | | edge: discoverability | Help > Keyboard shortcuts | lists the drive view's keys | e2e drive | fail → fixed (BUG-007) |
+| F01-E12 | | edge: slider focused | drag the throttle, press C | the camera changes | e2e drive | fail → fixed (BUG-009) |
 | F01-E11 | | edge: two tabs, refresh | | n/a: one window runs the simulator; refresh covered in F02-E9 | — | — |
 | F02-H1 | make up and place | happy | T, New rake, Add a box van ×3, Place on the track, click free track | rake on the track where clicked | e2e drive | pass |
 | F02-H2 | | happy | R while placing | the ghost turns round | e2e drive | pass |
@@ -35,6 +36,7 @@ Automated cases live in `tests/e2e/test_drive.py` (drive view, axe scans, fails 
 | F02-E8 | | edge: very long input | 31 vehicles | strip scrolls, dialog keeps its width | e2e drive | pass |
 | F02-E9 | | edge: refresh mid-flow | reload after placing | every train and rake where it stood | e2e drive | pass |
 | F02-E10 | | edge: train moving when placed | place a train with its throttle open | it stands still | unit | fail → fixed (BUG-003) |
+| F02-E12 | | edge: keyboard focus after adding | click a tile, Esc | focus stays on the tile; Esc closes | e2e drive | fail → fixed (BUG-010) |
 | F02-E11 | | edge: deleted record | delete a train that has stock | its stock stays, as vehicles on their own | unit | fail → fixed (BUG-006) |
 | F03-H1 | shunt | happy | drive gently onto vans, U, pull away | couples; uncouples; vans stay put | e2e drive + unit | pass |
 | F03-E1 | | edge: too fast | 120 mm/s / 480 mm/s onto a wagon | both stop / both derail | unit | pass |

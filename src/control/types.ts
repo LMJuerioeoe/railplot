@@ -114,6 +114,8 @@ export type VehicleKind = "loco" | "coach" | "wagon" | "van" | "tank" | "brake";
 export interface VehicleCfg {
   id: string;
   kind: VehicleKind;
+  /** A detailed model from the catalogue (src/sim/models.ts), drawn as that model. */
+  model?: string;
   name?: string;
   length: number;          // mm over buffers
   color: string;
