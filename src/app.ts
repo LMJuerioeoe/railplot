@@ -77,7 +77,7 @@ function defaultCurrency(): string {
   if (region === "PL") return "zł";
   return "€";
 }
-const VERSION = "0.11.0";
+const VERSION = "0.12.0";
 
 export class App {
   p: Project = newProject();
