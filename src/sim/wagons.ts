@@ -122,11 +122,11 @@ export function drawMineral(s: Shapes, p: { length: number; width: number; body:
 }
 
 /** A 14 ton tank wagon: barrel on cradles, dome with its lid, ladders and tie bars. */
-export function drawTankWagon(s: Shapes, p: { length: number; width: number; body: RGB; bands?: RGB }) {
-  const half = p.length / 2, w = p.width / 2, bh = 36, z0 = 14.6, r = 12, zc = z0 + r + 1.2;
+export function drawTankWagon(s: Shapes, p: { length: number; width: number; body: RGB; bands?: RGB; bodyHalf?: number; r?: number; wheelbase?: number; wheelR?: number }) {
+  const half = p.length / 2, w = p.width / 2, bh = p.bodyHalf ?? 36, z0 = 14.6, r = p.r ?? 12, zc = z0 + r + 1.2;
   headstocks(s, half, UNDER, { width: w - 1.4 });
-  wagonGear(s, bh, 40, 6.1, UNDER, w - 1.2);
-  for (const x of [-22, 22]) s.prismX([[-10, z0], [10, z0], [9, z0 + 4], [-9, z0 + 4]], x - 1.5, x + 1.5, UNDER);   // cradles
+  wagonGear(s, bh, p.wheelbase ?? 40, p.wheelR ?? 6.1, UNDER, w - 1.2);
+  for (const x of [-bh * 0.6, bh * 0.6]) s.prismX([[-r * 0.85, z0], [r * 0.85, z0], [r * 0.75, z0 + 4], [-r * 0.75, z0 + 4]], x - 1.5, x + 1.5, UNDER);   // cradles
   s.cyl("x", -bh + 2.5, bh - 2.5, 0, zc, r, r, p.body, false);
   // the barrel ends, as squashed domes turned outward: drawn as discs with a rounded rim
   for (const e of SIDES) s.dish("x", e * (bh - 2.5), e, 0, zc, r, 2.6, p.body);                    // dished barrel ends

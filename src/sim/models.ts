@@ -2,7 +2,8 @@
 // prototypes' dimensions at OO scale (1:76.2) and, where the owner has the model, from the maker's
 // published sizes. The drawing is in steam.ts, diesels.ts, coaches.ts and wagons.ts.
 import { VehicleCfg, VehicleKind } from "../control/types";
-import { BLACK, BRASS, COPPER, RED_BEAM, RGB, Shapes, WHITE, boundsOf } from "./parts";
+import { BLACK, BRASS, BUFFER_Z_H0, COPPER, RED_BEAM, RGB, Shapes, WHITE, boundsOf, withBufferHeight } from "./parts";
+import { drawBogieOpen, drawClass218, drawElectric, ElectricSpec } from "./europe";
 import { drawSteam, drawTender, SteamSpec, TenderSpec } from "./steam";
 import { drawClass08, drawClass37 } from "./diesels";
 import { CoachSpec, drawCoach } from "./coaches";
@@ -11,7 +12,7 @@ import { drawBRBrakeVan, drawMineral, drawPlankOpen, drawTankWagon, drawToad, dr
 export type { RGB, Shapes };
 export { boundsOf };
 
-export type ModelGroup = "steam" | "diesel" | "tender" | "coach" | "wagon";
+export type ModelGroup = "steam" | "diesel" | "electric" | "tender" | "coach" | "wagon";
 
 export interface Model {
   id: string;
@@ -30,6 +31,8 @@ export interface Model {
   note: string;
   /** A tender engine's tender: added behind it. */
   tender?: string;
+  /** British stock is OO (1:76.2); European stock H0 (1:87), on the same 16.5 mm track. */
+  scale?: "OO" | "H0";
   draw(s: Shapes): void;
 }
 
@@ -45,6 +48,11 @@ const BR_GREY: RGB = [0.53, 0.56, 0.53], MINERAL_GREY: RGB = [0.5, 0.5, 0.48], P
 const GWR_LIVERY = { body: GWR_GREEN, lining: GWR_LINING, smokebox: BLACK, frames: BLACK, wheels: GWR_GREEN, beams: RED_BEAM, bonnet: BRASS, roof: BLACK };
 
 const steam = (spec: SteamSpec) => (s: Shapes) => drawSteam(s, spec);
+/** European stock: buffers at 1,060 mm, 12.2 mm in H0. */
+const h0 = (draw: (s: Shapes) => void) => (s: Shapes) => withBufferHeight(BUFFER_Z_H0, () => draw(s));
+const DB_RED: RGB = [0.62, 0.11, 0.08], TEE_RED: RGB = [0.58, 0.07, 0.11], TEE_BEIGE: RGB = [0.88, 0.8, 0.6];
+const DB_WINE: RGB = [0.5, 0.08, 0.12], SBB_GREEN: RGB = [0.13, 0.36, 0.22], DB_GREEN: RGB = [0.13, 0.3, 0.21];
+const STAINLESS: RGB = [0.72, 0.74, 0.76], CORAIL_GREY: RGB = [0.62, 0.63, 0.62], DB_BROWN: RGB = [0.45, 0.2, 0.13];
 const tender = (spec: TenderSpec) => (s: Shapes) => drawTender(s, spec);
 const coach = (spec: CoachSpec) => (s: Shapes) => drawCoach(s, spec);
 
@@ -308,6 +316,121 @@ export const MODELS: Model[] = [
     draw: (s) => drawBRBrakeVan(s, { length: 107, width: 32, body: BAUXITE }),
   },
 ];
+
+// ---------- European stock, H0 ----------
+const EUROPE: Model[] = [
+  {
+    id: "db-br01", maker: "", name: "DB class 01 Pacific 2'C1'", group: "steam", kind: "loco", tender: "db-t32-tender", scale: "H0",
+    length: 163, width: 36, height: 52.5, color: "#141414",
+    note: "The German express Pacific in black and red, with big Wagner smoke deflectors: 2,000 mm drivers, 23.9 m over buffers with its tender",
+    draw: h0(steam({
+      length: 163, width: 36, height: 52.5,
+      plate: { z: 23.5, half: 17.4, x0: -74, x1: 74 },
+      wheels: [{ x: 66, r: 5.75 }, { x: 42, r: 5.75 }, { x: 13, r: 11.5, driven: true }, { x: -12.5, r: 11.5, driven: true }, { x: -38, r: 11.5, driven: true }, { x: -62, r: 7.2 }],
+      cylinders: { x0: 48, x1: 60, z: 14, r: 4.8, outside: true, y: 12.4 }, mainDriver: 1,
+      boiler: { x0: 4, x1: 56, z: 35.6, rBack: 11, rFront: 10.6 },
+      smokebox: { x0: 56, x1: 70, r: 11.4 },
+      firebox: { x0: -26, x1: 4, top: 46.6, half: 12.5, belpaire: false },
+      chimney: { x: 64, top: 52.3, r: 3.2 },
+      dome: { x: 22, r: 4, top: 50.5 },
+      safety: { x: -10, kind: "pop" },
+      cab: { x0: -60, x1: -26, eave: 48.5, rise: 3, half: 17.5, window: "square", back: "open" },
+      deflectors: { x0: 52, x1: 74, top: 44 },
+      livery: { body: BLACK, smokebox: BLACK, frames: DB_RED, wheels: DB_RED, beams: DB_RED, roof: BLACK, plate: BLACK, numbers: { col: WHITE, x0: -54, x1: -40, z: 34 } },
+    })),
+  },
+  {
+    id: "db-t32-tender", maker: "", name: "DB 2'2' T32 tender", group: "tender", kind: "tender", scale: "H0",
+    length: 110, width: 35, height: 46, color: "#141414",
+    note: "The 01's tender, on two bogies",
+    draw: h0(tender({
+      length: 110, width: 35, height: 46, wheels: [37, 15, -15, -37], r: 5.75,
+      body: { x0: -50, x1: 48, z0: 17, top: 41 }, outsideFrames: false,
+      livery: { body: BLACK, frames: DB_RED, beams: DB_RED, lettering: { col: WHITE, x0: -6, x1: 6, z: 29, chars: 2 } },
+    })),
+  },
+  {
+    id: "db-br103", maker: "", name: "DB class 103 TEE electric", group: "electric", kind: "loco", scale: "H0",
+    length: 224, width: 35.5, height: 51.6, color: "#941220",
+    note: "The DB's flagship express electric in TEE red and beige: Co'Co', 200 km/h, 19.5 m over buffers",
+    draw: h0((s) => drawElectric(s, {
+      length: 224, width: 35.5, height: 51.6, floor: 17, eave: 44, roofRise: 2.5, cabBack: 80.5,
+      front: [[0, 17], [0, 22], [5, 29], [16, 44]],
+      bogies: { centre: 60.6, wheelbase: 51.7, r: 7.2, axles: 3 },
+      pantographs: [{ x: 50, kind: "diamond" }, { x: -50, kind: "diamond" }],
+      livery: { body: TEE_RED, roof: [0.42, 0.43, 0.43], frames: [0.2, 0.2, 0.21], band: { z0: 17, z1: 21, col: TEE_BEIGE } },
+      cabWindow: [4, 12, 32, 40], grilles: [-66, -34, -12, 12, 34, 66],
+    })),
+  },
+  {
+    id: "sbb-re44ii", maker: "", name: "SBB Re 4/4 II electric", group: "electric", kind: "loco", scale: "H0",
+    length: 177, width: 34, height: 50.5, color: "#215c38",
+    note: "The Swiss all-rounder in SBB green: Bo'Bo', single-arm pantographs, 15.4 m over buffers",
+    draw: h0((s) => drawElectric(s, {
+      length: 177, width: 34, height: 50.5, floor: 16.5, eave: 43.5, roofRise: 2.2, cabBack: 66,
+      front: [[0, 16.5], [0, 29], [1.6, 31], [4.6, 42], [5.6, 43.5]],
+      bogies: { centre: 45.4, wheelbase: 32.2, r: 7.2, axles: 2 },
+      pantographs: [{ x: 35, kind: "single" }, { x: -35, kind: "single" }],
+      livery: { body: SBB_GREEN, roof: [0.45, 0.46, 0.46], frames: [0.18, 0.18, 0.19], stripe: { z: 24, col: [0.8, 0.82, 0.83] } },
+      cabWindow: [3, 11, 31, 39], grilles: [-48, -22, 0, 22, 48],
+    })),
+  },
+  {
+    id: "db-br218", maker: "", name: "DB class 218 diesel-hydraulic", group: "diesel", kind: "loco", scale: "H0",
+    length: 188.5, width: 35.6, height: 48.9, color: "#80141f",
+    note: "The DB's standard main-line diesel in wine red with a grey stripe: centre cab, two bonnets, B'B', 16.4 m over buffers",
+    draw: h0((s) => drawClass218(s, { length: 188.5, width: 35.6, body: DB_WINE, stripe: [0.78, 0.78, 0.75] })),
+  },
+  {
+    id: "db-silberling", maker: "", name: "DB n-Wagen 'Silberling', 2nd class", group: "coach", kind: "coach", scale: "H0",
+    length: 303, width: 32.5, height: 46.6, color: "#b8bdc2",
+    note: "The DB's local train coach: fluted stainless steel sides, two doors a side, Minden-Deutz bogies, 26.4 m over buffers",
+    draw: h0(coach({
+      length: 303, width: 32.5, height: 46.6, bodyHalf: 143, floor: 13.5, waist: 21.5, eave: 40, rise: 5.6, tumblehome: 0.6,
+      bogieCentre: 109, bogieWheelbase: 28.7, wheelR: 5.5, layout: "T W W D W W W W W W D W W T", vents: 6, windowRadius: 1.4, fluted: true,
+      livery: { lower: STAINLESS, roof: [0.42, 0.42, 0.43], frames: [0.12, 0.12, 0.12], ends: [0.22, 0.32, 0.27] },
+    })),
+  },
+  {
+    id: "db-uicx-green", maker: "", name: "DB UIC-X compartment coach, bottle green", group: "coach", kind: "coach", scale: "H0",
+    length: 303, width: 32.5, height: 46.6, color: "#214d36",
+    note: "The 26.4 m UIC-X express coach of the 1950s and 60s in DB bottle green: compartments, aluminium window frames",
+    draw: h0(coach({
+      length: 303, width: 32.5, height: 46.6, bodyHalf: 143, floor: 14, waist: 25.5, eave: 39.5, rise: 6, tumblehome: 1.2,
+      bogieCentre: 109, bogieWheelbase: 28.7, wheelR: 5.5, layout: "D T W W W W W W W W W W T D", vents: 10, windowRadius: 1,
+      livery: { lower: DB_GREEN, roof: [0.4, 0.4, 0.41], frames: [0.75, 0.76, 0.77], ends: [0.15, 0.17, 0.16] },
+    })),
+  },
+  {
+    id: "sncf-corail", maker: "", name: "SNCF Corail coach", group: "coach", kind: "coach", scale: "H0",
+    length: 303, width: 33, height: 46, color: "#9fa1a0",
+    note: "The French intercity coach of 1975 onwards: grey with a light window band and orange doors, 26.4 m over buffers",
+    draw: h0(coach({
+      length: 303, width: 33, height: 46, bodyHalf: 143, floor: 14, waist: 24, eave: 39, rise: 5.8, tumblehome: 1.4,
+      bogieCentre: 109, bogieWheelbase: 28.7, wheelR: 5.5, layout: "D T W W W W W W W W W W T D", vents: 0, windowRadius: 1.6,
+      livery: { lower: CORAIL_GREY, upper: [0.86, 0.87, 0.86], roof: [0.5, 0.5, 0.5], frames: [0.1, 0.1, 0.1], ends: CORAIL_GREY, doors: [0.92, 0.45, 0.12] },
+    })),
+  },
+  {
+    id: "db-eaos", maker: "", name: "DB Eaos bogie open wagon, with coal", group: "wagon", kind: "wagon", scale: "H0",
+    length: 161, width: 34, height: 37, color: "#733321",
+    note: "The European standard high-sided bogie open: steel sides on stanchions, Y25 bogies, 14 m over buffers",
+    draw: h0((s) => drawBogieOpen(s, { length: 161, width: 34, height: 37, body: DB_BROWN, load: true })),
+  },
+  {
+    id: "db-gbs", maker: "", name: "DB Gbs covered wagon", group: "wagon", kind: "van", scale: "H0",
+    length: 181, width: 33, height: 46, color: "#733823",
+    note: "The two-axle covered wagon of the DB, with big sliding doors and a 10 m wheelbase: 15.7 m over buffers",
+    draw: h0((s) => drawVan(s, { length: 181, width: 33, height: 46, bodyHalf: 84, wheelbase: 115, top: 40.5, rise: 5, wheelR: 5.3, body: [0.45, 0.22, 0.14], roof: [0.55, 0.55, 0.53], doors: [0], doorWidth: 32, marks: [{ x0: -80, x1: -55, z: 18, chars: 10 }] })),
+  },
+  {
+    id: "eu-tank-2axle", maker: "", name: "Two-axle tank wagon, silver", group: "wagon", kind: "tank", scale: "H0",
+    length: 111, width: 34, height: 46.5, color: "#bdbfbd",
+    note: "A Uerdingen-type two-axle tank wagon for mineral oil: a long barrel, dome, ladders and walkway",
+    draw: h0((s) => drawTankWagon(s, { length: 111, width: 34, body: [0.74, 0.75, 0.74], bodyHalf: 48, r: 12.5, wheelbase: 57.5, wheelR: 5.3 })),
+  },
+];
+MODELS.push(...EUROPE);
 
 export const modelById = (id: string | undefined) => MODELS.find((m) => m.id === id);
 

@@ -18,6 +18,8 @@ export interface SteamLivery {
   /** Safety valve bonnet: brass on the GWR. */
   bonnet?: RGB;
   roof?: RGB;
+  /** The running plate, when it isn't the frames' colour (German engines: black boards over red frames). */
+  plate?: RGB;
   /** Boiler bands. */
   bands?: RGB;
   /** Brass beading round the splashers and cab openings (GWR). */
@@ -75,18 +77,19 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
   }
   // running plate, with a valance along its edge; on some engines it curves down to the buffer beam in front
   const plEnd = pl.drop ? pl.drop.x : pl.x1;
-  s.box(pl.x0, plEnd, -pl.half, pl.half, pl.z - 0.6, pl.z, L.frames);
+  const plateCol = L.plate ?? L.frames;
+  s.box(pl.x0, plEnd, -pl.half, pl.half, pl.z - 0.6, pl.z, plateCol);
   for (const e of SIDES) {
     const a = e * (pl.half - 0.5), b = e * pl.half;
-    s.box(pl.x0, plEnd, Math.min(a, b), Math.max(a, b), pl.z - 2.4, pl.z - 0.6, L.frames);
+    s.box(pl.x0, plEnd, Math.min(a, b), Math.max(a, b), pl.z - 2.4, pl.z - 0.6, plateCol);
   }
   if (pl.drop) {
     const d = pl.drop, run = 7, zAt = (t: number) => pl.z - (pl.z - d.z) * (0.5 - 0.5 * Math.cos(Math.PI * t));
     for (let k = 0; k < 8; k++) {
       const t0 = k / 8, t1 = (k + 1) / 8;
-      s.beam(d.x + run * t0, zAt(t0) - 0.3, d.x + run * t1, zAt(t1) - 0.3, -pl.half, pl.half, 0.6, L.frames);
+      s.beam(d.x + run * t0, zAt(t0) - 0.3, d.x + run * t1, zAt(t1) - 0.3, -pl.half, pl.half, 0.6, plateCol);
     }
-    s.box(d.x + run, pl.x1, -pl.half, pl.half, d.z - 0.6, d.z, L.frames);
+    s.box(d.x + run, pl.x1, -pl.half, pl.half, d.z - 0.6, d.z, plateCol);
   }
 
   // ---------- wheels and motion ----------
@@ -243,7 +246,14 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
   }
   // sandboxes on the running plate ahead of the drivers (tender engines)
   if (!T) for (const e of SIDES) { const y = e * (pl.half - 3); s.box(driven[0].x + driven[0].r + 1, driven[0].x + driven[0].r + 5, y - 1.6, y + 1.6, pl.z, pl.z + 3.2, body); }
-  if (p.deflectors) for (const e of SIDES) { const a = e * (pl.half - 0.6), b = e * pl.half; s.box(p.deflectors.x0, p.deflectors.x1, Math.min(a, b), Math.max(a, b), pl.z, p.deflectors.top, body); }
+  if (p.deflectors) for (const e of SIDES) {
+    // smoke deflectors: tall plates beside the smokebox on stays, their top edge turned in
+    const D = p.deflectors, a = e * (pl.half - 0.6), b = e * pl.half;
+    s.prismY([[D.x0, pl.z], [D.x1, pl.z], [D.x1, D.top - 3], [D.x1 - 4, D.top], [D.x0, D.top]], Math.min(a, b), Math.max(a, b), L.smokebox);
+    const c = e * (pl.half - 2.2);
+    s.box(D.x0, D.x1 - 4, Math.min(a, c), Math.max(a, c), D.top - 0.5, D.top, L.smokebox);
+    for (const x of [D.x0 + 4, D.x1 - 6]) s.box(x - 0.3, x + 0.3, Math.min(e * (SB.r * 0.7), a), Math.max(e * (SB.r * 0.7), a), D.top - 6.3, D.top - 5.7, L.smokebox);
+  }
 
   // ---------- cab ----------
   const C = p.cab, roofCol = L.roof ?? (body === BLACK ? BLACK : darker(body, 0.9));

@@ -39,6 +39,7 @@ Automated cases live in `tests/e2e/test_drive.py` (drive view, axe scans, fails 
 | F02-E12 | | edge: keyboard focus after adding | click a tile, Esc | focus stays on the tile; Esc closes | e2e drive | fail → fixed (BUG-010) |
 | F02-E13 | | edge: long catalogue | open the Trains dialog | it fits the window, actions visible | e2e drive | fail → fixed (BUG-011) |
 | F02-H4 | | happy | open the Trains dialog | models grouped: steam, diesel, coaches, wagons | e2e drive | pass |
+| F02-H5 | | happy | Trains dialog, Show: European (H0) | electric locos listed, British stock hidden | e2e drive | pass |
 | F02-E11 | | edge: deleted record | delete a train that has stock | its stock stays, as vehicles on their own | unit | fail → fixed (BUG-006) |
 | F03-H1 | shunt | happy | drive gently onto vans, U, pull away | couples; uncouples; vans stay put | e2e drive + unit | pass |
 | F03-E1 | | edge: too fast | 120 mm/s / 480 mm/s onto a wagon | both stop / both derail | unit | pass |

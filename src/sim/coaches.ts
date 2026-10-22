@@ -22,6 +22,8 @@ export interface CoachSpec {
     lining?: RGB;
     /** Window frames: aluminium on BR Mk1, body colour on older stock. */
     frames?: RGB;
+    /** Doors in a colour of their own (SNCF Corail orange). */
+    doors?: RGB;
   };
   /** Truss rods under the floor (older stock). */
   truss?: boolean;
@@ -29,6 +31,8 @@ export interface CoachSpec {
   vents?: number;
   /** Window corner radius: Stanier and Mk1 windows are rounded, older ones nearly square. */
   windowRadius?: number;
+  /** Fluted stainless steel sides (the DB "Silberling"). */
+  fluted?: boolean;
 }
 
 const WIDTH: Record<string, number> = { D: 9, W: 18, w: 11, T: 6, L: 15, "-": 3 };
@@ -78,6 +82,7 @@ export function drawCoach(s: Shapes, p: CoachSpec) {
       else if (t === "D" || t === "L") {
         // the door: its outline, a droplight (or barred window on luggage doors), handle and grab rails
         const dz0 = p.floor + 1.2;
+        if (L.doors) s.box(x0 + 0.3, x1 - 0.3, Math.min(f, f + e * 0.06), Math.max(f, f + e * 0.06), dz0, p.eave - 1, L.doors);
         strip(s, f, x0 + 0.3, dz0, x0 + 0.3, p.eave - 1, 0.3, darker(L.lower, 0.45), 0.1); strip(s, f, x1 - 0.3, dz0, x1 - 0.3, p.eave - 1, 0.3, darker(L.lower, 0.45), 0.1);
         if (t === "D") glass(x0 + 1.6, x1 - 1.6, bot + 1, top);
         else { glass(x0 + 2, x1 - 2, bot + 3, top - 1); for (let b = x0 + 3; b < x1 - 2; b += 1.6) strip(s, f, b, bot + 3, b, top - 1, 0.25, frames, 0.25); }
@@ -86,6 +91,12 @@ export function drawCoach(s: Shapes, p: CoachSpec) {
       }
       x = x0;
     });
+    if (p.fluted) {
+      // pressed flutes along the stainless sides, below the windows and in the band above them
+      const rib = darker(L.lower, 0.78);
+      for (let z = p.floor + 1.5; z < p.waist - 0.8; z += 1.15) strip(s, f, -bh + 1, z, bh - 1, z, 0.35, rib, 0.1);
+      for (let z = p.eave - 2.2; z < p.eave - 0.4; z += 0.9) strip(s, f, -bh + 1, z, bh - 1, z, 0.3, rib, 0.1);
+    }
     // lining along the waist and the cantrail
     if (L.lining) { strip(s, f, -bh, p.waist - 0.4, bh, p.waist - 0.4, 0.35, L.lining, 0.12); strip(s, f, -bh, p.eave - 1.2, bh, p.eave - 1.2, 0.35, L.lining, 0.12); }
     // solebar along the bottom of the side

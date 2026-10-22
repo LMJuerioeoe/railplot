@@ -213,6 +213,14 @@ export function discWheels(s: Shapes, x: number, r: number, col: RGB = DARK_STEE
 
 /** Centre height of buffers above the rail: 3 ft 5½ in. */
 export const BUFFER_Z = 13.6;
+/** European buffers: 1,060 mm, which is 12.2 mm in H0. */
+export const BUFFER_Z_H0 = 12.2;
+let bufferZ = BUFFER_Z;
+/** Draw with buffers at another height (H0 stock), then put it back. */
+export function withBufferHeight(z: number, draw: () => void) {
+  const was = bufferZ; bufferZ = z;
+  try { draw(); } finally { bufferZ = was; }
+}
 /** How far buffers stand out from the headstock (housing, shank and head). */
 export const BUFFER_REACH = 5.5;
 
@@ -222,15 +230,15 @@ export const BUFFER_REACH = 5.5;
  */
 export function headstocks(s: Shapes, half: number, col: RGB, opts: { width?: number; depth?: number; z0?: number; z1?: number; oval?: boolean; spread?: number } = {}) {
   const face = half - BUFFER_REACH, depth = opts.depth ?? 2.6, w = opts.width ?? 14.5;
-  const z0 = opts.z0 ?? BUFFER_Z - 3.6, z1 = opts.z1 ?? BUFFER_Z + 3.4, spread = opts.spread ?? 9.6;
+  const BZ = bufferZ, z0 = opts.z0 ?? BZ - 3.6, z1 = opts.z1 ?? BZ + 3.4, spread = opts.spread ?? 9.6;
   for (const e of SIDES) {
     const a = e * face, b = e * (face - depth);
     s.box(Math.min(a, b), Math.max(a, b), -w, w, z0, z1, col);
-    for (const y of [-spread, spread]) buffer(s, a, e, y, BUFFER_Z);
+    for (const y of [-spread, spread]) buffer(s, a, e, y, BZ);
     // coupling hook and a loop of screw link hanging from it
     const h = e * (face + 1.6);
-    s.box(Math.min(a, h), Math.max(a, h), -0.7, 0.7, BUFFER_Z - 1.2, BUFFER_Z + 0.4, DARK_STEEL);
-    s.beam(h, BUFFER_Z - 0.6, h + e * 0.8, BUFFER_Z - 3.2, -1.1, 1.1, 0.5, DARK_STEEL);
+    s.box(Math.min(a, h), Math.max(a, h), -0.7, 0.7, BZ - 1.2, BZ + 0.4, DARK_STEEL);
+    s.beam(h, BZ - 0.6, h + e * 0.8, BZ - 3.2, -1.1, 1.1, 0.5, DARK_STEEL);
     // vacuum brake pipe, standing up beside the hook
     s.cyl("z", z0 - 3, z1 - 1, e * (face + 0.8), 4.2, 0.55, 0.55, BLACK);
   }
