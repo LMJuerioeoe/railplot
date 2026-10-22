@@ -482,3 +482,10 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
   .hud-card { top: 8px; bottom: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .hud, .hud-card { transition: none; } }
+.is-driving .view3d-hint { display: none; }
+@media (max-width: 720px) {
+  /* driving on a phone: the 3D view takes the whole screen below the toolbar */
+  .is-driving .inspector { display: none; }
+  .is-driving .view3d { position: fixed; inset: 78px 0 0 0; z-index: 70; }
+  .is-driving .view3d-bar label { display: none; }
+}

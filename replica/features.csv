@@ -1,12 +1,12 @@
 feature,area,priority,original,clone,notes
-Open a 3D drive view of your own layout from Control mode,drive view,must,yes,no,Railplot's 3D view exists; needs moving trains
-Trains follow the real track geometry through points as set,simulation,must,yes,no,replaces the block-progress simulator; hardest part
-Drive the selected train with a throttle (keys and slider),driving,must,yes,no,Q/E and arrow keys as in the original (source 9)
-Reverse direction,driving,must,yes,no,
-Speed shown in scale km/h or mph,driving,must,yes,no,units patch (source 6); scale from the track library (OO 1:76 / H0 1:87)
-Tabletop camera (orbit the whole layout),cameras,must,yes,no,exists as the current 3D camera
-Chase camera behind the selected train,cameras,must,yes,no,
-Cab camera,cameras,must,yes,no,
+Open a 3D drive view of your own layout from Control mode,drive view,must,yes,yes,"Railplot's 3D view exists; needs moving trains; Control > Drive > Drive in 3D, View > Drive in 3D, or D; sets up the simulator if there is none"
+Trains follow the real track geometry through points as set,simulation,must,yes,yes,replaces the block-progress simulator; hardest part; src/sim/track.ts; trailing through a point set against the train is detected (not yet acted on)
+Drive the selected train with a throttle (keys and slider),driving,must,yes,yes,Q/E and arrow keys as in the original (source 9); Q/E and arrows; Shift for bigger steps; HUD slider
+Reverse direction,driving,must,yes,yes,throttle below zero turns the train round
+Speed shown in scale km/h or mph,driving,must,yes,yes,"units patch (source 6); scale from the track library (OO 1:76 / H0 1:87); U switches; scale from the track system (OO 1:76.2, H0 1:87)"
+Tabletop camera (orbit the whole layout),cameras,must,yes,yes,exists as the current 3D camera
+Chase camera behind the selected train,cameras,must,yes,yes,follows the track round curves
+Cab camera,cameras,must,yes,yes,"at the loco's front, looking down the track"
 Throw points by clicking them in 3D,operation,must,yes,no,2D version exists in Control mode
 Signals shown in 3D with live aspects and obeyed,operation,must,yes,no,control engine already sets aspects
 Make up a train from simple rolling stock (loco and wagons),rolling stock,must,yes,no,own box models; no Rolling Line assets
@@ -24,11 +24,11 @@ Trains run off open ends,derailments,should,unknown,no,
 Buffer-locking when propelling long stock through an S-bend,derailments,could,no,no,uses the train-fit check's reverse-curve rule
 Auto drive: train obeys signals and stops in a chosen block,automation,should,yes,no,Auto Drive patch (source 6); Railplot trips and automations exist
 Walk the layout at miniature scale (first person),cameras,should,yes,no,the original's large/miniature switch
-Blocks sensors and current detection follow where vehicles really are,simulation,should,no,no,Railplot's own: keeps the control features honest
+Blocks sensors and current detection follow where vehicles really are,simulation,should,no,yes,Railplot's own: keeps the control features honest; sensors trip when a vehicle passes over them; idle current from the vehicles in each block
 Shunting session laid out in 3D with the dealt wagons,shunting,should,no,no,builds on Tools > Shunting session
 Consists and their positions saved with the layout,files,should,yes,no,
 Pause and a key list overlay,drive view,should,yes,no,
-Works on a phone browser (touch throttle and orbit),drive view,should,no,no,the original is PC only; Railplot runs on phones
+Works on a phone browser (touch throttle and orbit),drive view,should,no,partial,the original is PC only; Railplot runs on phones; HUD and throttle work at 390 px; touch orbit in tabletop works; no touch gestures for the follow cameras yet
 Click a train to follow it,cameras,should,yes,no,
 Horn,driving,should,yes,no,a simple generated tone; no game sounds
 Simple engine and rail sounds,sound,could,yes,no,own generated sounds only

@@ -373,6 +373,23 @@ with sync_playwright() as p:
     check("the express moves on to another block", js(pg, "railplot.p.control.trains[1].block") != start_block)
     pg.click("text=Stop all trains")
     check("stop all stops every train", js(pg, "railplot.ctl.engine.run(railplot.p.control.trains[1].id).target") == 0)
+
+    # F17b drive the demo in 3D: HUD, throttle by keys, chase and cab cameras
+    pg.click("#drive-3d"); pg.wait_for_timeout(600)
+    check("Drive in 3D opens with the HUD", js(pg, "railplot.drive.open") and pg.locator("#drive-hud [data-train]").count() == 2)
+    pg.keyboard.press("2"); before = js(pg, "(() => { const w = railplot.drive.world(); const p = w.poseOf(railplot.drive.train); return [p.x, p.y]; })()")
+    for _ in range(10): pg.keyboard.press("e")
+    pg.wait_for_timeout(2000)
+    after = js(pg, "(() => { const w = railplot.drive.world(); const p = w.poseOf(railplot.drive.train); return [p.x, p.y]; })()")
+    check("the throttle keys drive the train along the track", abs(after[0] - before[0]) + abs(after[1] - before[1]) > 50 and int(pg.locator("#drive-speed").inner_text()) > 0, (before, after))
+    cams = []
+    for _ in range(3): cams.append(pg.locator("#drive-camera").inner_text().split()[0]); pg.keyboard.press("c"); pg.wait_for_timeout(150)
+    check("C cycles chase, cab and tabletop", sorted(cams) == ["Cab", "Chase", "Tabletop"], cams)
+    shot(pg, "09b-drive")
+    pg.keyboard.press("Space"); pg.wait_for_timeout(100)
+    check("Space stops the selected train", js(pg, "railplot.ctl.engine.run(railplot.drive.train).target") == 0)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
+    check("Esc goes back to the plan", js(pg, "railplot.drive.open") == False and js(pg, "railplot.mode3d") == False)
     pg.click("text=Set up"); pg.wait_for_timeout(100)
     check("Claude can't use the controls until allowed", js(pg, "!!railplot.p.control.claude") == False and pg.locator("#claude-control").count() == 1)
     pg.check("#claude-control"); pg.wait_for_timeout(100)
@@ -387,7 +404,10 @@ with sync_playwright() as p:
     pg.click(".dialog button:has-text('Done')")
     pg.check("#det-current"); pg.wait_for_timeout(100)
     # a block with no train in it or booked for one (a train that just left it may take 10 s to clear)
-    empty = js(pg, "(() => { const e = railplot.ctl.engine; return railplot.p.control.blocks.map(b => b.id).find(b => !e.trainIn(b) && !e.claimedBy.get(b)); })()")
+    # (and no vehicle standing in it: a train stopped across a block joint is in both blocks)
+    empty = js(pg, """(() => { const e = railplot.ctl.engine, w = railplot.drive.world() || [...railplot.ctl.links.values()][0].world;
+      const used = new Set(w.consists.flatMap(c => [...w.blocksOf(c)]));
+      return railplot.p.control.blocks.map(b => b.id).find(b => !e.trainIn(b) && !e.claimedBy.get(b) && !used.has(b)); })()""")
     pg.select_option("#det-stray-block", empty); pg.click("#det-stray")
     try: pg.wait_for_function(f"railplot.ctl.engine.strays.has('{empty}')", timeout=15000); found = True
     except Exception: found = False
@@ -405,9 +425,12 @@ with sync_playwright() as p:
     check("Auto tab lists routes and the demo automation", pg.locator(".setup-sec >> text=Main line").count() == 1 and pg.locator("text=Goods shuttle").count() >= 1)
     goods = js(pg, "railplot.p.control.trains[0].id")
     gstart = js(pg, "railplot.p.control.trains[0].block")
+    # the express drove on earlier: put it back in East by hand, clear of the shuttle's way
+    js(pg, "(() => { const c = railplot.p.control; railplot.ctl.act({ c: 'place', train: c.trains[1].id, block: c.blocks.find(b => b.name === 'East').id }); })()")
+    pg.wait_for_timeout(200)
     pg.locator(".auto-row button:has-text('Start')").first.click()
     pg.wait_for_timeout(5000)
-    check("the goods shuttle sets off on its own", js(pg, "railplot.p.control.trains[0].block") != gstart, js(pg, "JSON.stringify([...railplot.ctl.engine.autoRuns])"))
+    check("the goods shuttle sets off on its own", js(pg, "railplot.p.control.trains[0].block") != gstart, js(pg, "JSON.stringify([railplot.p.control.trains.map(t => railplot.ctl.engine.blockName(t.block)), [...railplot.ctl.engine.autoRuns]])"))
     check("its status shows the step it is on", pg.locator(".auto-row .auto-status").first.inner_text().startswith("Step "))
     pg.locator(".auto-row button:has-text('Stop')").first.click()
     check("stopping an automation", not js(pg, "[...railplot.ctl.engine.autoRuns.values()][0].running"))

@@ -22,6 +22,7 @@ import { buildControlDemo, buildSample } from "./sample";
 import { clear, h, icon } from "./ui/dom";
 import { closeDialog, confirmDialog, dialog, field, isDialogOpen, numInput, toast } from "./ui/dialogs";
 import { View3D } from "./view3d";
+import { DriveView } from "./sim/driveui";
 import { trainFit } from "./trainfit";
 import { RELEASES_URL, desktopCanUpdate, desktopCheck, desktopInstall, installKind, latestRelease, newer } from "./update";
 import { wiringParts } from "./control/wiringplan";
@@ -120,6 +121,7 @@ export class App {
   checkUpdates = true;
   mode: "design" | "control" = "design";
   ctl!: ControlUI;
+  drive!: DriveView;
 
   root: HTMLElement;
   canvas!: HTMLCanvasElement;
@@ -143,6 +145,7 @@ export class App {
     this.buildShell();
     this.pal = readPalette(this.root);
     this.ctl = new ControlUI(this);
+    this.drive = new DriveView(this);
     this.boot();
     this.bindEvents();
     hostedNotice = () => this.showHostedNotice();
@@ -1081,6 +1084,12 @@ export class App {
     }
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key;
+    // driving in 3D: the drive view's keys come first, in either mode
+    if (this.drive.open && !mod) {
+      if (this.drive.onKey(e)) return;
+      if (k === "Escape") { this.toggle3d(false); return; }
+    }
+    if (!mod && !this.mode3d && (k === "d" || k === "D")) { this.drive.start(); return; }
     if (this.mode === "control") {
       if (this.ctl.onKey(e)) return;
       if (mod && k.toLowerCase() === "s") { e.preventDefault(); this.save(); return; }
@@ -1191,7 +1200,7 @@ export class App {
         this.mode3d = false; this.el.view3d.hidden = true; this.root.classList.remove("is-3d");
         toast(String((err as Error).message ?? err), "error");
       }
-    } else this.canvas.focus();
+    } else { this.drive.stop(); this.canvas.focus(); }
     this.renderToolbarState();
   }
 
@@ -1751,6 +1760,7 @@ export class App {
       { label: "Track positions on modules", run: () => { this.showTrackGuides = !this.showTrackGuides; this.render(); }, check: () => this.showTrackGuides },
       "-",
       { label: "3D view", kbd: "3", run: () => this.toggle3d(true) },
+      { label: "Drive in 3D", kbd: "D", run: () => this.drive.start() },
     ] },
     { label: "Tools", items: [
       { label: "Select", kbd: "V", run: () => this.setTool("select") },

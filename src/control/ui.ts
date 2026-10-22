@@ -336,10 +336,11 @@ export class ControlUI {
     const b = this.cfg.blocks.find((x) => x.id === blockId);
     if (!b || !b.items.length) return null;
     const items = b.items.map((id) => this.app.p.items.find((i) => i.id === id)).filter(Boolean) as ReturnType<typeof geom>[] & any[];
+    // in the simulator, the train's loco is where it really is
     const sim = [...this.links.values()].find((l) => l instanceof SimLink) as SimLink | undefined;
-    const prog = trainId && sim ? sim.progressOf(trainId) : undefined;
-    const idx = prog !== undefined ? Math.min(items.length - 1, Math.floor(prog * items.length)) : Math.floor(items.length / 2);
-    const it = items[idx];
+    const at = trainId && sim ? sim.poseOf(trainId) : null;
+    if (at) return { x: at.x, y: at.y };
+    const it = items[Math.floor(items.length / 2)];
     const r = geom(it).routes[0];
     const pr = r.prims[Math.floor(r.prims.length / 2)];
     const q = primAt(pr, pr.len / 2);
@@ -513,6 +514,8 @@ export class ControlUI {
       h("button", { class: "btn stop-all", type: "button", onclick: () => this.doAndRender({ c: "stopAll" }, "All trains stopped.") },
         h("span", { html: icon("close", 18) }), "Stop all trains", h("kbd", {}, "Space")),
       e.powerOn ? h("button", { class: "btn btn-sm", type: "button", title: "Turn the track power off, like the power button on a DCC throttle", onclick: () => this.doAndRender({ c: "power", on: false }, "Track power off.") }, "Power off") : null));
+    if (cfg.controllers.some((c) => c.kind === "sim") && !this.hub && cfg.trains.some((t) => t.block))
+      el.append(h("div", { class: "btn-row" }, h("button", { class: "btn", type: "button", id: "drive-3d", title: "Drive the simulated trains in 3D (D)", onclick: () => this.app.drive.start(), html: `${icon("cube", 16)}<span>Drive in 3D</span>` })));
     if (!cfg.trains.length || !cfg.blocks.length) {
       el.append(h("div", { class: "ctl-empty" },
         h("h3", {}, "Nothing to drive yet"),
