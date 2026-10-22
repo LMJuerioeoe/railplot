@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Railplot Drive primitives</title>
+<!-- The design-system check: every drive-view primitive, built once from the real stylesheet, in both themes.
+     Open from the repository (it links ../../src/styles.css). Not shipped. -->
+<link rel="stylesheet" href="../../src/styles.css">
+<style>
+  body { overflow: auto; padding: 16px; display: grid; gap: 16px; }
+  .sheet { position: relative; border-radius: 10px; padding: 16px; background: var(--chrome); color: var(--ink); display: grid; gap: 14px; }
+  .scene { position: relative; height: 330px; border-radius: 8px; overflow: hidden;
+    background: linear-gradient(170deg, #9fb4c4 0%, #c9d4cf 40%, #8a9a74 41%, #6f805a 100%); }
+  .scene .track { position: absolute; left: 0; right: 0; top: 52%; height: 14px; background: repeating-linear-gradient(90deg, #5a4a3a 0 5px, transparent 5px 12px), #8c8577; }
+  .scene .hud { position: absolute; }
+  @media (max-width: 720px) { .scene { height: 440px; } }
+  h2 { margin: 0; font: 600 16px/1.2 var(--font-display); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+  <section class="sheet"><h2>Railplot Drive primitives <span class="muted small">(add ?dark to see the dark theme)</span></h2></section>
+<script>
+const parts = `
+  <div class="scene">
+    <div class="track"></div>
+    <div class="hud-card" role="alertdialog" aria-label="Derailed">
+      <h3>Derailed</h3>
+      <p>47 km/h on a 371 mm curve: about 35 km/h is the limit.</p>
+      <div class="row"><button class="hud-btn primary">Re-rail here</button><button class="hud-btn">Re-rail where it last stood</button></div>
+    </div>
+    <div class="hud" role="toolbar" aria-label="Train controls">
+      <div class="hud-group hud-trains" role="radiogroup" aria-label="Train">
+        <button class="hud-chip on" role="radio" aria-checked="true" style="--train:#3a7bd5"><span class="dot"></span>Express</button>
+        <button class="hud-chip" role="radio" aria-checked="false" style="--train:#d1543b"><span class="dot"></span>Goods <span class="hud-tag auto">Auto</span></button>
+        <button class="hud-chip" role="radio" aria-checked="false" style="--train:#4a9b5f"><span class="dot"></span>Shunter <span class="hud-tag danger">Derailed</span></button>
+      </div>
+      <div class="hud-throttle"><label><span>Reverse</span><span>40% forward</span><span>Forward</span></label>
+        <input type="range" min="-100" max="100" value="40" aria-valuetext="40% forward" aria-label="Throttle"></div>
+      <div class="hud-speed near"><b>52</b><span>km/h · <span class="hud-tag warn">Curve</span></span></div>
+      <button class="hud-btn" aria-label="Horn">Horn</button>
+      <button class="hud-chip">Chase <kbd>C</kbd></button>
+    </div>
+  </div>
+  <div class="hud-strip">
+    <span class="lamps" aria-label="Signal at red"><span class="lamp red lit"></span><span class="lamp yellow"></span><span class="lamp green"></span></span>
+    <span class="lamps" aria-label="Signal at yellow"><span class="lamp red"></span><span class="lamp yellow lit"></span><span class="lamp green"></span></span>
+    <span class="lamps" aria-label="Signal at green"><span class="lamp red"></span><span class="lamp yellow"></span><span class="lamp green lit"></span></span>
+    <div class="hud-throttle held" style="max-width:260px"><label><span></span><span>Held at red</span><span></span></label><input type="range" min="-100" max="100" value="0" aria-label="Throttle"></div>
+    <div class="hud-speed over"><b>61</b><span>km/h</span></div>
+    <span class="hud-tag danger">Derailed</span><span class="hud-tag auto">Auto</span><span class="hud-tag warn">Curve</span>
+  </div>
+  <div class="row">
+    <div class="consist" aria-label="Express: 4 vehicles">
+      <span class="veh" style="width:70px;--veh:#3a7bd5"></span><span class="veh" style="width:84px;--veh:#c9b48a"></span>
+      <span class="veh" style="width:84px;--veh:#c9b48a"></span><span class="gap"></span><span class="veh" style="width:40px;--veh:#8a5a3c"></span>
+    </div>
+    <button class="btn btn-primary">Place on the track</button><button class="btn">Add a wagon</button><button class="btn" disabled>Couple</button>
+    <span class="chip chip-ok">Fits the siding</span><span class="chip chip-warn">120 mm too long</span>
+  </div>
+  <div class="row lib-head" style="display:flex;border:0;padding:0">
+    <label class="field" style="width:160px"><span class="field-label">Speed in</span><select><option>km/h</option><option>mph</option></select></label>
+    <label class="field" style="width:160px"><span class="field-label">Derailments</span><select><option>Forgiving</option><option>Realistic</option><option>Off</option></select></label>
+    <span class="muted small">Muted text</span> <span class="small" style="color:var(--ink-3)">Faint text</span> <span class="part-id">ST-241</span> <span class="approx">≈</span>
+  </div>`;
+document.documentElement.setAttribute("data-theme", location.search.includes("dark") ? "dark" : "light");
+const s = document.querySelector(".sheet"), wrap = document.createElement("div");
+wrap.innerHTML = parts;
+s.append(...wrap.childNodes);
+</script>
+</body>
+</html>

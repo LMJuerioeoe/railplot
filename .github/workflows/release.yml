@@ -30,9 +30,18 @@ jobs:
         with:
           workspaces: src-tauri
       - run: bun install
+      # Self-updating desktop app: needs the update signing key (see "Releasing" in the README). Without
+      # it the installers are built as before and the app points people to the release page instead.
+      - name: Turn on the updater
+        if: vars.TAURI_UPDATER_PUBKEY != ''
+        env:
+          TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+        run: bun scripts/updater-config.ts
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: bunx tauri
           tagName: ${{ github.ref_name }}

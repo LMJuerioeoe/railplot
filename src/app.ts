@@ -4,7 +4,7 @@ import { LIBRARIES, getLibrary, getPart, partGeometryLabel } from "./library";
 import {
   Analysis, Anchor, Item, Project, WorldEnd, addLayer, addPolyBoard, addRectBoard, addStart, analyze, anchorPose,
   applySnap, boardAt, continuationEnd, createFlex, deleteItems, deleteLayer, endKey, findSnap, flexLength, geom,
-  gradeBand, gradient, isVisible, itemsById, mirrorItems, moveItems, newProject, partOf, partsCsv, partsList,
+  gradeBand, gradient, isVisible, itemsById, mirrorItems, moveItems, newProject, partOf, partsCsv, partsList, costOf, costByBoard,
   placePart, projectBounds, rotateItems, selectionBounds, setHeightAt, shiftHeights, summarize, uid,
   appendModule, mainLibrary, moduleJoints, motorsOverFrame, rejoinModule, trackPorts, portUsed, boardGuides, layGuides, allModuleEnds, BoardPort,
 } from "./model";
@@ -14,7 +14,6 @@ import { EXAMPLES, buildExample } from "./examples";
 import { YardKind, YardOptions, buildYard, minYardLength, partName, roadSpacings, wagonLength, yardParts } from "./yards";
 import { History } from "./history";
 import { Proposal, applyProposal, describeProposal, rejectProposal, staleIds } from "./proposals";
-import { ChatPanel } from "./claude/chatui";
 import { FileError, parseProject, serialize } from "./io";
 import { LabelMode, Palette, View, drawProject, fmtLen, hitItem, itemsInRect, projectToSvg, readPalette, toScreen, toWorldPt } from "./render2d";
 import { partThumb } from "./thumbs";
@@ -23,6 +22,11 @@ import { buildControlDemo, buildSample } from "./sample";
 import { clear, h, icon } from "./ui/dom";
 import { closeDialog, confirmDialog, dialog, field, isDialogOpen, numInput, toast } from "./ui/dialogs";
 import { View3D } from "./view3d";
+import { DriveView } from "./sim/driveui";
+import { trainFit } from "./trainfit";
+import { RELEASES_URL, desktopCanUpdate, desktopCheck, desktopInstall, installKind, latestRelease, newer } from "./update";
+import { wiringParts } from "./control/wiringplan";
+import { DEFAULT_WAGONS, INGLENOOK, Siding, deal, planSidings } from "./shunting";
 import { ControlUI } from "./control/ui";
 import { fetchText, servedByController } from "./control/link";
 import { hubStatus } from "./control/hubclient";
@@ -52,7 +56,28 @@ async function saveBlob(...args: Parameters<typeof rawSaveBlob>) {
 
 const AUTOSAVE_KEY = "railplot.autosave.v1";
 const PREFS_KEY = "railplot.prefs.v1";
-const VERSION = "0.10.0";
+const PRICES_KEY = "railplot.prices.v1";
+const CURRENCY_KEY = "railplot.currency.v1";
+const UPDATE_CHECK_KEY = "railplot.update-check.v1";
+
+const CURRENCIES = [
+  { symbol: "£", name: "pound" }, { symbol: "$", name: "dollar" }, { symbol: "€", name: "euro" },
+  { symbol: "CHF", name: "Swiss franc" }, { symbol: "kr", name: "krona / krone" }, { symbol: "zł", name: "złoty" },
+];
+
+/** The currency last chosen on this computer, or the one for the browser's region: £ in the UK, $ in the US and so on. */
+function defaultCurrency(): string {
+  const saved = store.get(CURRENCY_KEY);
+  if (saved && CURRENCIES.some((c) => c.symbol === saved)) return saved;
+  const region = (typeof navigator !== "undefined" ? navigator.language : "").split("-")[1]?.toUpperCase() ?? "";
+  if (region === "GB") return "£";
+  if (["US", "CA", "AU", "NZ"].includes(region)) return "$";
+  if (region === "CH") return "CHF";
+  if (["SE", "NO", "DK"].includes(region)) return "kr";
+  if (region === "PL") return "zł";
+  return "€";
+}
+const VERSION = "0.11.0";
 
 export class App {
   p: Project = newProject();
@@ -92,8 +117,11 @@ export class App {
   view3d: View3D | null = null;
   mode3d = false;
   theme: "system" | "light" | "dark" = "system";
+  /** Look for a newer version once a day when Railplot starts (desktop app and offline file). */
+  checkUpdates = true;
   mode: "design" | "control" = "design";
   ctl!: ControlUI;
+  drive!: DriveView;
 
   root: HTMLElement;
   canvas!: HTMLCanvasElement;
@@ -107,9 +135,6 @@ export class App {
   resolvedProposals = new Set<string>();
   /** The proposal drawn on the plan. */
   showProp: string | null = null;
-  /** What happened to proposals resolved in this window, for the chat's cards. */
-  proposalOutcome = new Map<string, "accepted" | "rejected">();
-  chat!: ChatPanel;
   /** Proposal ids in the file last time it was read (desktop app), to notice ones withdrawn. */
   private fileProposalIds = new Set<string>();
   private filePoll = 0;
@@ -120,11 +145,11 @@ export class App {
     this.buildShell();
     this.pal = readPalette(this.root);
     this.ctl = new ControlUI(this);
-    this.chat = new ChatPanel(this);
-    this.el.workspace.append(this.chat.el);
+    this.drive = new DriveView(this);
     this.boot();
     this.bindEvents();
     hostedNotice = () => this.showHostedNotice();
+    setTimeout(() => this.quietUpdateCheck(), 4000);
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => this.onThemeChange());
   }
 
@@ -206,10 +231,11 @@ export class App {
       const d = JSON.parse(store.get(PREFS_KEY) ?? "{}");
       if (d.theme) this.theme = d.theme;
       if (typeof d.showGrid === "boolean") this.showGrid = d.showGrid;
+      if (typeof d.checkUpdates === "boolean") this.checkUpdates = d.checkUpdates;
     } catch { /* defaults */ }
     this.applyTheme();
   }
-  private savePrefs() { store.set(PREFS_KEY, JSON.stringify({ theme: this.theme, showGrid: this.showGrid })); }
+  private savePrefs() { store.set(PREFS_KEY, JSON.stringify({ theme: this.theme, showGrid: this.showGrid, checkUpdates: this.checkUpdates })); }
 
   private applyTheme() {
     if (this.theme === "system") document.documentElement.removeAttribute("data-theme");
@@ -335,7 +361,6 @@ export class App {
       return;
     }
     this.resolvedProposals.add(id);
-    this.proposalOutcome.set(id, "accepted");
     if (this.showProp === id) this.showProp = null;
     this.sel = new Set(r.ids.filter((x) => this.exists(x)));
     this.commit();
@@ -347,33 +372,9 @@ export class App {
     if (!pr) return;
     rejectProposal(this.p, id);
     this.resolvedProposals.add(id);
-    this.proposalOutcome.set(id, "rejected");
     if (this.showProp === id) this.showProp = null;
     this.commit();
     toast(`Rejected: ${pr.title}.`);
-  }
-
-  /** A proposal made in this window (the chat): it joins the list, and goes to the hub if connected. */
-  addProposal(pr: Proposal) {
-    this.p.proposals = [...(this.p.proposals ?? []).filter((x) => x.id !== pr.id), pr];
-    this.seenProposals.add(pr.id);
-    this.hist.amend(this.p);
-    this.dirty = true;
-    this.scheduleAutosave();
-    this.refresh();
-    this.ctl.onCommitted();
-  }
-
-  /** Claude takes back one of its proposals. */
-  withdrawProposal(id: string): boolean {
-    if (!this.p.proposals?.some((x) => x.id === id)) return false;
-    rejectProposal(this.p, id);
-    this.resolvedProposals.add(id);
-    this.hist.amend(this.p);
-    this.scheduleAutosave();
-    this.refresh();
-    this.ctl.onCommitted();
-    return true;
   }
 
   private zoomToBox(minX: number, minY: number, maxX: number, maxY: number) {
@@ -425,7 +426,6 @@ export class App {
     this.renderLayers();
     if (this.showProp && !this.p.proposals?.some((x) => x.id === this.showProp)) this.showProp = null;
     this.renderProposals();
-    this.chat?.refresh();
     this.renderStatus();
     this.renderPlacementBar();
     this.renderToolbarState();
@@ -1078,12 +1078,23 @@ export class App {
   private onKey(e: KeyboardEvent) {
     const t = e.target as HTMLElement;
     if (isDialogOpen()) return;
+    // the drive HUD's throttle is a slider: it takes the arrows itself, but every other drive key still works
+    if (this.drive.open && t?.id === "drive-throttle" && !e.key.startsWith("Arrow") && !e.ctrlKey && !e.metaKey) {
+      if (this.drive.onKey(e)) { e.preventDefault(); return; }
+      if (e.key === "Escape") { this.toggle3d(false); return; }
+    }
     if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) {
       if (e.key === "Escape") t.blur();
       return;
     }
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key;
+    // driving in 3D: the drive view's keys come first, in either mode
+    if (this.drive.open && !mod) {
+      if (this.drive.onKey(e)) return;
+      if (k === "Escape") { this.toggle3d(false); return; }
+    }
+    if (!mod && !this.mode3d && (k === "d" || k === "D")) { this.drive.start(); return; }
     if (this.mode === "control") {
       if (this.ctl.onKey(e)) return;
       if (mod && k.toLowerCase() === "s") { e.preventDefault(); this.save(); return; }
@@ -1194,7 +1205,7 @@ export class App {
         this.mode3d = false; this.el.view3d.hidden = true; this.root.classList.remove("is-3d");
         toast(String((err as Error).message ?? err), "error");
       }
-    } else this.canvas.focus();
+    } else { this.drive.stop(); this.canvas.focus(); }
     this.renderToolbarState();
   }
 
@@ -1319,37 +1330,149 @@ export class App {
 
   // ---------- dialogs ----------
 
+  /** Save a file the way this copy of Railplot can (a download, a save dialog, or the claude.ai page). */
+  saveFile(...args: Parameters<typeof rawSaveBlob>) { return saveBlob(...args); }
+
+  /** The parts list with what the control wiring needs, when the layout is set up for control. */
+  allParts(visibleOnly = false, byLayer = false) {
+    const rows = partsList(this.p, { visibleOnly, byLayer });
+    return this.p.control?.blocks.length ? [...rows, ...wiringParts(this.p, this.p.control)] : rows;
+  }
+
   showPartsList() {
     let visibleOnly = false, byLayer = false;
     const table = h("div", { class: "table-wrap" });
+    const boardsBox = h("div", { id: "pl-boards" });
+    const totalBox = h("p", { class: "pl-total", id: "pl-total" });
+    // prices typed on other layouts on this computer, offered as a starting point
+    let remembered: Record<string, number> = {};
+    try { remembered = JSON.parse(store.get(PRICES_KEY) ?? "{}"); } catch { /* none yet */ }
+    const cur = h("select", { id: "pl-currency", "aria-label": "Currency", onchange: () => {
+      this.p.prices = { currency: cur.value, each: this.p.prices?.each ?? {} };
+      store.set(CURRENCY_KEY, cur.value);
+      this.commit(); fill();
+    } }, ...CURRENCIES.map((c) => h("option", { value: c.symbol, selected: c.symbol === (this.p.prices?.currency ?? defaultCurrency()) }, `${c.symbol} ${c.name}`))) as HTMLSelectElement;
+    const money = (n: number) => `${this.p.prices?.currency ?? cur.value} ${n.toFixed(2)}`;
+    const setPrice = (key: string, v: string) => {
+      const each = { ...(this.p.prices?.each ?? {}) };
+      const n = parseFloat(v.replace(",", "."));
+      if (v.trim() === "" || !isFinite(n) || n < 0) delete each[key]; else each[key] = Math.round(n * 100) / 100;
+      this.p.prices = { currency: cur.value, each };
+      if (each[key] !== undefined) { remembered[key] = each[key]; store.set(PRICES_KEY, JSON.stringify(remembered)); }
+      this.commit();
+      fill();
+    };
     const fill = () => {
-      clear(table);
-      const rows = partsList(this.p, { visibleOnly, byLayer });
-      if (!rows.length) { table.append(h("p", { class: "muted" }, "No track on the layout yet.")); return; }
+      clear(table); clear(boardsBox);
+      const rows = this.allParts(visibleOnly, byLayer);
+      if (!rows.length) { table.append(h("p", { class: "muted" }, "No track on the layout yet.")); totalBox.textContent = ""; return; }
+      const each = this.p.prices?.each ?? {};
       const t = h("table", { class: "parts" },
-        h("thead", {}, h("tr", {}, ...(byLayer ? [h("th", {}, "Layer")] : []), h("th", {}, "Part"), h("th", {}, "Name"), h("th", { class: "num" }, "Qty"))),
-        h("tbody", {}, ...rows.map((r) => h("tr", {},
-          ...(byLayer ? [h("td", {}, r.layer ?? "")] : []),
-          h("td", { class: "mono" }, r.id),
-          h("td", {}, r.name, h("span", { class: "muted small" }, ` · ${r.producer}`), r.length ? h("span", { class: "muted small" }, ` · ${fmtLen(r.length, this.p.units)} in total`) : null),
-          h("td", { class: "num" }, String(r.count))))));
+        h("thead", {}, h("tr", {}, ...(byLayer ? [h("th", {}, "Layer")] : []), h("th", {}, "Part"), h("th", {}, "Name"), h("th", { class: "num" }, "Qty"), h("th", { class: "num" }, "Each"), h("th", { class: "num" }, "Total"))),
+        h("tbody", {}, ...rows.map((r) => {
+          const price = each[r.priceKey];
+          const inp = h("input", { class: "price-in", type: "text", inputmode: "decimal", "data-price": r.priceKey, "aria-label": `Price of ${r.id}`,
+            value: price === undefined ? "" : price.toFixed(2), placeholder: remembered[r.priceKey] !== undefined ? remembered[r.priceKey].toFixed(2) : "—",
+            onchange: (e: Event) => setPrice(r.priceKey, (e.target as HTMLInputElement).value),
+            onkeydown: (e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); } });
+          return h("tr", {},
+            ...(byLayer ? [h("td", {}, r.layer ?? "")] : []),
+            h("td", { class: "mono" }, r.id),
+            h("td", {}, r.name, h("span", { class: "muted small" }, ` · ${r.producer}`), r.length ? h("span", { class: "muted small" }, ` · ${fmtLen(r.length, this.p.units)} in total`) : null),
+            h("td", { class: "num" }, String(r.count)),
+            h("td", { class: "num" }, inp),
+            h("td", { class: "num" }, price === undefined ? "" : money(price * r.count)));
+        })));
       table.append(t);
+      const c = costOf(rows, this.p.prices);
+      totalBox.textContent = c.unpriced === rows.length ? "Type what each part costs to see the total. Prices are saved with the layout, and offered again on your other layouts."
+        : `Total ${money(c.total)}${c.unpriced ? ` · ${c.unpriced} part${c.unpriced === 1 ? "" : "s"} not priced yet` : ""}`;
+      const per = costByBoard(this.p).filter((b) => b.total > 0);
+      if (per.length > 1) boardsBox.append(h("h3", {}, "By baseboard"),
+        h("table", { class: "parts" }, h("thead", {}, h("tr", {}, h("th", {}, "Board"), h("th", { class: "num" }, "Board"), h("th", { class: "num" }, "Track on it"), h("th", { class: "num" }, "Total"))),
+          h("tbody", {}, ...per.map((b) => h("tr", {}, h("td", {}, b.name), h("td", { class: "num" }, money(b.board_cost)), h("td", { class: "num" }, money(b.track)), h("td", { class: "num" }, money(b.total)))))),
+        h("p", { class: "muted small" }, "Flexible track is shared out by length here, so the boards add up to a little less than the whole pieces you buy."));
     };
     fill();
     const opts = h("div", { class: "row-opts" },
       h("label", { class: "check" }, h("input", { id: "pl-visible", type: "checkbox", onchange: (e: Event) => { visibleOnly = (e.target as HTMLInputElement).checked; fill(); } }), "Only visible layers"),
-      h("label", { class: "check" }, h("input", { id: "pl-layer", type: "checkbox", onchange: (e: Event) => { byLayer = (e.target as HTMLInputElement).checked; fill(); } }), "Group by layer"));
-    dialog("Parts list", h("div", {}, h("p", { class: "muted" }, "Flexible track is rounded up to whole lengths."), opts, table), [
+      h("label", { class: "check" }, h("input", { id: "pl-layer", type: "checkbox", onchange: (e: Event) => { byLayer = (e.target as HTMLInputElement).checked; fill(); } }), "Group by layer"),
+      h("label", { class: "check" }, "Currency ", cur));
+    const csv = () => partsCsv(this.allParts(visibleOnly, byLayer), this.p.prices);
+    dialog("Parts list", h("div", {}, h("p", { class: "muted" }, "Flexible track is rounded up to whole lengths."), opts, table, totalBox, boardsBox), [
       { label: "Copy as CSV", onClick: async () => {
-        const csv = partsCsv(partsList(this.p, { visibleOnly, byLayer }));
-        try { await navigator.clipboard.writeText(csv); toast("Parts list copied."); } catch { toast("Copy isn't available here. Use Save CSV instead.", "error"); }
+        try { await navigator.clipboard.writeText(csv()); toast("Parts list copied."); } catch { toast("Copy isn't available here. Use Save CSV instead.", "error"); }
         return true;
       } },
       { label: "Save CSV", onClick: async () => {
-        await saveBlob(`${this.p.name} parts.csv`, new Blob([partsCsv(partsList(this.p, { visibleOnly, byLayer }))], { type: "text/csv" }), { name: "CSV", extensions: ["csv"], mime: "text/csv" });
+        await saveBlob(`${this.p.name} parts.csv`, new Blob([csv()], { type: "text/csv" }), { name: "CSV", extensions: ["csv"], mime: "text/csv" });
         return true;
       } },
       { label: "Done", primary: true },
+    ], { wide: true });
+  }
+
+  /** Deal a shunting puzzle: where the wagons start, and the train to make up, with a timer and a move count. */
+  showShunting() {
+    const wagonLen = wagonLength(this.trackLibId());
+    const onPlan = planSidings(this.p, wagonLen);
+    const names = h("textarea", { id: "sh-wagons", rows: "8", "aria-label": "Wagons, one per line" }, (this.p.shunting?.wagons ?? DEFAULT_WAGONS.map((w) => w.name)).join("\n")) as HTMLTextAreaElement;
+    const kind = h("select", { id: "sh-kind" }, h("option", { value: "inglenook" }, "Inglenook sidings: 5 from 8"),
+      onPlan.length ? h("option", { value: "plan" }, `This plan's sidings (${onPlan.map((x) => x.capacity).join(", ")} wagons)`) : null) as HTMLSelectElement;
+    const trainIn = numInput("sh-train", 5, { min: 1, max: 20, step: 1 });
+    const seedIn = numInput("sh-seed", 1 + Math.floor(Math.random() * 9999), { min: 1, max: 99999, step: 1 });
+    const out = h("div", { class: "shunt-print", id: "sh-out" });
+    const clock = h("span", { class: "mono", id: "sh-clock" }, "0:00"), movesEl = h("span", { class: "mono", id: "sh-moves" }, "0");
+    let started = 0, elapsed = 0, timer = 0, moves = 0;
+    const tick = () => {
+      if (!clock.isConnected) { clearInterval(timer); return; }
+      const t = Math.floor((elapsed + (started ? Date.now() - started : 0)) / 1000);
+      clock.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+    };
+    const wagonList = () => names.value.split("\n").map((x) => x.trim()).filter(Boolean);
+    const chipFor = (i: number) => {
+      const list = wagonList();
+      return h("span", { class: "wagon", style: `--wagon:${DEFAULT_WAGONS[i % DEFAULT_WAGONS.length].color}` }, h("span", { class: "wagon-no" }, String(i + 1)), list[i] ?? `Wagon ${i + 1}`);
+    };
+    const show = () => {
+      clear(out);
+      const list = wagonList();
+      const sidings: Siding[] = kind.value === "plan" ? onPlan : INGLENOOK;
+      const count = kind.value === "plan" ? Math.min(list.length, sidings.reduce((a, x) => a + x.capacity, 0)) : Math.min(8, list.length);
+      if (count < 2) { out.append(h("p", { class: "warn-note" }, "List at least two wagons.")); return; }
+      let d;
+      try { d = deal(count, sidings, +trainIn.value || 5, +seedIn.value || 1); }
+      catch (e) { out.append(h("p", { class: "warn-note" }, (e as Error).message)); return; }
+      if (this.p.shunting?.wagons.join("\n") !== list.join("\n")) { this.p.shunting = { wagons: list }; this.commit(); }
+      out.append(
+        h("h3", {}, `Card set ${d.seed}`),
+        h("div", { class: "sub-head" }, "To start, place the wagons like this (buffer stop end first)"),
+        ...sidings.map((sd, i) => h("div", { class: "shunt-siding" }, h("span", { class: "shunt-road" }, `${sd.name} · room for ${sd.capacity}`), h("span", { class: "wagon-row" }, ...d.start[i].map(chipFor)))),
+        h("div", { class: "sub-head" }, `Make up this train in ${sidings[d.into].name}, from the engine back`),
+        h("ol", { class: "shunt-cards" }, ...d.train.map((w) => h("li", {}, chipFor(w)))),
+        h("p", { class: "muted small" }, kind.value === "inglenook" ? "Inglenook rules: the headshunt holds the engine and three wagons. Leave the other wagons wherever you like." : `Sidings are counted at ${wagonLen} mm a wagon. The headshunt limits how many wagons you can pull at once.`));
+    };
+    for (const el of [kind, trainIn, seedIn]) el.addEventListener("change", show);
+    names.addEventListener("change", show);
+    const body = h("div", { class: "shunt" },
+      h("div", { class: "row3" }, field("Puzzle", kind), field("Train of", trainIn, "wagons"), field("Card set", seedIn)),
+      h("details", {}, h("summary", {}, "Your wagons"), names, h("p", { class: "muted small" }, "One per line. They're saved with the layout.")),
+      out,
+      h("div", { class: "shunt-clock" },
+        h("span", {}, "Time ", clock), h("span", {}, "Moves ", movesEl),
+        h("button", { class: "btn btn-sm", type: "button", id: "sh-start", onclick: (e: Event) => {
+          const b = e.currentTarget as HTMLButtonElement;
+          if (started) { elapsed += Date.now() - started; started = 0; clearInterval(timer); b.textContent = "Carry on"; }
+          else { started = Date.now(); timer = window.setInterval(tick, 250); b.textContent = "Pause"; }
+          tick();
+        } }, "Start the clock"),
+        h("button", { class: "btn btn-sm", type: "button", id: "sh-move", onclick: () => { movesEl.textContent = String(++moves); } }, "+1 move"),
+        h("button", { class: "btn btn-sm", type: "button", onclick: () => { elapsed = 0; moves = 0; movesEl.textContent = "0"; if (started) started = Date.now(); tick(); } }, "Reset")));
+    show();
+    dialog("Shunting session", body, [
+      { label: "Print the cards", onClick: () => { document.body.classList.add("printing-shunt"); window.print(); document.body.classList.remove("printing-shunt"); return true; } },
+      { label: "Deal new cards", onClick: () => { seedIn.value = String(1 + Math.floor(Math.random() * 9999)); show(); moves = 0; elapsed = 0; movesEl.textContent = "0"; tick(); return true; } },
+      { label: "Done", primary: true, onClick: () => { clearInterval(timer); } },
     ], { wide: true });
   }
 
@@ -1395,12 +1518,14 @@ export class App {
     theme.value = this.theme;
     const showGrid = h("input", { id: "pref-showgrid", type: "checkbox" }) as HTMLInputElement;
     showGrid.checked = this.showGrid;
+    const upd = h("input", { id: "pref-updates", type: "checkbox", checked: this.checkUpdates }) as HTMLInputElement;
     dialog("Layout and app settings", h("div", { class: "form-grid" },
       h("h3", {}, "This layout"),
       field("Layout name", name),
       h("div", { class: "row2" }, field("Show lengths in", units), field("Grid step (mm)", grid)),
       h("h3", {}, "Railplot"),
-      h("div", { class: "row2" }, field("Theme", theme), h("label", { class: "check" }, showGrid, "Show grid"))), [
+      h("div", { class: "row2" }, field("Theme", theme), h("label", { class: "check" }, showGrid, "Show grid")),
+      h("label", { class: "check" }, upd, "Look for a new version once a day")), [
       { label: "Cancel" },
       { label: "Save settings", primary: true, onClick: () => {
         this.p.name = name.value.trim() || this.p.name;
@@ -1408,6 +1533,7 @@ export class App {
         this.p.gridStep = Math.max(1, +grid.value || 50);
         this.theme = theme.value as typeof this.theme;
         this.showGrid = showGrid.checked;
+        this.checkUpdates = upd.checked;
         this.applyTheme(); this.savePrefs();
         requestAnimationFrame(() => this.onThemeChange());
         this.commit();
@@ -1424,7 +1550,73 @@ export class App {
       ["Esc", "Cancel, then back to Select"], ["Home", "Zoom to fit"], ["Wheel / right-drag", "Zoom / pan"],
       ["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+C, X, V, D", "Copy, cut, paste, duplicate"], ["Ctrl+S / Ctrl+Shift+S", "Save / save as"],
     ];
-    dialog("Keyboard shortcuts", h("table", { class: "keys" }, h("tbody", {}, ...rows.map(([k, d]) => h("tr", {}, h("td", {}, h("kbd", {}, k)), h("td", {}, d))))), [{ label: "Close", primary: true }], { wide: true });
+    const drive: [string, string][] = [
+      ["D", "Drive in 3D (from Control)"], ["1–9", "Pick a train"], ["E / Q, → / ←", "Throttle up / down (Shift: bigger steps)"],
+      ["Space / Shift+Space", "Stop this train / stop all"], ["C", "Change the camera"], ["P", "Throw the next point ahead"],
+      ["T", "Make up trains"], ["U", "Uncouple the loco from its wagons"], ["R", "Re-rail (placing: turn the train round)"],
+      ["Arrows, Enter", "Placing: move the train along the track, put it there"], ["K", "km/h or mph"], ["Esc", "Back to the plan"],
+    ];
+    const table = (r: [string, string][]) => h("table", { class: "keys" }, h("tbody", {}, ...r.map(([k, d]) => h("tr", {}, h("td", {}, h("kbd", {}, k)), h("td", {}, d)))));
+    dialog("Keyboard shortcuts", h("div", {}, h("h3", {}, "Planning"), table(rows), h("h3", {}, "Drive in 3D"), table(drive)), [{ label: "Close", primary: true }], { wide: true });
+  }
+
+  /** Once a day at most, quietly: say so when a newer version is out. */
+  private async quietUpdateCheck() {
+    const kind = installKind();
+    if (!this.checkUpdates || (kind !== "desktop" && kind !== "offline")) return;
+    const last = +(store.get(UPDATE_CHECK_KEY) ?? 0);
+    if (Date.now() - last < 20 * 3600_000) return;
+    store.set(UPDATE_CHECK_KEY, String(Date.now()));
+    try {
+      const v = kind === "desktop" && (await desktopCanUpdate()) ? (await desktopCheck())?.version : (await latestRelease()).version;
+      if (v && newer(v, VERSION)) toast(`Railplot ${v} is out. Help > Check for updates gets it.`);
+    } catch { /* offline, or GitHub unreachable: try again tomorrow */ }
+  }
+
+  /** Help > Check for updates: find the newest version and, where this copy can, install it. */
+  async showUpdates() {
+    const kind = installKind();
+    const body = h("div", { class: "about", id: "update-box" }, h("p", {}, `This is Railplot ${VERSION}. Looking for a newer version…`));
+    const status = (...kids: (Node | string | null)[]) => { clear(body); append(body, ...kids); };
+    const link = (text: string, href: string) => h("a", { href, target: "_blank", rel: "noopener" }, text);
+    dialog("Check for updates", body, [{ label: "Close", primary: true }]);
+    try {
+      if (kind === "desktop" && (await desktopCanUpdate())) {
+        const u = await desktopCheck();
+        if (!u) { status(h("p", {}, `Railplot ${VERSION} is the newest version.`)); return; }
+        const bar = h("progress", { id: "update-progress", max: "1" }) as HTMLProgressElement;
+        bar.removeAttribute("value");
+        const go = h("button", { class: "btn btn-primary", type: "button", id: "update-install", onclick: async () => {
+          if (this.dirty && this.p.items.length && !this.filePath) await this.save();
+          go.disabled = true;
+          status(h("p", {}, `Downloading Railplot ${u.version}…`), bar, h("p", { class: "muted small" }, "Railplot restarts by itself when it's installed. Your layout is kept."));
+          store.set(AUTOSAVE_KEY, JSON.stringify({ project: this.p, fileName: this.fileName, filePath: this.filePath, dirty: this.dirty, at: Date.now() }));
+          try { await desktopInstall((f) => { if (f === null) bar.removeAttribute("value"); else bar.value = f; }); }
+          catch (e) { status(h("p", { class: "warn-note" }, `The update didn't install: ${(e as Error).message}`), h("p", {}, "You can download it from ", link("the release page", RELEASES_URL), " instead.")); }
+        } }, `Update to ${u.version} and restart`);
+        status(h("p", {}, h("strong", {}, `Railplot ${u.version} is available.`), ` You have ${VERSION}.`),
+          u.notes ? h("p", { class: "muted small update-notes" }, u.notes) : null,
+          h("div", { class: "btn-row" }, go));
+        return;
+      }
+      const r = await latestRelease();
+      if (!newer(r.version, VERSION)) { status(h("p", {}, `Railplot ${VERSION} is the newest version.`)); return; }
+      const head = h("p", {}, h("strong", {}, `Railplot ${r.version} is available.`), ` You have ${VERSION}.`);
+      const notes = r.notes ? h("p", { class: "muted small update-notes" }, r.notes.slice(0, 1200)) : null;
+      if (kind === "web") status(head, notes, h("p", {}, "This page is the web version: reload it to get the new one."),
+        h("div", { class: "btn-row" }, h("button", { class: "btn btn-primary", type: "button", onclick: () => location.reload() }, "Reload")));
+      else if (kind === "offline") status(head, notes,
+        h("p", {}, "Download the new file and open it instead of this one. Your current layout stays in this browser, but save it to a file first to be safe."),
+        h("div", { class: "btn-row" },
+          h("button", { class: "btn", type: "button", onclick: () => this.save() }, "Save my layout"),
+          r.offlineUrl ? h("a", { class: "btn btn-primary", id: "update-download", href: r.offlineUrl, download: "railplot-offline.html" }, "Download railplot-offline.html") : link("Open the release page", r.url)));
+      else if (kind === "desktop") status(head, notes,
+        h("p", {}, "This copy of Railplot can't install updates by itself (it was built without the update signing key). Download the installer from ", link("the release page", r.url), ", run it, and it replaces this version."),
+        h("p", { class: "muted small mono" }, r.url));
+      else status(head, notes, h("p", {}, "This copy comes from your hub or controller. Update the hub (and reinstall Railplot on the controller from the desktop app) to get the new version: ", link("the release page", r.url), "."));
+    } catch (e) {
+      status(h("p", { class: "warn-note" }, `Couldn't check for updates: ${(e as Error).message}`), h("p", {}, "Check your internet connection, or look at ", link("the release page", RELEASES_URL), "."));
+    }
   }
 
   showAbout() {
@@ -1433,7 +1625,7 @@ export class App {
       h("p", {}, "Track geometry comes from manufacturers' published dimensions. Each library lists its sources, and you can add your own track system as a JSON file."),
       h("p", { class: "muted" }, "Libraries in this version: ", LIBRARIES.map((l) => l.name).join(", "), "."),
       h("p", { class: "muted" }, isDesktop() ? "Running as the desktop app." : "Running in a browser. Your layout is kept in this browser until you save it to a file.")),
-      [{ label: "Close", primary: true }]);
+      [{ label: "Check for updates", onClick: () => { this.showUpdates(); return true; } }, { label: "Close", primary: true }]);
   }
 
   showClaudeHelp() {
@@ -1580,6 +1772,7 @@ export class App {
       { label: "Track positions on modules", run: () => { this.showTrackGuides = !this.showTrackGuides; this.render(); }, check: () => this.showTrackGuides },
       "-",
       { label: "3D view", kbd: "3", run: () => this.toggle3d(true) },
+      { label: "Drive in 3D", kbd: "D", run: () => this.drive.start() },
     ] },
     { label: "Tools", items: [
       { label: "Select", kbd: "V", run: () => this.setTool("select") },
@@ -1591,12 +1784,14 @@ export class App {
       { label: "Rectangular baseboard…", run: () => this.showRectBoard() },
       { label: "Baseboard modules…", run: () => { this.renderBoardLibrary(); this.root.classList.add("show-lib"); } },
       "-",
+      { label: "Shunting session…", run: () => this.showShunting() },
+      "-",
       { label: "New layer", run: () => { addLayer(this.p); this.commit(); } },
     ] },
     { label: "Help", items: [
       { label: "Keyboard shortcuts", run: () => this.showShortcuts() },
-      { label: "Chat with Claude", run: () => this.chat.toggle(true) },
       { label: "Connect Claude…", run: () => this.showClaudeHelp() },
+      { label: "Check for updates…", run: () => this.showUpdates() },
       { label: "About Railplot", run: () => this.showAbout() },
     ] },
   ];
@@ -1659,7 +1854,6 @@ export class App {
       tb("control", "control", "Control", () => this.setMode("control"), "C"),
       tb("edit", "select", "Edit plan", () => this.setMode("design"), "C"),
       h("span", { class: "tb-grow" }),
-      tb("claude", "spark", "Claude", () => this.chat.toggle()),
       tb("insp", "details", "Details", () => this.root.classList.toggle("show-insp")),
     );
 
@@ -1719,7 +1913,7 @@ export class App {
     const scrimLib = h("div", { class: "drawer-scrim", onclick: () => this.root.classList.remove("show-lib", "show-insp") });
     r.append(top, toolbar, lib, workspace, inspector, status, scrimLib);
     Object.assign(this.el, {
-      docName, docState, workspace, placeBar, chatBtn: toolbar.querySelector("#tb-claude")!, emptyHint, ctx: ctxMenu, view3d, canvas3d,
+      docName, docState, workspace, placeBar, emptyHint, ctx: ctxMenu, view3d, canvas3d,
       libGrid: lib.querySelector("#lib-grid")!, libSelect, libSrc: lib.querySelector("#lib-src")!,
       insp: inspector.querySelector("#insp-main")!, props: inspector.querySelector("#insp-props")!, layers: inspector.querySelector("#layers")!,
       stHint: status.querySelector("#st-hint")!, stSel: status.querySelector("#st-sel")!, stXy: status.querySelector("#st-xy")!, stZoom: status.querySelector("#st-zoom")!,
@@ -2188,7 +2382,33 @@ export class App {
       h("div", { class: "btn-row" },
         h("button", { class: "btn", type: "button", onclick: () => this.showPartsList(), html: `${icon("list", 16)}<span>Parts list</span>` }),
         h("button", { class: "btn", type: "button", onclick: () => this.toggle3d(true), html: `${icon("cube", 16)}<span>3D view</span>` })),
+      this.trainPanel(),
     );
+  }
+
+  /** Your trains: the longest train and vehicle, and where the plan is too short or too tight for them. */
+  private trainPanel(): HTMLElement {
+    const t = this.p.train;
+    const wagon = wagonLength(this.trackLibId());
+    const set = (length: number, vehicle: number) => { this.p.train = { length: Math.max(0, Math.round(length)), vehicle: Math.max(0, Math.round(vehicle)) }; this.commit(); };
+    const lenIn = numInput("train-length", t?.length ?? 0, { min: 0, step: 10 }), vehIn = numInput("train-vehicle", t?.vehicle ?? 0, { min: 0, step: 5 });
+    const change = () => set(+lenIn.value || 0, +vehIn.value || 0);
+    lenIn.addEventListener("change", change); vehIn.addEventListener("change", change);
+    // rough lengths over buffers at this scale: a short wagon, a tender or tank engine, a long coach
+    const loco = Math.round(wagon * 2.7), coach = Math.round(wagon * 3.4);
+    const presets: [string, number, number][] = [
+      ["Short goods", loco + 5 * wagon, loco], ["Branch passenger", loco + 3 * coach, coach], ["Main line", loco + 8 * coach, coach],
+    ];
+    const wrap = h("div", { class: "train-fit", id: "train-fit" },
+      h("div", { class: "sub-head" }, "Your trains"),
+      h("div", { class: "row2" }, field("Longest train (mm)", lenIn), field("Longest vehicle (mm)", vehIn)),
+      h("div", { class: "chip-row" }, ...presets.map(([name, L, v]) => h("button", { class: "chip-btn", type: "button", title: `${L} mm train, ${v} mm vehicle`, onclick: () => set(L, v) }, name))));
+    if (!t?.length) { wrap.append(h("p", { class: "muted small" }, "Give the length of your longest train, or pick one above, to check that loops, sidings, blocks and curves suit it.")); return wrap; }
+    const issues = trainFit(this.p);
+    if (!issues.length) { wrap.append(h("div", { class: "health" }, chip("ok", "Your trains fit"))); return wrap; }
+    for (const f of issues) wrap.append(h("button", { class: `fit-row fit-${f.severity}`, type: "button", "data-kind": f.kind,
+      onclick: () => { this.sel = new Set(f.items.filter((id) => this.exists(id))); this.refresh(); } }, `${f.text}.`));
+    return wrap;
   }
 }
 

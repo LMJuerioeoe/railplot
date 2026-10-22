@@ -1,0 +1,49 @@
+feature,area,priority,original,clone,notes
+Open a 3D drive view of your own layout from Control mode,drive view,must,yes,yes,"Railplot's 3D view exists; needs moving trains; Control > Drive > Drive in 3D, View > Drive in 3D, or D; sets up the simulator if there is none"
+Trains follow the real track geometry through points as set,simulation,must,yes,yes,replaces the block-progress simulator; hardest part; src/sim/track.ts; trailing through a point set against the train is detected (not yet acted on)
+Drive the selected train with a throttle (keys and slider),driving,must,yes,yes,Q/E and arrow keys as in the original (source 9); Q/E and arrows; Shift for bigger steps; HUD slider
+Reverse direction,driving,must,yes,yes,throttle below zero turns the train round
+Speed shown in scale km/h or mph,driving,must,yes,yes,"units patch (source 6); scale from the track library (OO 1:76 / H0 1:87); U switches; scale from the track system (OO 1:76.2, H0 1:87)"
+Tabletop camera (orbit the whole layout),cameras,must,yes,yes,exists as the current 3D camera
+Chase camera behind the selected train,cameras,must,yes,yes,follows the track round curves
+Cab camera,cameras,must,yes,yes,"at the loco's front, looking down the track"
+Throw points by clicking them in 3D,operation,must,yes,yes,"2D version exists in Control mode; click the lever beside the toe, or P for the next point ahead; refused with a train on it"
+Signals shown in 3D with live aspects and obeyed,operation,must,yes,yes,control engine already sets aspects; masts with lit lamps; click to hold at red; trains already obey them through the engine
+Make up a train from simple rolling stock (loco and wagons),rolling stock,must,yes,yes,own box models; no Rolling Line assets; Trains dialog (T) with six kinds of stock
+Place a train on the track facing a chosen way,rolling stock,must,yes,yes,click the track in 3D; ghost shows where it fits; R turns it round; 2D plan placing still puts a train in a block
+Uncouple and couple wagons,shunting,must,yes,yes,buffers touching below 70 mm/s couple; click a coupling or U
+Trains derail when driven too fast round a curve,derailments,must,unknown,yes,v²/r over a limit; Railplot's rule (recon: derailment rules); v²/r over 0.8 m/s² (realistic); src/sim/world.ts
+Re-rail a derailed train (where it is or at its last stop),derailments,must,unknown,yes,"HUD card, R key, rerail command (works through a hub)"
+Trains derail trailing through a point set against them,derailments,should,unknown,yes,facing moves take the road the point is set for; forgiving lets it through at walking pace
+Collisions: gentle ones bounce back and stop; fast ones derail both trains,derailments,should,unknown,yes,both stop (no bounce back); over 3x coupling speed both derail
+A derailment shows as a fault in its block like a real short,derailments,should,no,yes,the control engine already cuts shorted blocks; the world reports 2 A; the engine's existing fault handling cuts the block
+Derailments setting: off / forgiving / realistic,derailments,should,unknown,yes,off: trains stop at the limit instead; Control > Set up > Simulator; derailMode command
+Curve-speed warning on the speed readout,derailments,should,no,yes,amber within 15% of the limit over the next 300 mm
+Derailed vehicles tip and slide in 3D; card with cause speed and limit,derailments,should,unknown,yes,"no sliding animation yet: they appear at rest, tipped"
+Trains run off open ends,derailments,should,unknown,yes,gently: stop at the buffer; hard: the front vehicle tips off
+Buffer-locking when propelling long stock through an S-bend,derailments,could,no,no,uses the train-fit check's reverse-curve rule
+Auto drive: train obeys signals and stops in a chosen block,automation,should,yes,no,Auto Drive patch (source 6); Railplot trips and automations exist
+Walk the layout at miniature scale (first person),cameras,should,yes,no,the original's large/miniature switch
+Blocks sensors and current detection follow where vehicles really are,simulation,should,no,yes,Railplot's own: keeps the control features honest; sensors trip when a vehicle passes over them; idle current from the vehicles in each block
+Shunting session laid out in 3D with the dealt wagons,shunting,should,no,no,builds on Tools > Shunting session
+Consists and their positions saved with the layout,files,should,yes,no,
+Pause and a key list overlay,drive view,should,yes,no,
+Works on a phone browser (touch throttle and orbit),drive view,should,no,partial,the original is PC only; Railplot runs on phones; HUD and throttle work at 390 px; touch orbit in tabletop works; no touch gestures for the follow cameras yet
+Click a train to follow it,cameras,should,yes,no,
+Horn,driving,should,yes,no,a simple generated tone; no game sounds
+Simple engine and rail sounds,sound,could,yes,no,own generated sounds only
+Smoke or steam puffs,effects,could,yes,no,particle effects patch (source 7)
+Auto switch: points set for an empty road,automation,could,yes,no,source 6
+Trackside trigger markers (horn here / slow here),automation,could,yes,no,AI trigger signs (source 6)
+Speed limit per train,driving,could,yes,no,
+Debug lines showing where auto trains are heading,automation,could,yes,no,AI debug view (source 6)
+Photo mode (save a picture from any camera),cameras,could,yes,no,3D view already saves pictures
+Day and night lighting,effects,could,yes,no,
+VR headsets and hand controllers,platform,skip,yes,skip,Railplot is a browser and desktop app in plain WebGL
+Multiplayer servers and server browser,multiplayer,skip,yes,skip,Railplot's hub already lets several phones drive one layout
+Steam Workshop layouts mods and liveries,content,skip,yes,skip,their community and network; not a feature to rebuild
+Official layouts from NZ US Brazil,content,skip,yes,skip,their content
+In-game magazine,content,skip,yes,skip,their content
+Rolling Line models liveries and sounds,content,skip,yes,skip,their assets; Railplot draws its own simple stock
+Layout and scenery building in 3D,building,skip,yes,skip,Railplot is the planner; the scenery builder was removed on request
+Weather,effects,skip,yes,skip,

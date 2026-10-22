@@ -3,9 +3,10 @@
 import { dist, distToPrim, minRadius, pointInPoly, samplePrim } from "./geom";
 import { Project, allModuleEnds, analyze, geom, gradeBand, gradient, itemRoutes, motorsOverFrame, partOf, trackPorts } from "./model";
 import { endsTouch, getModule } from "./modules";
+import { trainFit } from "./trainfit";
 
 export interface Issue {
-  kind: "overlap" | "open-end" | "misaligned" | "motor-over-frame" | "off-board" | "too-tight" | "steep" | "module-tracks" | "module-width";
+  kind: "overlap" | "open-end" | "misaligned" | "motor-over-frame" | "off-board" | "too-tight" | "steep" | "module-tracks" | "module-width" | "train-fit";
   severity: "info" | "warn" | "bad";
   text: string;
   item?: string;
@@ -110,5 +111,6 @@ export function layoutIssues(p: Project): Issue[] {
     if (mine.length !== theirs.length || mine.some((q) => !theirs.some((t) => dist(t, q) < 0.5)))
       out.push({ kind: "module-tracks", severity: "warn", board: a.board, text: `${ba.name} and ${bb.name} have different track positions at their joint (${mine.length} and ${theirs.length} tracks), so the tracks won't line up` });
   }
+  for (const f of trainFit(p)) out.push({ kind: "train-fit", severity: f.severity, item: f.items[0], text: f.text });
   return out;
 }

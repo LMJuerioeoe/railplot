@@ -1,0 +1,206 @@
+{
+  "format": 1,
+  "id": "peco-streamline-oo",
+  "name": "Peco Streamline code 100 (OO/HO)",
+  "producer": "Peco",
+  "system": "Streamline code 100",
+  "scale": "OO",
+  "gauge": 16.5,
+  "trackSpacing": 52,
+  "profile": {
+    "sleeperLength": 30,
+    "sleeperWidth": 2.4,
+    "sleeperSpacing": 8.5,
+    "railHeight": 2.5,
+    "roadbed": null
+  },
+  "sources": [
+    {
+      "title": "Peco: SL-E96 turnout, medium radius (219 mm, 12°, 914 mm)",
+      "url": "https://peco-uk.com/en-us/products/turnout-medium-radius-left-hand15"
+    },
+    {
+      "title": "Peco: turnout, small radius (185 mm, 12°, 610 mm)",
+      "url": "https://peco-uk.com/en-us/products/turnout-small-radius-left-hand-2"
+    },
+    {
+      "title": "Railway Models UK: SL-88 large radius (258 mm, 12°, 1524 mm)",
+      "url": "https://railwaymodels.uk/product-peco-sl-88-turnout-large-radius-right-hand"
+    },
+    {
+      "title": "Railway Scenics: Peco points data",
+      "url": "https://www.railwayscenics.com/peco_points_data.php"
+    }
+  ],
+  "parts": [
+    {
+      "id": "SL-100",
+      "name": "Streamline flexible track, code 100 (914 mm)",
+      "type": "flex",
+      "maxLength": 914,
+      "minRadius": 300
+    },
+    {
+      "id": "SL-E92",
+      "name": "Turnout, small radius, left hand (Electrofrog)",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 185
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 610,
+              "angle": 12
+            },
+            {
+              "straight": 59.5
+            }
+          ]
+        }
+      ],
+      "note": "Peco publishes the length, the 12° frog angle and the nominal radius; Railplot models the diverging road as that radius from the toe, then straight.",
+      "approximate": true
+    },
+    {
+      "id": "SL-E91",
+      "name": "Turnout, small radius, right hand (Electrofrog)",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 185
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 610,
+              "angle": -12
+            },
+            {
+              "straight": 59.5
+            }
+          ]
+        }
+      ],
+      "note": "Peco publishes the length, the 12° frog angle and the nominal radius; Railplot models the diverging road as that radius from the toe, then straight.",
+      "approximate": true
+    },
+    {
+      "id": "SL-E96",
+      "name": "Turnout, medium radius, left hand (Electrofrog)",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 219
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 914,
+              "angle": 12
+            },
+            {
+              "straight": 29.6
+            }
+          ]
+        }
+      ],
+      "note": "Peco publishes the length, the 12° frog angle and the nominal radius; Railplot models the diverging road as that radius from the toe, then straight.",
+      "approximate": true
+    },
+    {
+      "id": "SL-E95",
+      "name": "Turnout, medium radius, right hand (Electrofrog)",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 219
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 914,
+              "angle": -12
+            },
+            {
+              "straight": 29.6
+            }
+          ]
+        }
+      ],
+      "note": "Peco publishes the length, the 12° frog angle and the nominal radius; Railplot models the diverging road as that radius from the toe, then straight.",
+      "approximate": true
+    },
+    {
+      "id": "SL-E89",
+      "name": "Turnout, large radius, left hand (Electrofrog)",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 258
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 1524,
+              "angle": 9.71
+            }
+          ]
+        }
+      ],
+      "note": "Peco publishes the length, the 12° frog angle and the nominal radius; Railplot models the diverging road as that radius from the toe, then straight.",
+      "approximate": true
+    },
+    {
+      "id": "SL-E88",
+      "name": "Turnout, large radius, right hand (Electrofrog)",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 258
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 1524,
+              "angle": -9.71
+            }
+          ]
+        }
+      ],
+      "note": "Peco publishes the length, the 12° frog angle and the nominal radius; Railplot models the diverging road as that radius from the toe, then straight.",
+      "approximate": true
+    }
+  ]
+}

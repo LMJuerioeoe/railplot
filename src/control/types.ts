@@ -106,6 +106,32 @@ export interface AutomationCfg {
   loop: boolean;
 }
 
+/** A place on the track: a piece, one of its routes, a distance along it (mm) and which way along it. */
+export interface TrackPosCfg { item: string; route: number; s: number; dir: 1 | -1 }
+
+export type VehicleKind = "loco" | "tender" | "coach" | "wagon" | "van" | "tank" | "brake";
+
+export interface VehicleCfg {
+  id: string;
+  kind: VehicleKind;
+  /** A detailed model from the catalogue (src/sim/models.ts), drawn as that model. */
+  model?: string;
+  name?: string;
+  length: number;          // mm over buffers
+  color: string;
+  /** Draws current in a detection pulse: locos always; wagons with a resistor wheelset. */
+  detectable?: boolean;
+}
+
+/** Simulated rolling stock: the vehicles, front to back, and where the front one's centre stands. */
+export interface ConsistCfg {
+  id: string;
+  /** The control train that drives it; none for wagons standing on their own. */
+  train?: string;
+  vehicles: VehicleCfg[];
+  at?: TrackPosCfg;
+}
+
 export interface ControlConfig {
   controllers: Controller[];
   blocks: Block[];
@@ -116,6 +142,15 @@ export interface ControlConfig {
   trains: TrainCfg[];
   routes?: RouteCfg[];
   automations?: AutomationCfg[];
+  /**
+   * Detecting trains by the current they draw, from the DRV8876 drivers: a block drawing at least
+   * `threshold` mA is occupied. Backs up the infrared sensors.
+   */
+  detection?: { current: boolean; threshold: number };
+  /** In the simulator: trains made up of vehicles, and wagons standing on their own, where they stand. */
+  consists?: ConsistCfg[];
+  /** In the simulator: how forgiving derailments are (default "realistic"). */
+  derailments?: "off" | "forgiving" | "realistic";
   /** Through a Railplot hub, let Claude set routes, points, signals and lights, drive trains and run automations (never track power). */
   claude?: boolean;
   nextId: number;

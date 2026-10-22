@@ -1,0 +1,168 @@
+// Coaches: a body drawn from its cross-section (with tumblehome), windows and doors laid out along it,
+// a two-tone livery with lining, gangways, roof ventilators, bogies and the gear under the floor.
+import { BLACK, BRASS, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER, barX, barY, barZ, darker, discWheels, headstocks, roundedRect, strip } from "./parts";
+
+export interface CoachSpec {
+  length: number; width: number; height: number;
+  /** Half the body's length (the gangways stand out beyond it). */
+  bodyHalf: number;
+  floor: number; waist: number; eave: number; rise: number;
+  /** How far the sides curve in at the bottom. */
+  tumblehome: number;
+  bogieCentre: number; bogieWheelbase: number; wheelR: number;
+  /**
+   * Along the side, front to back: D a door with a droplight, W a big window, w a smaller one, T a frosted
+   * toilet window, L luggage doors (a brake), - a gap of plain panelling. Widths in mm per letter.
+   */
+  layout: string;
+  widths?: Partial<Record<string, number>>;
+  livery: {
+    lower: RGB; upper?: RGB; roof: RGB; ends?: RGB;
+    /** Thin lines along the waist and at the cantrail. */
+    lining?: RGB;
+    /** Window frames: aluminium on BR Mk1, body colour on older stock. */
+    frames?: RGB;
+    /** Doors in a colour of their own (SNCF Corail orange). */
+    doors?: RGB;
+  };
+  /** Truss rods under the floor (older stock). */
+  truss?: boolean;
+  /** Torpedo ventilators on the roof. */
+  vents?: number;
+  /** Window corner radius: Stanier and Mk1 windows are rounded, older ones nearly square. */
+  windowRadius?: number;
+  /** Fluted stainless steel sides (the DB "Silberling"). */
+  fluted?: boolean;
+}
+
+const WIDTH: Record<string, number> = { D: 9, W: 18, w: 11, T: 6, L: 15, "-": 3 };
+
+export function drawCoach(s: Shapes, p: CoachSpec) {
+  const L = p.livery, half = p.length / 2, w = p.width / 2, bh = p.bodyHalf;
+  const upper = L.upper ?? L.lower, frames = L.frames ?? darker(L.lower, 0.75);
+  const tb = p.tumblehome, low = p.floor + (p.waist - p.floor) * 0.6;
+  // the body: below the waist it curves in to the solebar (the tumblehome), then the window band rises
+  // straight to a rounded cantrail under the roof; both shaded as one smooth surface
+  const curve: [number, number][] = [];
+  for (let k = 0; k <= 6; k++) { const t = k / 6; curve.push([w - tb * (1 - t) * (1 - t), p.floor + (low - p.floor) * t]); }
+  s.prismX([...curve, [w, p.waist], [-w, p.waist], ...curve.map(([y, z]) => [-y, z] as [number, number]).reverse()], -bh, bh, L.lower, true);
+  const cant: [number, number][] = [];
+  for (let k = 0; k <= 4; k++) { const t = (k / 4) * (Math.PI / 2); cant.push([w - 1.2 + Math.cos(t) * 1.2, p.eave - 1.2 + Math.sin(t) * 1.2]); }
+  s.prismX([[-w, p.waist], [w, p.waist], ...cant, ...cant.map(([y, z]) => [-y, z] as [number, number]).reverse()], -bh, bh, upper, true);
+  s.roof(-bh - 0.3, bh + 0.3, w - 0.1, p.eave, p.rise, L.roof);
+  for (const e of SIDES) barX(s, -bh, bh, e * (w - 0.6), p.eave + p.rise * 0.25, 0.25, darker(L.roof, 0.75));   // rain strips
+  // ends, a little darker, with the gangway bellows and a footstep
+  for (const e of SIDES) {
+    const a = e * bh, b = e * (bh + 0.4);
+    s.box(Math.min(a, b), Math.max(a, b), -w + tb, w - tb, p.floor, p.eave, L.ends ?? darker(L.lower, 0.85));
+    const g0 = e * (bh + 0.4), g1 = e * (half - 5.5 - 0.5);
+    s.box(Math.min(g0, g1), Math.max(g0, g1), -5.2, 5.2, p.floor + 1, p.eave - 1.5, BLACK);                          // bellows
+    for (let k = 1; k < 4; k++) { const x = g0 + ((g1 - g0) * k) / 4; s.box(x - 0.2, x + 0.2, -5.4, 5.4, p.floor + 0.8, p.eave - 1.2, darker(BLACK, 1.6)); }
+    s.box(Math.min(g1, g1 + e * 0.6), Math.max(g1, g1 + e * 0.6), -5.6, 5.6, p.floor + 0.5, p.eave - 1, DARK_STEEL);    // face plate
+  }
+  // windows and doors along each side
+  const toks = p.layout.replace(/\s+/g, "").split("");
+  const widths = toks.map((t) => p.widths?.[t] ?? WIDTH[t] ?? 6);
+  const total = widths.reduce((a, b) => a + b, 0), k = (2 * bh - 4) / total;
+  for (const e of SIDES) {
+    const rr = p.windowRadius ?? 1, f = e * w, glass = (x0: number, x1: number, z0: number, z1: number, col: RGB = GLASS) => {
+      // a pane with rounded corners in a frame standing just proud of the side
+      s.prismY(roundedRect(x0 - 0.45, z0 - 0.45, x1 + 0.45, z1 + 0.45, rr + 0.45), Math.min(f, f + e * 0.14), Math.max(f, f + e * 0.14), frames);
+      s.prismY(roundedRect(x0, z0, x1, z1, rr), Math.min(f, f + e * 0.2), Math.max(f, f + e * 0.2), col);
+      // the top light: a narrow ventilator across the top of big windows
+      if (x1 - x0 > 12) s.box(x0 + 0.5, x1 - 0.5, Math.min(f, f + e * 0.24), Math.max(f, f + e * 0.24), z1 - 3.2, z1 - 2.8, frames);
+    };
+    let x = bh - 2;
+    toks.forEach((t, i) => {
+      const x1 = x, x0 = x - widths[i] * k;
+      const top = p.eave - 2.6, bot = p.waist + 0.4;
+      if (t === "W") glass(x0 + 0.8, x1 - 0.8, bot, top);
+      else if (t === "w") glass(x0 + 0.8, x1 - 0.8, bot + 1.5, top);
+      else if (t === "T") glass(x0 + 1.2, x1 - 1.2, bot + 3, top - 1, darker(STEEL, 0.75));
+      else if (t === "D" || t === "L") {
+        // the door: its outline, a droplight (or barred window on luggage doors), handle and grab rails
+        const dz0 = p.floor + 1.2;
+        if (L.doors) s.box(x0 + 0.3, x1 - 0.3, Math.min(f, f + e * 0.06), Math.max(f, f + e * 0.06), dz0, p.eave - 1, L.doors);
+        strip(s, f, x0 + 0.3, dz0, x0 + 0.3, p.eave - 1, 0.3, darker(L.lower, 0.45), 0.1); strip(s, f, x1 - 0.3, dz0, x1 - 0.3, p.eave - 1, 0.3, darker(L.lower, 0.45), 0.1);
+        if (t === "D") glass(x0 + 1.6, x1 - 1.6, bot + 1, top);
+        else { glass(x0 + 2, x1 - 2, bot + 3, top - 1); for (let b = x0 + 3; b < x1 - 2; b += 1.6) strip(s, f, b, bot + 3, b, top - 1, 0.25, frames, 0.25); }
+        s.box(x0 + 1.2, x0 + 2.6, Math.min(f, f + e * 0.5), Math.max(f, f + e * 0.5), p.waist - 1.8, p.waist - 1.2, BRASS);   // handle
+        strip(s, f, x0 + 1.4, top + 0.7, x1 - 1.4, top + 0.7, 0.55, darker(upper, 0.55), 0.35);                                // ventilator hood over the droplight
+        const ys = e * (w - tb), yo = e * (w - tb + 0.9);
+        s.box(x0 + 1, x1 - 1, Math.min(ys, yo), Math.max(ys, yo), p.floor - 4.2, p.floor - 3.6, UNDER);                      // step below the door
+        s.box(x0 + 1.2, x0 + 1.7, Math.min(ys, yo), Math.max(ys, yo), p.floor - 4.2, p.floor - 1, UNDER);
+        for (const xg of [x0 - 0.6, x1 + 0.6]) barZ(s, xg, e * (w + 0.35), p.waist - 6, p.waist - 1, 0.22, STEEL);
+      }
+      x = x0;
+    });
+    if (p.fluted) {
+      // pressed flutes along the stainless sides, below the windows and in the band above them
+      const rib = darker(L.lower, 0.78);
+      for (let z = p.floor + 1.5; z < p.waist - 0.8; z += 1.15) strip(s, f, -bh + 1, z, bh - 1, z, 0.35, rib, 0.1);
+      for (let z = p.eave - 2.2; z < p.eave - 0.4; z += 0.9) strip(s, f, -bh + 1, z, bh - 1, z, 0.3, rib, 0.1);
+    }
+    // lining along the waist and the cantrail
+    if (L.lining) { strip(s, f, -bh, p.waist - 0.4, bh, p.waist - 0.4, 0.35, L.lining, 0.12); strip(s, f, -bh, p.eave - 1.2, bh, p.eave - 1.2, 0.35, L.lining, 0.12); }
+    // solebar along the bottom of the side
+    s.box(-bh + 1, bh - 1, Math.min(e * (w - tb - 0.6), e * (w - tb + 0.2)), Math.max(e * (w - tb - 0.6), e * (w - tb + 0.2)), p.floor - 2.2, p.floor + 0.3, UNDER);
+  }
+  // roof ventilators in a row
+  const vents = p.vents ?? 8;
+  for (let i = 0; i < vents; i++) {
+    const x = -bh + ((2 * bh) * (i + 0.5)) / vents, y = (i % 2 ? 1 : -1) * w * 0.28;
+    s.cyl("x", x - 2.2, x + 2.2, y, p.eave + p.rise - 0.2, 1.2, 1.2, darker(L.roof, 0.8));
+  }
+
+  // ---------- underneath ----------
+  headstocks(s, half, UNDER, { z0: p.floor - 6, z1: p.floor, width: w - tb - 1 });
+  s.box(-bh + 2, bh - 2, -w + tb + 1, w - tb - 1, p.floor - 3.2, p.floor, UNDER);
+  // battery boxes, vacuum cylinders, dynamo between the bogies
+  const mid = p.bogieCentre - p.bogieWheelbase / 2 - p.wheelR - 4;
+  s.box(-mid * 0.5, mid * 0.2, -9, -3, p.floor - 8, p.floor - 3.2, BLACK);
+  for (const x of [mid * 0.35, mid * 0.65]) barY(s, x, -6.5, 6.5, p.floor - 6.6, 3.2, BLACK);
+  barX(s, -mid * 0.85, -mid * 0.65, 6, p.floor - 6, 2, BLACK);
+  if (p.truss) for (const e of SIDES) {
+    const y0 = e * (w - tb - 2), y1 = e * (w - tb - 1.2), zl = p.floor - 9;
+    s.beam(-mid, p.floor - 2, -mid * 0.45, zl, Math.min(y0, y1), Math.max(y0, y1), 0.6, UNDER);
+    s.beam(-mid * 0.45, zl, mid * 0.45, zl, Math.min(y0, y1), Math.max(y0, y1), 0.6, UNDER);
+    s.beam(mid * 0.45, zl, mid, p.floor - 2, Math.min(y0, y1), Math.max(y0, y1), 0.6, UNDER);
+    for (const x of [-mid * 0.45, mid * 0.45]) s.box(x - 0.4, x + 0.4, Math.min(y0, y1), Math.max(y0, y1), zl, p.floor - 2, UNDER);
+  }
+  for (const c of [p.bogieCentre, -p.bogieCentre]) bogie(s, c, p.bogieWheelbase, p.wheelR, p.floor - 3.2);
+  for (const e of SIDES) s.beam(-p.bogieCentre + 8, p.floor - 5.5, p.bogieCentre - 8, p.floor - 5.5, Math.min(e * 2.5, e * 3.1), Math.max(e * 2.5, e * 3.1), 0.45, UNDER);   // brake rodding
+  for (const d of SIDES) for (const e of SIDES) {
+    const y = e * w * 0.5, z = p.eave + p.rise * 0.75;
+    s.cyl("z", z - 0.5, z + 0.9, d * (bh - 6), y, 0.7, 0.7, darker(L.roof, 0.7));                   // water filler pipes on the roof
+  }
+}
+
+/** A two-axle bogie: side frames with axleboxes and springs, a bolster, the wheels. */
+export function bogie(s: Shapes, x: number, wb: number, r: number, top: number, col: RGB = UNDER, loco = false) {
+  const a = wb / 2;
+  for (const e of SIDES) {
+    const y0 = e * 10.2, y1 = e * 11.4;
+    const lo = Math.min(y0, y1), hi = Math.max(y0, y1);
+    s.beam(x - a - r - 1, r + 2.6, x + a + r + 1, r + 2.6, lo, hi, 2.2, col);                    // side frame
+    s.beam(x - a + 2, r + 1.2, x - 3, r - 1.6, lo, hi, 1.2, col);
+    s.beam(x + 3, r - 1.6, x + a - 2, r + 1.2, lo, hi, 1.2, col);
+    s.box(x - 3, x + 3, lo, hi, r - 2.2, r - 0.8, col);
+    for (const ax of [x - a, x + a]) {
+      s.box(ax - 2, ax + 2, lo - 0.6, hi + 0.6, r - 2.2, r + 2.2, col);                           // axlebox
+      for (const sx of [-3.2, 3.2]) { barZ(s, ax + sx, e * 10.8, r + 2.2, r + 4.4, 1, DARK_STEEL); }   // coil springs
+    }
+    s.box(x - 5, x + 5, lo, hi, r + 2.6, top, col);                                                // bolster end
+  }
+  s.box(x - 4, x + 4, -10, 10, top - 1.8, top, col);
+  for (const e of SIDES) barY(s, x + e * 3.5, -5, 5, r + 0.5, 1.4, darker(col, 0.8));                 // brake cylinders
+  if (loco) for (const e of SIDES) for (const d of SIDES) {
+    // sandboxes at the bogie ends, with their pipes to the rail; a damper to the body
+    const xs = x + d * (a + r + 1.6), lo = Math.min(e * 10.3, e * 12.6), hi = Math.max(e * 10.3, e * 12.6);
+    s.box(xs - 1.2, xs + 1.2, lo, hi, r + 1.5, r + 5.5, col);
+    s.beam(xs, r + 1.5, x + d * (a + r * 0.6), 1.2, Math.min(e * 8.4, e * 8.8), Math.max(e * 8.4, e * 8.8), 0.35, DARK_STEEL);
+    s.beam(x + d * 4, r + 3, x + d * 8, top - 0.5, Math.min(e * 11.6, e * 12.4), Math.max(e * 11.6, e * 12.4), 0.7, DARK_STEEL);
+  }
+  for (const ax of [x - a, x + a]) discWheels(s, ax, r);
+  for (const ax of [x - a, x + a]) for (const e of SIDES) s.box(ax - Math.sign(ax - x) * (r + 0.3) - 0.5, ax - Math.sign(ax - x) * (r + 0.3) + 0.5, Math.min(e * 6.8, e * 9.4), Math.max(e * 6.8, e * 9.4), r - 2.4, r + 2.4, BLACK);   // brake blocks
+}
+
+export { BLACK };

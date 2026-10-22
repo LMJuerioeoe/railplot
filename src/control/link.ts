@@ -1,8 +1,8 @@
 // Talking to controllers: ESP32 boards over HTTP on the local network, DCC-EX command stations
 // over USB or the network, or the built-in simulator.
-import { ControlEngine, Frame, neighbours } from "./engine";
+import { ControlEngine, Frame } from "./engine";
+import { worldFor } from "../sim/world";
 import { Controller, DCCEX_CAB_BASE } from "./types";
-import { geom } from "../model";
 
 export interface LinkStatus {
   online: boolean;
@@ -11,6 +11,8 @@ export interface LinkStatus {
   message?: string;
   inputs: (n: number) => boolean;
   mA: number[];
+  /** mA each driver drew during the detection pulse into its unpowered block (ESP32 firmware 0.4 and later). */
+  idle?: number[];
 }
 
 export interface Link {
@@ -112,6 +114,7 @@ export class Esp32Link implements Link {
         message: j.accepted ? undefined : "Another phone or computer is driving.",
         inputs: (n) => ((words[n >> 4] ?? 0) >> (n & 15) & 1) === 1,
         mA: Array.isArray(j.mA) ? j.mA : [],
+        idle: Array.isArray(j.dmA) ? j.dmA : undefined,
       };
     } catch (e) {
       const blocked = typeof location !== "undefined" && location.protocol === "https:" && baseUrl(this.controller).startsWith("http:");
@@ -126,76 +129,37 @@ export class Esp32Link implements Link {
 
 // ---------- simulator ----------
 
-interface SimTrain { block: string; prev?: string; orient: 1 | -1; progress: number; expected?: string }
-
 /**
- * A pretend controller: trains move along their blocks at a speed set by the block power,
- * and trip the sensor at each block joint they cross, just like the real thing.
+ * A pretend controller over the simulated world (src/sim/world.ts): trains of vehicles on the real
+ * track, moved by the power of the block under the loco, tripping the sensors they pass over and
+ * drawing current, just like the real thing. Every simulated controller shares one world.
  */
 export class SimLink implements Link {
   status: LinkStatus | null = null;
   busy = false;
   key: string;
-  trains = new Map<string, SimTrain>();
-  private latched = new Set<number>();
-  private last = 0;
+  /** Blocks with a simulated wagon left in them, for trying current detection. */
+  strays = new Set<string>();
   /** Full speed in mm per second at full power. */
-  fullSpeed = 450;
+  fullSpeed = 800;
   /** The clock, in ms (tests replace it). */
   clock: () => number = () => performance.now();
 
   constructor(public controller: Controller, private engine: () => ControlEngine) { this.key = linkKey(controller); }
 
-  blockLength(blockId: string): number {
-    const e = this.engine();
-    const b = e.cfg.blocks.find((x) => x.id === blockId);
-    if (!b) return 1;
-    let L = 0;
-    for (const id of b.items) { const it = e.p.items.find((i) => i.id === id); if (it) L += geom(it).length; }
-    return Math.max(50, L);
-  }
+  get world() { return worldFor(this.engine()); }
 
-  async exchange(frame: Frame): Promise<LinkStatus | null> {
-    const e = this.engine();
-    const now = this.clock();
-    const dt = this.last ? Math.min(0.5, (now - this.last) / 1000) : 0;
-    this.last = now;
-    const duty = new Map<string, number>();
-    for (const [ch, d] of frame.blocks) {
-      const b = e.cfg.blocks.find((x) => x.controller === this.controller.id && x.channel === ch);
-      if (b) duty.set(b.id, d / 1023);
-    }
-    for (const t of e.cfg.trains) {
-      if (!t.block) { this.trains.delete(t.id); continue; }
-      let s = this.trains.get(t.id);
-      if (!s) { s = { block: t.block, orient: 1, progress: 0.5 }; this.trains.set(t.id, s); }
-      else if (s.expected) { if (t.block === s.expected) s.expected = undefined; }
-      else if (s.block !== t.block) { s.block = t.block; s.prev = undefined; s.orient = 1; s.progress = 0.5; }
-      const p = duty.get(s.block) ?? 0;
-      const v = p * s.orient * this.fullSpeed;
-      s.progress += (v * dt) / this.blockLength(s.block);
-      if (s.progress >= 1 || s.progress <= 0) {
-        const forward = s.progress >= 1;
-        const nbs = neighbours(e.p, e.cfg, e.topo, s.block);
-        const options = forward ? nbs.filter((n) => n !== s!.prev) : (s.prev ? [s.prev] : nbs);
-        const next = options.find((n) => Math.sign(duty.get(n) ?? 0) === Math.sign(p) && (duty.get(n) ?? 0) !== 0);
-        if (next) {
-          const sensor = e.cfg.sensors.find((x) => (x.blocks[0] === s!.block && x.blocks[1] === next) || (x.blocks[1] === s!.block && x.blocks[0] === next));
-          if (sensor && sensor.controller === this.controller.id && sensor.input !== undefined) this.latched.add(sensor.input);
-          s.prev = s.block; s.block = next; s.expected = next; s.progress = 0.001;
-          // carrying on backwards: in the new block "away from where we came from" is the other way round
-          if (!forward) s.orient = s.orient === 1 ? -1 : 1;
-        } else s.progress = Math.max(0, Math.min(1, s.progress));
-      }
-    }
-    const inputs = new Set(this.latched);
-    this.latched.clear();
-    this.status = { online: true, accepted: true, fw: "simulator", inputs: (n) => inputs.has(n), mA: [] };
+  async exchange(_frame: Frame): Promise<LinkStatus | null> {
+    const w = this.world;
+    w.fullSpeed = this.fullSpeed;
+    w.advanceTo(this.clock());
+    const r = w.readings(this.controller.id, this.strays);
+    this.status = { online: true, accepted: true, fw: "simulator", inputs: (n) => r.inputs.has(n), mA: r.mA, idle: r.idle };
     return this.status;
   }
 
-  /** Where a simulated train is within its block (0..1), for drawing. */
-  progressOf(trainId: string): number | undefined { return this.trains.get(trainId)?.progress; }
+  /** Where a simulated train's loco is on the plan. */
+  poseOf(trainId: string) { return this.world.poseOf(trainId); }
 }
 
 // ---------- DCC-EX ----------

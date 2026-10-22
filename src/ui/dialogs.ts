@@ -43,8 +43,9 @@ export function confirmDialog(title: string, message: string, okLabel: string, d
   return new Promise((resolve) => {
     let done = false;
     dialog(title, h("p", {}, message), [
-      { label: "Cancel", onClick: () => { done = true; resolve(false); } },
-      { label: okLabel, primary: true, danger, onClick: () => { done = true; resolve(true); } },
+      // close before answering: the caller may open a dialog of its own straight away, which closing afterwards would shut
+      { label: "Cancel", onClick: () => { done = true; closeDialog(); resolve(false); return true; } },
+      { label: okLabel, primary: true, danger, onClick: () => { done = true; closeDialog(); resolve(true); return true; } },
     ]);
     const obs = new MutationObserver(() => { if (!document.body.contains(open) && !done) { done = true; resolve(false); obs.disconnect(); } });
     obs.observe(document.body, { childList: true });

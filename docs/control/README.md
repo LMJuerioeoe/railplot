@@ -14,6 +14,14 @@ None of this has been tested on a real layout yet. [Hardware testing](testing.md
 
 You can try all of this without hardware: in Railplot press **Control**, then **Try it with the simulator** or **Open the two-train demo**.
 
+**Drive in 3D** (Control > Drive, View > Drive in 3D, or <kbd>D</kbd>) shows the simulated trains on your layout in 3D. Pick a train at the bottom (or <kbd>1</kbd>–<kbd>9</kbd>), drive with the slider or <kbd>Q</kbd> and <kbd>E</kbd> (<kbd>Shift</kbd> for bigger steps), stop it with <kbd>Space</kbd> (<kbd>Shift</kbd>+<kbd>Space</kbd> stops all), change the camera with <kbd>C</kbd> (behind the train, from the cab, or the whole layout) and switch km/h and mph with <kbd>K</kbd>. Click a point's lever (beside its toe) to throw it, or <kbd>P</kbd> for the next point ahead of the train; click a signal to hold it at red or let it work again. A point with a train standing on it won't move. <kbd>Esc</kbd> goes back to the plan. The simulated trains follow the real track through the points as they're set, trip the sensors they pass over and draw current in the blocks they stand in, so everything in Control works on them as on a real layout. A train stopped across a block joint is in both blocks, as it would be for real.
+
+Simulated trains can **derail**: too fast round a curve (sideways acceleration over 0.8 m/s², about 0.6 m/s on second radius), through a point set against them, or into the end of the line at more than 0.12 m/s. The train stops and tips off, its block shorts and shows a fault, as on a real layout, and the HUD says why and how fast was the limit; the speed turns amber when you're close. **Re-rail here** (<kbd>R</kbd>) or **Re-rail where it last stood** puts it back and clears the fault. Two trains meeting at more than about 0.2 m/s (0.35 m/s forgiving) both come off.
+
+**Trains** (<kbd>T</kbd>) makes up the rolling stock: pick a train, or start a rake of wagons that stand on their own, and add locos, coaches, open wagons, box vans, tank wagons and brake vans to the back. Under the generic stock is a catalogue of detailed models at their real OO sizes, grouped by type: **steam** (GWR 51xx Large Prairie, GWR 57xx pannier tank, LMS 3F 'Jinty', GWR Castle, LNER A3 Pacific and LMS 'Black Five', the tender engines with their tenders), **diesel** (BR Class 08 shunter, BR Class 37), **coaches** (BR Mk1 corridor second in maroon, Mk1 brake second in carmine and cream, GWR Collett 57 ft in chocolate and cream, LMS Stanier 57 ft in crimson lake) and **wagons** (GWR and LMS/BR ventilated vans, GWR Bloater fish van, GWR Toad and BR 20 ton brake vans, a private owner 7-plank open with coal, a BR 16 ton mineral and a tank wagon). Models of the Dapol Prairie and vent van, the EFE Rail Bloater and the Oxford Rail Toad follow the makers' published sizes; the rest are drawn from their prototypes' dimensions at 1:76.2. Click a vehicle to move or remove it (or <kbd>Delete</kbd>, and <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> to move it), change its **Length** if your model measures differently over the buffers, and tick **Resistor wheelset** for a wagon that current detection should see. **Place on the track** shows the train as a ghost under the pointer: blue where it fits, red with the reason where it doesn't (the track ends, a point, another train in the way); <kbd>R</kbd> turns it round, a click (or <kbd>Enter</kbd>) puts it there; without a mouse, <kbd>←</kbd>/<kbd>→</kbd> slide it along the track and <kbd>↑</kbd>/<kbd>↓</kbd> jump to the next piece. Buffers meeting gently (under 0.07 m/s) couple up, so a loco can collect wagons; harder, both stop. Click a coupling (it lights up under the pointer) or press <kbd>U</kbd> to uncouple the loco from what it's pushing or pulling. The stock and where it stands are saved with the layout.
+
+In Set up > Simulator, choose **Realistic** (the default), **Forgiving** (curves at half as fast again, points at walking pace) or **Off** (trains are held at the curve limit instead).
+
 ---
 
 ## Phase 1: one train, points and lights
@@ -126,6 +134,27 @@ With analogue DC, each train needs its own section of track. Railplot uses **com
 - **Signals.** Each signal guards the way into a block. In automatic mode it shows green when the block ahead is free, yellow when the block after that isn't, and red when a train is in the block ahead or the points are set against it. Tap a signal to hold it at red; trains then stop at it.
 - **Points under trains.** Railplot won't throw a point while a moving train is in that point's block.
 - **Shorts.** Each driver reports its current. Over 1.25 A, Railplot cuts that block, stops its train, and shows a **Fault** with a **Reset** button.
+
+### The wiring plan
+
+Once the track is split into blocks, **Set up** shows the wiring on the plan:
+
+- **Black ticks across the rails** mark every block joint. Cut both rails there with insulated joiners (on Märklin C, the centre rail only).
+- **Amber ticks** mark where the roads leave an **Electrofrog** point: insulated joiners on its two frog rails, and a frog feed through a changeover switch on the point's motor or servo, so the frog takes the polarity of the road it's set for.
+- **F** marks the track feeds, in the block's colour. Each block gets one on its longest plain piece, and more until no piece is further than 1.5 m from a feed, so the joiners don't have to carry the current.
+
+**Wiring diagram** draws each ESP32 controller with its power, its block drivers and the pins they use, the blocks they feed, and the sensor and servo boards on the I2C bus. Save it as SVG to print. The **Parts list** adds what the wiring needs: joiner packs, feed pairs, frog feeds, about how much bus wire, and the boards, drivers, sensors and servos.
+
+### Detecting trains by current
+
+The infrared sensors see a train cross a block joint. As a second check, turn on **Detect trains by the current they draw** in Set up (DRV8876 drivers and firmware 0.4 or later). Each driver measures its block's current. In a powered block a moving loco shows by itself. Into blocks with no power, the controller sends a full-voltage pulse of 0.6 ms ten times a second, too short to move anything, and measures what flows.
+
+- **Locos always show.** For wagons and coaches, fit a resistor wheelset to one axle of each: a 2.2 kΩ surface-mount resistor (0805 size) glued across the insulated wheel and the axle and painted with conductive paint, or ready-made resistor wheelsets. It draws about 5 mA in a pulse. The default threshold, 3 mA, sees it.
+- **Something where no train is booked** (a wagon left behind, a train put down by hand): Railplot warns, draws the block in dashed red, and won't send a train into it until it reads clear or you place a train there.
+- **A missed sensor:** when a train's block goes quiet and the one block it was heading into lights up, Railplot moves the train on anyway.
+- **The tail of a train** keeps a block lit for a moment after the train moves on. Railplot waits 10 seconds before calling a block a train has just left occupied.
+
+The simulator draws current too, and **Leave a wagon in** lets you try it without a layout.
 
 ### Budget block drivers
 

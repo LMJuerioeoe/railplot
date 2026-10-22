@@ -8,7 +8,7 @@ It runs as a small Windows (and Linux) desktop app, or in any modern browser wit
 
 ## What it does
 
-- **Real track libraries.** Peco Setrack (OO/HO code 100), Hornby OO sectional track (including the Y point, express points and power tracks) and PIKO A-Gleis H0 with and without roadbed (including Y, three-way, curved R2 and R3 points, crossings and the double slip). Every library lists the sources for its geometry, and parts whose geometry is an estimate are marked ≈.
+- **Real track libraries.** Peco Setrack (OO/HO code 100), Hornby OO sectional track (including the Y point, express points and power tracks) and PIKO A-Gleis H0 with and without roadbed (including Y, three-way, curved R2 and R3 points, crossings and the double slip), Peco Streamline code 100 points (small, medium and large radius), Märklin C-Gleis H0 (R1 to R5 and R9, standard and wide radius points, the double slip) and Kato Unitrack HO (R490 to R867, #6 points). Every library lists the sources for its geometry, and parts whose geometry is an estimate are marked ≈.
 - **Baseboard modules.** The whole laser-cut baseboard range: 25 torsion-box modules in 4 mm birch ply, from 400 × 200 to 1200 × 900, 90° and 45° corners, a 60° curve, sliding traversers, turntables and canopy modules with a lighting pelmet. They join face to face and snap together, and each can have 1 to 4 tracks crossing its faces at centred positions that line up from module to module: click one to build from it, or lay flexible track along the guides in one go. The plan shows the frame under the top, the openings in the bottom skin, the dowel and bolt holes, the engraved guide lines, traverser decks and turntable discs; Railplot warns when a point motor would land on a frame member, and adds modules, joint hardware and slides or bearings to the parts list. See [Baseboard modules](docs/baseboard-modules.md).
 - **Build by snapping.** Pick a part and it joins at the arrow on the plan. <kbd>Space</kbd> adds another, <kbd>F</kbd> turns a curve or point the other way, <kbd>Tab</kbd> joins a point by its next end. Ends that meet join automatically, and dragged pieces snap back into place.
 - **Ready-made yards.** Fiddle yards with 2 to 8 roads (one end or both), a run-round loop and the Inglenook sidings shunting puzzle, built from the track system's own points and curves at a start point, open end or module track position. File > Example shunting layouts opens complete plans on the baseboard modules (an Inglenook shelf, a shunting plank with a traverser fiddle yard, and an L-shaped layout), worked out for your track system. See [Ready-made yards](docs/yards.md).
@@ -17,13 +17,18 @@ It runs as a small Windows (and Linux) desktop app, or in any modern browser wit
 - **Plain baseboards.** Rectangles by size, or any shape by clicking corners.
 - **Layers.** Show, hide, rename, reorder and move track between layers.
 - **3D view.** Orbit around the layout with sleepers, rails and supports under raised track. Save a picture.
-- **Parts list.** Counts of every part, with flexible track rounded up to whole lengths. Copy or save it as CSV.
+- **Drive in 3D.** With the simulator, drive your trains round the layout you planned in 3D: from above, behind the train or from the cab, at scale speed in km/h or mph. The simulated trains run on the real track through the points as they're set, and trip sensors and draw current where they really are, so blocks, signals and automations work just as on the real layout.
+- **Will my trains fit?** Give the length of your longest train and longest vehicle (or pick short goods, branch passenger or main line). The Layout panel lists passing loops and sidings too short to hold the train clear of the points, blocks shorter than it, curves too tight for long coaches, and reverse curves with no straight between them, where buffers lock. Click a finding to select the track.
+- **Shunting sessions.** Tools > Shunting session deals a puzzle for the Inglenook or your plan's own sidings: where each wagon starts and the train to make up, as numbered cards you can print, with a clock and a move count. Each card set has a number, so you can deal it again.
+- **Parts list.** Counts of every part, with flexible track rounded up to whole lengths. Type what each part costs, in pounds, dollars, euros or another currency, to get a total and the cost of each baseboard; prices are saved with the layout and offered again on your other layouts. Copy or save it as CSV.
 - **Export.** PNG pictures, and SVG drawings at true scale (1 mm on paper = 1 mm on the layout) for printing templates.
 - **Layout control.** Drive a real analogue layout from a laptop or any phone on your Wi-Fi: train speed and direction with momentum, points on servos, colour-light signals, lights and infrared train sensors, through a small ESP32 controller with DRV8876 track drivers. Start with one train on the whole layout. Split the track into blocks to run more, with power following each train and automatic signals keeping a free block between them. A simulator and a two-train demo let you try it without hardware. See [docs/control](docs/control/README.md) and [firmware](firmware/README.md).
+- **Detecting trains by current.** As well as the infrared sensors, the DRV8876 drivers can tell which blocks draw current, with short detection pulses into blocks that have no power. Railplot warns about anything standing where no train is booked (a wagon left behind) and keeps trains out of that block, and moves a train on when its sensor missed it. See [Detecting trains by current](docs/control/README.md#detecting-trains-by-current).
+- **Wiring plan.** With the track split into blocks, Set up marks every insulated joiner (block joints and Electrofrog points) and track feed on the plan, draws a wiring diagram of each controller, and adds the joiners, feed wire, boards, drivers, sensors and servos to the parts list.
 - **Automation.** Routes set several points with one tap. Trips work out the way between two blocks from the plan, set the points and stop the train in the right block; shuttles and step-by-step automations run timetables and station stops. See [Automation](docs/control/automation.md).
 - **The hub.** A single-file program for a laptop or Raspberry Pi that runs the layout with no screen needed: several phones drive at once, automations keep going, and Engine Driver and WiThrottle apps can drive the analogue trains. See [the hub](docs/control/hub.md) and [throttle apps](docs/control/throttles.md).
 - **DCC-EX.** An EX-CommandStation's track outputs can be Railplot's analogue blocks, over USB or the network. See [DCC-EX](docs/control/dcc-ex.md).
-- **Plan with Claude.** Press **Claude** on the toolbar to chat about your plan: Claude reads it, checks it and proposes changes as cards you accept or reject (with your own Anthropic API key in the desktop app, or your Claude account when Railplot runs on claude.ai). The Railplot connector also lets Claude (in the Claude desktop app or Claude Code) read your plans, check them and propose changes: modules, yards, track, example layouts. Each proposal appears under Claude's proposals, where you see it on the plan and accept or reject it; nothing changes until you do. With the hub, and only if you allow it, Claude can also set routes and points and run trains, never track power. See [Claude and Railplot](docs/claude.md).
+- **Plan with Claude.** The Railplot connector lets Claude (in the Claude desktop app or Claude Code) read your plans, check them and propose changes: modules, yards, track, example layouts. Each proposal appears under Claude's proposals, where you see it on the plan and accept or reject it; nothing changes until you do. With the hub, and only if you allow it, Claude can also set routes and points and run trains, never track power. See [Claude and Railplot](docs/claude.md).
 - **Safe by default.** Unlimited undo, and your current plan is kept automatically between sessions.
 
 ![The sample layout in the 3D view](docs/screenshot-3d.png)
@@ -37,6 +42,12 @@ Prefer not to install? Download `railplot-offline.html` from the same page and o
 The [Railplot hub](docs/control/hub.md) for Windows, Linux, Raspberry Pi and Mac is on the same page, with the [Claude connector](docs/claude.md) bundles (`railplot-claude-*.mcpb`) for the Claude desktop app.
 
 The guides are also published as a website with the browser version of Railplot (GitHub Pages, built by `.github/workflows/pages.yml`).
+
+### Updating
+
+**Help > Check for updates** looks at the newest release on GitHub. The desktop app downloads it, checks its signature, installs it and restarts, with your layout kept. The offline file offers the new `railplot-offline.html` to download in its place, and the web version only needs reloading. Railplot also looks once a day when it starts and says when a new version is out; turn that off in File > Settings.
+
+On Linux, the AppImage updates itself; if you installed the `.deb`, install the new `.deb` from the release page.
 
 ## Using Railplot
 
@@ -84,6 +95,7 @@ python tests/e2e/test_hub.py
 | `src/render2d.ts`, `src/view3d.ts` | The 2D plan renderer and a small WebGL 2 3D viewer |
 | `src/app.ts`, `src/ui/` | The editor: tools, panels, menus, dialogs |
 | `src/platform.ts` | File access through Tauri on the desktop or the browser otherwise |
+| `src/update.ts`, `src-tauri/src/lib.rs` | Checking GitHub for a newer release, and the desktop app's signed self-update |
 | `src/control/` | Layout control: the engine (blocks, trains, signals, automations), trip planning, controller links (ESP32, DCC-EX, simulator), the hub client and the Control panel |
 | `src/hub/` | The Railplot hub: web and WebSocket server, WiThrottle server, mDNS, DCC-EX over TCP and serial |
 | `src/mcp/`, `src/proposals.ts` | The Claude connector (an MCP server over stdio: tools, plan operations, file and hub access) and proposals |
@@ -91,6 +103,19 @@ python tests/e2e/test_hub.py
 | `firmware/` | ESP32 controller firmware (Arduino/PlatformIO) |
 | `src-tauri/` | The Tauri desktop shell (file dialogs and file access only) |
 | `tests/` | Unit tests (`bun test`) and end-to-end tests (Playwright) |
+
+## Releasing
+
+Push a tag like `v0.12.0` and the Release workflow builds everything into a draft release. Check it, then **publish** it: the update check only sees published releases.
+
+For the desktop app to update itself, its installers must be signed with an update key. Set this up once:
+
+1. `bunx tauri signer generate -w ~/.tauri/railplot.key` and choose a password. Keep the key and the password safe: without them you can't sign updates, and installed copies only accept updates signed with this key.
+2. In the repository's **Settings > Secrets and variables > Actions**:
+   - secrets `TAURI_SIGNING_PRIVATE_KEY` (the contents of `railplot.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
+   - a variable `TAURI_UPDATER_PUBKEY` (the contents of `railplot.key.pub`).
+
+With those set, the workflow turns the updater on (`scripts/updater-config.ts`), signs the installers and attaches `latest.json`, which the desktop app reads. Without them it builds as before, and the desktop app sends people to the release page instead. Copies installed before the first signed release need installing by hand once.
 
 ## Adding a baseboard module
 
@@ -104,7 +129,7 @@ Track libraries are plain JSON files in `src/libraries/`. [docs/library-format.m
 
 Next up, roughly in order:
 
-- More libraries: Peco Streamline points, Hornby curved points and diamond crossings, Roco geoLine, Märklin C, Tillig
+- More libraries: Hornby curved points and diamond crossings, Roco geoLine, Bachmann E-Z Track, Tillig, more Märklin C and Kato Unitrack points
 - Exact Hornby express point geometry (currently an estimate)
 - Transition curves, helix and parallel-track tools
 - Scenery: platforms, buildings, roads and signals with original artwork

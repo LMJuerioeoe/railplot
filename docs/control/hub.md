@@ -37,7 +37,7 @@ chmod +x railplot-hub-linux-x64      # once
 It prints the addresses to use, for example:
 
 ```
-Railplot hub 0.10.0 is running.
+Railplot hub 0.11.0 is running.
   Phones and laptops: open http://192.168.1.20:8080 (or http://railplot-hub.local:8080)
   WiThrottle and Engine Driver: 192.168.1.20, port 12090 (they should find it by themselves)
   Layout: Sample OO oval with passing loop, kept in /home/pi/railplot-hub/layout.railplot

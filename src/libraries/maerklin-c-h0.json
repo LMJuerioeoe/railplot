@@ -1,0 +1,275 @@
+{
+  "format": 1,
+  "id": "maerklin-c-h0",
+  "name": "Märklin C-Gleis H0",
+  "producer": "Märklin",
+  "system": "C-Gleis",
+  "scale": "H0",
+  "gauge": 16.5,
+  "trackSpacing": 77.5,
+  "profile": {
+    "sleeperLength": 30,
+    "sleeperWidth": 2.4,
+    "sleeperSpacing": 7.6,
+    "railHeight": 2.1,
+    "roadbed": {
+      "top": 32,
+      "bottom": 40,
+      "height": 5
+    }
+  },
+  "sources": [
+    {
+      "title": "Märklin: 24188 straight C track, 188.3 mm",
+      "url": "https://www.maerklin.de/en/products/details/article/24188"
+    },
+    {
+      "title": "Märklin: 24130 curved C track, R1 360 mm 30°",
+      "url": "https://www.marklin.com/products/details/article/24130"
+    },
+    {
+      "title": "Märklin: 24230 curved C track, R2 437.5 mm 30°",
+      "url": "https://www.maerklin.de/en/products/details/article/24230/136"
+    },
+    {
+      "title": "Märklin shop: 24611 turnout 188.3 mm, 24711 wide radius turnout 236.1 mm",
+      "url": "https://www.maerklinshop.de/en/maerklin/gauge-h0/railtracks/c-gauge/51316/maerklin-left-hand-wide-radius-turnout-length-236.1-mm/9-5/16"
+    },
+    {
+      "title": "Raily: Märklin C track geometry",
+      "url": "https://www.enigon.com/raily/modules/en/ho_maerklin_c.html"
+    },
+    {
+      "title": "Märklin Users forum: C track geometry",
+      "url": "https://marklin-users.net/forum/posts/t36903-C-Track-Geometry"
+    }
+  ],
+  "parts": [
+    {
+      "id": "24360",
+      "name": "Straight 360 mm",
+      "type": "straight",
+      "length": 360
+    },
+    {
+      "id": "24236",
+      "name": "Straight 236.1 mm",
+      "type": "straight",
+      "length": 236.1
+    },
+    {
+      "id": "24229",
+      "name": "Straight 229.3 mm",
+      "type": "straight",
+      "length": 229.3
+    },
+    {
+      "id": "24188",
+      "name": "Straight 188.3 mm",
+      "type": "straight",
+      "length": 188.3
+    },
+    {
+      "id": "24172",
+      "name": "Straight 171.7 mm",
+      "type": "straight",
+      "length": 171.7
+    },
+    {
+      "id": "24094",
+      "name": "Straight 94.2 mm",
+      "type": "straight",
+      "length": 94.2
+    },
+    {
+      "id": "24077",
+      "name": "Straight 77.5 mm",
+      "type": "straight",
+      "length": 77.5
+    },
+    {
+      "id": "24071",
+      "name": "Straight 70.8 mm",
+      "type": "straight",
+      "length": 70.8
+    },
+    {
+      "id": "24064",
+      "name": "Straight 64.3 mm",
+      "type": "straight",
+      "length": 64.3
+    },
+    {
+      "id": "24130",
+      "name": "R1 curve 30°",
+      "type": "curve",
+      "radius": 360,
+      "angle": 30
+    },
+    {
+      "id": "24115",
+      "name": "R1 curve 15°",
+      "type": "curve",
+      "radius": 360,
+      "angle": 15
+    },
+    {
+      "id": "24107",
+      "name": "R1 curve 7.5°",
+      "type": "curve",
+      "radius": 360,
+      "angle": 7.5
+    },
+    {
+      "id": "24230",
+      "name": "R2 curve 30°",
+      "type": "curve",
+      "radius": 437.5,
+      "angle": 30
+    },
+    {
+      "id": "24224",
+      "name": "R2 curve 24.3° (turnout counter-curve)",
+      "type": "curve",
+      "radius": 437.5,
+      "angle": 24.3
+    },
+    {
+      "id": "24215",
+      "name": "R2 curve 15°",
+      "type": "curve",
+      "radius": 437.5,
+      "angle": 15
+    },
+    {
+      "id": "24330",
+      "name": "R3 curve 30°",
+      "type": "curve",
+      "radius": 515,
+      "angle": 30
+    },
+    {
+      "id": "24430",
+      "name": "R4 curve 30°",
+      "type": "curve",
+      "radius": 579.3,
+      "angle": 30
+    },
+    {
+      "id": "24530",
+      "name": "R5 curve 30°",
+      "type": "curve",
+      "radius": 643.6,
+      "angle": 30
+    },
+    {
+      "id": "24912",
+      "name": "R9 curve 12.1° (wide turnout counter-curve)",
+      "type": "curve",
+      "radius": 1114.6,
+      "angle": 12.1
+    },
+    {
+      "id": "24611",
+      "name": "Turnout left, 24.3°",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 188.3
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 437.5,
+              "angle": 24.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "24612",
+      "name": "Turnout right, 24.3°",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 188.3
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 437.5,
+              "angle": -24.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "24711",
+      "name": "Wide radius turnout left, 12.1°",
+      "type": "turnout",
+      "hand": "left",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 236.1
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 1114.6,
+              "angle": 12.1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "24712",
+      "name": "Wide radius turnout right, 12.1°",
+      "type": "turnout",
+      "hand": "right",
+      "routes": [
+        {
+          "segs": [
+            {
+              "straight": 236.1
+            }
+          ]
+        },
+        {
+          "segs": [
+            {
+              "radius": 1114.6,
+              "angle": -12.1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "24624",
+      "name": "Double slip 24.3°",
+      "type": "crossing",
+      "length": 188.3,
+      "angle": 24.3,
+      "slip": {
+        "radius": 437.5
+      }
+    }
+  ]
+}

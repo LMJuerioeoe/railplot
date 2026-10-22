@@ -1,6 +1,5 @@
-// The Railplot tools that work on a plan, wherever it comes from: the connector (a file or the hub) or the
-// chat inside the app. They read and check the plan, send proposals the owner accepts or rejects, and,
-// when the owner allows it, use the layout's controls.
+// The Railplot tools that work on a plan, wherever it comes from: a file or the hub. They read and check
+// the plan, send proposals the owner accepts or rejects, and, when the owner allows it, use the layout's controls.
 import { DEG, dist, normAngle, pointInPoly } from "../geom";
 import { LIBRARIES, getLibrary, getPart, partGeometryLabel } from "../library";
 import { parseProject, serialize } from "../io";
@@ -513,22 +512,4 @@ To build, use the propose_ tools, or propose_plan for several steps that build o
 The control tools work only through the Railplot hub and only when the owner has turned on "Let Claude use the controls". Track power and emergency stops are never available to you. Tell the owner before moving trains.`;
 
 
-/** The plan operations in brief, for an instructions text (the chat inside the app sends propose_plan only). */
-export function operationsGuide(): string {
-  const arg = ([name, s]: [string, any]) => {
-    const t = s.type ?? (s.anyOf ? s.anyOf.map((x: any) => x.type).join("|") : "object");
-    const e = s.enum ? ` ${s.enum.join("|")}` : "";
-    const d = s.description ? `: ${String(s.description).split(". ")[0].replace(/\.$/, "")}` : "";
-    return `${name} (${t}${e})${d}`;
-  };
-  return Object.entries(STEP_DOCS).map(([op, d]) =>
-    `- ${op}: ${d.description}\n  ${Object.entries(d.properties).map((x) => arg(x as [string, any])).join("; ")}${d.required.length ? `. Needs ${d.required.join(", ")}.` : ""}`).join("\n");
-}
-
-/** The tools the chat inside the app offers: one proposing tool (propose_plan) keeps the list short. */
-export const CHAT_TOOLS = [
-  "get_layout", "list_boards", "get_track", "check_layout", "get_parts_list", "list_track_systems", "list_parts",
-  "list_baseboard_modules", "list_examples", "list_proposals", "withdraw_proposal", "propose_plan",
-  "get_control_status", "set_route", "set_point", "set_signal", "set_light", "drive_train", "stop_train", "run_automation",
-];
 export const CONTROL_TOOLS = ["get_control_status", "set_route", "set_point", "set_signal", "set_light", "drive_train", "stop_train", "run_automation"];

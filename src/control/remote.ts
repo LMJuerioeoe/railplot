@@ -1,5 +1,6 @@
 // Commands and state snapshots: the same commands drive the local engine and a Railplot hub,
 // and a hub sends snapshots of its engine to every phone and laptop connected to it.
+import { worldFor } from "../sim/world";
 import { Aspect, AutoRun, ControlEngine } from "./engine";
 import { SignalMode } from "./types";
 
@@ -16,7 +17,9 @@ export type Cmd =
   | { c: "place"; train: string; block?: string }
   | { c: "route"; id: string }
   | { c: "auto"; id: string; run: boolean }
-  | { c: "take"; controller: string };
+  | { c: "take"; controller: string }
+  | { c: "rerail"; train: string; how?: "here" | "last-stop" }
+  | { c: "derailMode"; mode: "off" | "forgiving" | "realistic" };
 
 export interface LinkSummary { online: boolean; accepted: boolean; message?: string; fw?: string }
 
@@ -71,6 +74,15 @@ export function applyCommand(e: ControlEngine, cmd: Cmd, ctx: CmdContext = {}): 
       return null;
     }
     case "clearFault": e.clearFault(cmd.block); return null;
+    case "rerail": {
+      const c = worldFor(e).consistOf(cmd.train);
+      if (!c) return "That train isn't in the simulator.";
+      return worldFor(e).rerail(c.id, cmd.how ?? "here") ? null : "That train is on the rails.";
+    }
+    case "derailMode":
+      if (!["off", "forgiving", "realistic"].includes(cmd.mode)) return "Derailments are off, forgiving or realistic.";
+      cfg.derailments = cmd.mode;
+      return null;
     case "sensor": return e.sensorTripped(cmd.id) ? null : "No train was heading that way.";
     case "place": {
       const t = e.train(cmd.train);

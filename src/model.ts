@@ -6,6 +6,7 @@ import {
 import { Part, getPart, routeLength } from "./library";
 import type { ControlConfig } from "./control/types";
 import type { Proposal } from "./proposals";
+import type { TrainSpec } from "./trainfit";
 import { MODULES, ModulePlacement, TrackGuide, endsTouch, facesMatching, getModule, moduleCorners, moduleEnds, moduleGuides, moduleMembers, modulePorts, moduleToWorld, placementAtEnd } from "./modules";
 
 export const FILE_FORMAT = "railplot";
@@ -38,6 +39,12 @@ export interface Project {
   nextId: number;
   /** How the real layout is wired for control (optional). */
   control?: ControlConfig;
+  /** The longest train and vehicle the owner runs, for the train-fit checks (optional). */
+  train?: TrainSpec;
+  /** The owner's wagons, for shunting sessions (optional). */
+  shunting?: { wagons: string[] };
+  /** What the parts cost, entered by the owner in the parts list (optional). */
+  prices?: Prices;
   /** Changes suggested through the Claude connector, waiting to be accepted or rejected. */
   proposals?: Proposal[];
 }
@@ -685,7 +692,14 @@ export function mainLibrary(p: Project): string {
 
 // ---------- parts list ----------
 
-export interface PartsRow { key: string; producer: string; library: string; id: string; name: string; count: number; length?: number; layer?: string }
+export interface PartsRow {
+  key: string; producer: string; library: string; id: string; name: string; count: number; length?: number; layer?: string;
+  /** The same part's key on every layer: what its price is stored under. */
+  priceKey: string;
+}
+
+/** Prices the owner has entered: one price for each part (a whole piece of flex), in one currency. */
+export interface Prices { currency: string; each: Record<string, number> }
 
 export function partsList(p: Project, opts: { visibleOnly?: boolean; byLayer?: boolean } = {}): PartsRow[] {
   const rows = new Map<string, PartsRow>();
@@ -696,7 +710,7 @@ export function partsList(p: Project, opts: { visibleOnly?: boolean; byLayer?: b
     const key = `${opts.byLayer ? it.layer + "|" : ""}${it.part}`;
     let row = rows.get(key);
     if (!row) {
-      row = { key, producer: part.lib.producer, library: part.lib.name, id: part.def.id, name: part.def.name, count: 0, layer: layerName };
+      row = { key, priceKey: it.part, producer: part.lib.producer, library: part.lib.name, id: part.def.id, name: part.def.name, count: 0, layer: layerName };
       if (part.def.type === "flex") row.length = 0;
       rows.set(key, row);
     }
@@ -710,23 +724,62 @@ export function partsList(p: Project, opts: { visibleOnly?: boolean; byLayer?: b
   const joints = moduleJoints(p);
   for (const [id, count] of mods) {
     const m = getModule(id)!;
-    rows.set(`board|${id}`, { key: `board|${id}`, producer: "Laser-cut", library: "~ Baseboards", id: m.size, name: `${m.name} (${m.material}, ${m.weightKg} kg)`, count });
+    rows.set(`board|${id}`, { key: `board|${id}`, priceKey: `board|${id}`, producer: "Laser-cut", library: "~ Baseboards", id: m.size, name: `${m.name} (${m.material}, ${m.weightKg} kg)`, count });
     // extra hardware some modules need (slides, bearings, uprights); joint hardware is counted below
     if (!/^per joint/i.test(m.hardware))
-      rows.set(`hwm|${id}`, { key: `hwm|${id}`, producer: "Hardware", library: "~ Baseboards", id: "module", name: `For each ${m.name.toLowerCase()}: ${m.hardware.replace(/;?\s*joining hardware( as standard modules)?\.?$/i, "")}`, count });
+      rows.set(`hwm|${id}`, { key: `hwm|${id}`, priceKey: `hwm|${id}`, producer: "Hardware", library: "~ Baseboards", id: "module", name: `For each ${m.name.toLowerCase()}: ${m.hardware.replace(/;?\s*joining hardware( as standard modules)?\.?$/i, "")}`, count });
   }
   const hwJoint = [...mods.keys()].map((id) => getModule(id)!)[0]?.hardwarePerJoint ?? [];
   if (joints) for (const hw of hwJoint)
-    rows.set(`hw|${hw.item}`, { key: `hw|${hw.item}`, producer: "Hardware", library: "~ Baseboards", id: "joint", name: `${hw.item}, ${hw.count} per joint`, count: hw.count * joints });
+    rows.set(`hw|${hw.item}`, { key: `hw|${hw.item}`, priceKey: `hw|${hw.item}`, producer: "Hardware", library: "~ Baseboards", id: "joint", name: `${hw.item}, ${hw.count} per joint`, count: hw.count * joints });
   return [...rows.values()].sort((a, b) =>
     (a.layer ?? "").localeCompare(b.layer ?? "") || a.library.localeCompare(b.library) || a.id.localeCompare(b.id, undefined, { numeric: true }));
 }
 
-export function partsCsv(rows: PartsRow[]): string {
+export function partsCsv(rows: PartsRow[], prices?: Prices): string {
   const esc = (s: string | number) => /[",\n]/.test(String(s)) ? `"${String(s).replace(/"/g, '""')}"` : String(s);
-  const head = ["Layer", "Producer", "Part", "Name", "Quantity", "Flex length (mm)"];
-  return [head, ...rows.map((r) => [r.layer ?? "", r.producer, r.id, r.name, r.count, r.length ? Math.round(r.length) : ""])]
-    .map((r) => r.map(esc).join(",")).join("\n");
+  const priced = !!prices && rows.some((r) => prices.each[r.priceKey] !== undefined);
+  const head = ["Layer", "Producer", "Part", "Name", "Quantity", "Flex length (mm)", ...(priced ? [`Price (${prices!.currency})`, `Total (${prices!.currency})`] : [])];
+  const money = (n: number | undefined) => n === undefined ? "" : n.toFixed(2);
+  const body = rows.map((r) => {
+    const each = prices?.each[r.priceKey];
+    return [r.layer ?? "", r.producer, r.id, r.name, r.count, r.length ? Math.round(r.length) : "", ...(priced ? [money(each), money(each === undefined ? undefined : each * r.count)] : [])];
+  });
+  if (priced) body.push(["", "", "", "Total", "", "", "", money(costOf(rows, prices!).total)]);
+  return [head, ...body].map((r) => r.map(esc).join(",")).join("\n");
+}
+
+/** What the rows cost at the owner's prices, and how many rows have no price yet. */
+export function costOf(rows: PartsRow[], prices: Prices | undefined): { total: number; unpriced: number } {
+  let total = 0, unpriced = 0;
+  for (const r of rows) {
+    const each = prices?.each[r.priceKey];
+    if (each === undefined) unpriced++; else total += each * r.count;
+  }
+  return { total, unpriced };
+}
+
+/**
+ * What each baseboard costs: the board itself and the track whose middle is on it. Flexible track is
+ * counted by length here (a share of a piece), so the boards add up to a little less than the parts list.
+ */
+export function costByBoard(p: Project): { board: string; name: string; board_cost: number; track: number; total: number }[] {
+  const each = p.prices?.each ?? {};
+  return p.boards.map((b) => {
+    const board_cost = (b.module && each[`board|${b.module.preset}`]) || 0;
+    let track = 0;
+    for (const it of p.items) {
+      const price = each[it.part];
+      if (price === undefined) continue;
+      const g = geom(it);
+      const r = g.routes[0];
+      let t = (r?.length ?? 0) / 2, mid: Vec = g.ends[0];
+      for (const pr of r?.prims ?? []) { if (t <= pr.len) { mid = primAt(pr, t); break; } t -= pr.len; }
+      if (!pointInPoly(mid, b.pts)) continue;
+      track += g.part.def.type === "flex" ? price * (g.length / (g.part.def.maxLength ?? 1000)) : price;
+    }
+    return { board: b.id, name: b.name, board_cost, track, total: board_cost + track };
+  });
 }
 
 // ---------- flex helpers ----------

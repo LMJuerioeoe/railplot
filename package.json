@@ -1,6 +1,6 @@
 {
   "name": "railplot",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Free, open-source track planner for OO and H0 model railways.",
   "license": "MIT",
   "private": true,
@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",
+    "axe-core": "4.10.3",
     "typescript": "^5.6.3"
   }
 }

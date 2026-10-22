@@ -28,6 +28,8 @@ with sync_playwright() as p:
     b = p.chromium.launch(args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
     ctx = b.new_context(viewport={"width": 1400, "height": 860}, accept_downloads=True)
     ctx.add_init_script("delete window.showSaveFilePicker;")
+    # never ask the real GitHub for updates: an old release, so nothing is offered
+    ctx.route("https://api.github.com/**", lambda r: r.fulfill(json={"tag_name": "v0.0.1", "body": "", "html_url": "https://github.com/LMJuerioeoe/railplot/releases", "assets": []}))
     pg = ctx.new_page()
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
@@ -39,8 +41,20 @@ with sync_playwright() as p:
     check("sample loads with no open ends", js(pg, "railplot.an.free.length") == 0 and js(pg, "railplot.p.items.length") == 27)
     shot(pg, "01-sample")
 
+    # F00b will my trains fit?
+    pg.click("#train-fit button:has-text('Main line')"); pg.wait_for_timeout(150)
+    check("a long train is too long for the sample's loops", pg.locator("#train-fit .fit-row[data-kind='short-road']").count() == 2)
+    pg.locator("#train-fit .fit-row").first.click(); pg.wait_for_timeout(100)
+    check("clicking a finding selects its track", js(pg, "railplot.sel.size") >= 1)
+    shot(pg, "01b-train-fit")
+    pg.keyboard.press("Escape")
+    pg.fill("#train-length", "500"); pg.press("#train-length", "Enter"); pg.fill("#train-vehicle", "0"); pg.press("#train-vehicle", "Tab"); pg.wait_for_timeout(150)
+    check("a short train fits", pg.locator("#train-fit >> text=Your trains fit").count() == 1, js(pg, "JSON.stringify(railplot.p.train)"))
+
     # F02 new layout with a baseboard
     pg.click("#tb-new")
+    pg.wait_for_timeout(200)
+    if pg.is_visible("text=Discard and start new"): pg.click("text=Discard and start new"); pg.wait_for_timeout(200)
     pg.fill("#new-name", "Test layout")
     pg.fill("#new-w", "2000")
     pg.fill("#new-d", "1000")
@@ -134,6 +148,15 @@ with sync_playwright() as p:
     pg.click("#tb-parts")
     rows = pg.locator("table.parts tbody tr").count()
     check("parts list has rows", rows >= 3, rows)
+    first = pg.locator("input.price-in").first
+    key = first.get_attribute("data-price")
+    first.fill("2.40"); first.press("Enter"); pg.wait_for_timeout(150)
+    n = js(pg, f"railplot.p.items.filter(i => i.part === '{key}').length")
+    check("a price is saved with the layout", js(pg, f"railplot.p.prices.each['{key}']") == 2.4)
+    check("the total follows", f"{2.4 * n:.2f}" in pg.locator("#pl-total").inner_text(), pg.locator("#pl-total").inner_text())
+    check("prices start in the browser's currency ($ in the US)", pg.locator("#pl-currency").input_value() == "$" and "$" in pg.locator("#pl-total").inner_text())
+    pg.select_option("#pl-currency", "£"); pg.wait_for_timeout(100)
+    check("and can be pounds", js(pg, "railplot.p.prices.currency") == "£" and "£" in pg.locator("#pl-total").inner_text())
     shot(pg, "06-parts")
     pg.click("text=Done")
 
@@ -287,64 +310,56 @@ with sync_playwright() as p:
     check("Help explains how to connect Claude", pg.locator(".dialog >> text=railplot-claude-windows.mcpb").count() == 1)
     pg.click(".dialog button:has-text('Close')")
 
-    # F16d the Claude chat, with your own API key (Anthropic's API mocked here)
-    calls = []
-    def api(route):
-        req = route.request
-        if "/v1/models" in req.url:
-            return route.fulfill(json={"data": [{"id": "claude-haiku-test", "display_name": "Test Haiku"}, {"id": "claude-sonnet-test", "display_name": "Test Sonnet"}]})
-        body = json.loads(req.post_data)
-        calls.append({"headers": req.headers, "body": body})
-        n = len(calls)
-        if n == 1:
-            content = [{"type": "text", "text": "Let me look at the plan."}, {"type": "tool_use", "id": "u1", "name": "check_layout", "input": {}}]
-            return route.fulfill(json={"content": content, "stop_reason": "tool_use"})
-        if n == 2:
-            content = [{"type": "tool_use", "id": "u2", "name": "propose_plan", "input": {"title": "A short spur", "reason": "Room for a wagon.", "steps": [{"op": "add_flex", "at": {"near": {"x": 0, "y": 0}}, "sections": [{"straight": 100}]}]}}]
-            return route.fulfill(json={"content": content, "stop_reason": "tool_use"})
-        return route.fulfill(json={"content": [{"type": "text", "text": "I've proposed **a short spur**. Accept it if you like it."}], "stop_reason": "end_turn"})
-    pg.route("https://api.anthropic.com/**", api)
-    pg.click("#tb-claude"); pg.wait_for_timeout(300)
-    check("the chat asks for an API key first", pg.locator("#chat-key").count() == 1)
-    pg.fill("#chat-key", "sk-ant-test"); pg.click("#chat-check"); pg.wait_for_timeout(300)
-    check("checking the key lists the models and picks a Sonnet", pg.locator("#chat-model").input_value() == "claude-sonnet-test")
-    pg.click("#chat-save"); pg.wait_for_timeout(200)
-    n1 = js(pg, "railplot.p.items.length")
-    pg.fill("#chat-text", "Add a short spur please"); pg.press("#chat-text", "Enter")
-    pg.wait_for_selector(".chat-prop", timeout=5000); pg.wait_for_timeout(300)
-    check("the API is called with the key, from the browser, with Railplot's tools", calls and calls[0]["headers"].get("x-api-key") == "sk-ant-test" and calls[0]["headers"].get("anthropic-dangerous-direct-browser-access") == "true" and any(t["name"] == "propose_plan" for t in calls[0]["body"]["tools"]) and calls[0]["body"]["model"] == "claude-sonnet-test")
-    check("Claude is told about the plan", "Shunting plank with a traverser" in calls[0]["body"]["system"])
-    check("tool results go back to Claude", calls[1]["body"]["messages"][-1]["content"][0]["type"] == "tool_result")
-    check("the chat shows what Claude did", pg.locator(".msg.tool:has-text('Checked the plan')").count() == 1)
-    check("Claude's proposal appears as a card in the chat and in the list", pg.locator(".chat-prop:has-text('A short spur')").count() == 1 and pg.locator(".insp-props .prop-card:has-text('A short spur')").count() == 1)
-    check("the reply is shown with formatting", pg.locator(".msg.claude strong:has-text('a short spur')").count() == 1)
-    shot(pg, "08g-chat")
-    pg.click(".chat-prop button:has-text('Accept')"); pg.wait_for_timeout(200)
-    check("accepting from the chat changes the plan", js(pg, "railplot.p.items.length") == n1 + 1 and pg.locator(".chat-prop:has-text('Accepted')").count() == 1)
-    pg.click(".chat-head button[aria-label='Close the chat']")
-    pg.unroute("https://api.anthropic.com/**")
+    check("there's no Claude chat in the app", pg.locator("#tb-claude").count() == 0 and pg.locator(".chat").count() == 0)
 
-    # F16e the Claude chat on claude.ai: your Claude account through the page's "sample" capability (mocked here)
-    ctx2 = b.new_context(viewport={"width": 1200, "height": 800})
-    ctx2.add_init_script("""window.claude = { use: async (n) => n !== 'sample' ? null : Object.assign(async (input, opts) => {
-        const t = opts.tools.find((x) => x.name === 'check_layout');
-        const r = await t.execute({}, { signal: new AbortController().signal });
-        const text = 'All good: ' + String(r).split('\\n')[0];
-        window.__sampled = { input, tools: opts.tools.map((x) => x.name), cache: opts.cache };
-        opts.onText({ text, delta: text });
-        return { text, truncated: false, modelTierApplied: 'default' };
-      }, { limits: async () => ({ maxPromptBytes: 262144, tools: { maxCount: 20 } }) }) };""")
-    pg2 = ctx2.new_page()
-    pg2.on("pageerror", lambda e: errors.append(str(e)))
-    pg2.goto(URL); pg2.wait_for_timeout(500)
-    pg2.click("#tb-claude"); pg2.wait_for_timeout(400)
-    check("on claude.ai the chat uses your Claude account, no key needed", pg2.locator("#chat-key").count() == 0 and "your Claude account" in pg2.locator(".chat-sub").inner_text())
-    pg2.fill("#chat-text", "Is my plan OK?"); pg2.press("#chat-text", "Enter")
-    pg2.wait_for_selector(".msg.claude:has-text('All good')", timeout=5000)
-    sampled = pg2.evaluate("window.__sampled")
-    check("the instructions go first, then the question, and Claude gets Railplot's tools", sampled["input"][0]["role"] == "user" and "Railplot" in sampled["input"][0]["content"] and sampled["input"][-1]["content"] == "Is my plan OK?" and "propose_plan" in sampled["tools"] and sampled["cache"] is False)
-    check("the account chat ran a tool in the page", pg2.locator(".msg.tool:has-text('Checked the plan')").count() == 1)
-    ctx2.close()
+    # F16e shunting session
+    pg.click("text=Tools"); pg.click("text=Shunting session…"); pg.wait_for_timeout(200)
+    check("a session deals a train of five cards", pg.locator(".shunt-cards li").count() == 5)
+    check("all eight wagons start in the sidings", pg.locator(".shunt-siding .wagon").count() == 8)
+    first = pg.locator("#sh-out h3").inner_text()
+    pg.click(".dialog button:has-text('Deal new cards')"); pg.wait_for_timeout(100)
+    check("new cards have a new number", pg.locator("#sh-out h3").inner_text() != first)
+    pg.click("#sh-start"); pg.click("#sh-move"); pg.click("#sh-move"); pg.wait_for_timeout(1300)
+    check("the clock runs and moves are counted", pg.locator("#sh-clock").inner_text() != "0:00" and pg.locator("#sh-moves").inner_text() == "2")
+    shot(pg, "08g-shunting")
+    pg.click(".dialog button:has-text('Done')")
+
+    # F16f check for updates (the offline file; GitHub's answer faked)
+    release = {"tag_name": "v99.0.0", "body": "Lots of new things.", "html_url": "https://github.com/LMJuerioeoe/railplot/releases/tag/v99.0.0",
+               "assets": [{"name": "railplot-offline.html", "browser_download_url": "https://github.com/LMJuerioeoe/railplot/releases/download/v99.0.0/railplot-offline.html"}]}
+    pg.route("https://api.github.com/repos/LMJuerioeoe/railplot/releases/latest", lambda r: r.fulfill(json=release))
+    pg.click("text=Help"); pg.click("text=Check for updates…"); pg.wait_for_timeout(400)
+    check("a newer release is offered as a new offline file", pg.locator("#update-box >> text=Railplot 99.0.0 is available").count() == 1 and pg.locator("#update-download").get_attribute("href") == release["assets"][0]["browser_download_url"])
+    shot(pg, "08h-update")
+    pg.click(".dialog button:has-text('Close')")
+    release["tag_name"] = "v0.0.1"
+    pg.click("text=Help"); pg.click("text=Check for updates…"); pg.wait_for_timeout(400)
+    check("an older release isn't offered", pg.locator("#update-box >> text=is the newest version").count() == 1)
+    pg.click(".dialog button:has-text('Close')")
+    pg.unroute("https://api.github.com/repos/LMJuerioeoe/railplot/releases/latest")
+
+    # F16g the desktop app updating itself (Tauri's side faked: check, download with progress, restart)
+    ctx3 = b.new_context(viewport={"width": 1200, "height": 800})
+    ctx3.route("https://api.github.com/**", lambda r: r.fulfill(json={"tag_name": "v0.0.1", "assets": []}))
+    ctx3.add_init_script("""(() => { const calls = []; window.__updCalls = calls; let listener = null;
+      window.__TAURI__ = {
+        core: { invoke: async (cmd, args) => { calls.push(cmd);
+          if (cmd === 'can_update') return true;
+          if (cmd === 'check_update') return { version: '99.1.0', notes: 'Faster 3D.' };
+          if (cmd === 'install_update') { listener && listener({ payload: [50, 100] }); listener && listener({ payload: [100, 100] }); return null; }
+          if (cmd === 'startup_file') return null;
+          return null; } },
+        event: { listen: async (n, f) => { listener = f; return () => { listener = null; }; } },
+        dialog: { save: async () => null, open: async () => null } }; })();""")
+    pg3 = ctx3.new_page()
+    pg3.on("pageerror", lambda e: errors.append(str(e)))
+    pg3.goto(URL); pg3.wait_for_timeout(500)
+    pg3.click("text=Help"); pg3.click("text=Check for updates…"); pg3.wait_for_timeout(300)
+    check("the desktop app offers to update itself", pg3.locator("#update-install").inner_text() == "Update to 99.1.0 and restart")
+    pg3.click("#update-install"); pg3.wait_for_timeout(300)
+    calls = pg3.evaluate("window.__updCalls")
+    check("updating downloads and installs through the desktop app", "install_update" in calls and pg3.evaluate("document.getElementById('update-progress')?.value") == 1, calls)
+    ctx3.close()
 
     # F17 control: the two-train demo on the simulator
     pg.click("text=File"); pg.click("text=Open the two-train control demo")
@@ -353,11 +368,101 @@ with sync_playwright() as p:
     check("control mode opens with the demo", js(pg, "railplot.mode") == "control" and js(pg, "railplot.p.control.trains.length") == 2)
     ex = js(pg, "railplot.p.control.trains[1].id")
     start_block = js(pg, "railplot.p.control.trains[1].block")
-    pg.fill(f"#thr-{ex}", "100"); pg.evaluate(f"document.getElementById('thr-{ex}').dispatchEvent(new Event('input'))")
+    pg.fill(f"#thr-{ex}", "60"); pg.evaluate(f"document.getElementById('thr-{ex}').dispatchEvent(new Event('input'))")
     pg.wait_for_timeout(6000)
     check("the express moves on to another block", js(pg, "railplot.p.control.trains[1].block") != start_block)
     pg.click("text=Stop all trains")
     check("stop all stops every train", js(pg, "railplot.ctl.engine.run(railplot.p.control.trains[1].id).target") == 0)
+
+    # F17b drive the demo in 3D: HUD, throttle by keys, chase and cab cameras
+    pg.click("#drive-3d"); pg.wait_for_timeout(600)
+    check("Drive in 3D opens with the HUD", js(pg, "railplot.drive.open") and pg.locator("#drive-hud [data-train]").count() == 2)
+    pg.keyboard.press("2"); before = js(pg, "(() => { const w = railplot.drive.world(); const p = w.poseOf(railplot.drive.train); return [p.x, p.y]; })()")
+    for _ in range(10): pg.keyboard.press("e")
+    pg.wait_for_timeout(2000)
+    after = js(pg, "(() => { const w = railplot.drive.world(); const p = w.poseOf(railplot.drive.train); return [p.x, p.y]; })()")
+    check("the throttle keys drive the train along the track", abs(after[0] - before[0]) + abs(after[1] - before[1]) > 50 and int(pg.locator("#drive-speed").inner_text()) > 0, (before, after))
+    cams = []
+    for _ in range(3): cams.append(pg.locator("#drive-camera").inner_text().split()[0]); pg.keyboard.press("c"); pg.wait_for_timeout(150)
+    check("C cycles chase, cab and tabletop", sorted(cams) == ["Cab", "Chase", "Tabletop"], cams)
+    shot(pg, "09b-drive")
+    # flat out round a second-radius curve: it comes off, and R puts it back
+    for _ in range(12): pg.keyboard.press("e")
+    try: pg.wait_for_selector("#drive-derailed", timeout=20000); came_off = True
+    except Exception: came_off = False
+    check("too fast round a curve, the train derails", came_off and "curve" in pg.locator("#drive-derailed").inner_text(), js(pg, "railplot.drive.world().consistOf(railplot.drive.train).speed"))
+    check("a derailment shorts its block, as on the real layout", js(pg, "railplot.ctl.engine.faults.size") >= 1)
+    shot(pg, "09c-derailed")
+    pg.keyboard.press("r"); pg.wait_for_timeout(400)
+    check("R re-rails it and clears the fault", pg.locator("#drive-derailed").count() == 0 and not js(pg, "!!railplot.drive.world().consistOf(railplot.drive.train).derailed") and js(pg, "railplot.ctl.engine.faults.size") == 0)
+    # points and signals in 3D: click the lever beside a point, and a signal's mast
+    while pg.locator("#drive-camera").inner_text().split()[0] != "Tabletop": pg.keyboard.press("c"); pg.wait_for_timeout(100)
+    pg.wait_for_timeout(300)
+    def click_target(kind):
+        at = js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect();
+          const free = d.world().itemsUnder();
+          const t = d.targets.find(t => t.kind === '{kind}' && !free.has(t.id)); const s = t && v.toCanvas(t.x, t.y, t.z);
+          return t && s ? [t.id, r.left + s.x, r.top + s.y] : null; }})()""")
+        if at: pg.mouse.click(at[1], at[2]); pg.wait_for_timeout(200)
+        return at and at[0]
+    pid = click_target("point")
+    check("clicking a point's lever in 3D throws it", pid and js(pg, f"railplot.p.control.points.find(q => q.item === '{pid}').state") == 1, pid)
+    sid = click_target("signal")
+    check("clicking a signal in 3D holds it at red", sid and js(pg, f"railplot.p.control.signals.find(s => s.id === '{sid}').mode") == "stop", sid)
+    shot(pg, "09d-points-signals")
+    click_target("point"); click_target("signal")
+    pg.keyboard.press("Space"); pg.wait_for_timeout(100)
+    check("Space stops the selected train", js(pg, "railplot.ctl.engine.run(railplot.drive.train).target") == 0)
+    # F17c make up a rake of vans, place it by clicking the track, uncouple it by its coupler
+    pg.keyboard.press("t"); pg.wait_for_timeout(200)
+    check("T opens the Trains dialog on the selected train's stock", pg.locator("#trains-strip .veh").count() >= 1)
+    pg.click("#trains-new-rake"); pg.wait_for_timeout(100)
+    for _ in range(3): pg.click(".stock-tile[data-kind=van]"); pg.wait_for_timeout(60)
+    check("stock tiles add vehicles to the back", pg.locator("#trains-strip .veh").count() == 4)
+    pg.locator("#trains-strip .veh").nth(0).click(); pg.keyboard.press("Delete"); pg.wait_for_timeout(100)
+    check("Delete takes the picked vehicle out", pg.locator("#trains-strip .veh").count() == 3)
+    shot(pg, "09e-trains")
+    rake = js(pg, "railplot.drive.editing")
+    pg.click("#trains-place"); pg.wait_for_timeout(300)
+    check("placing shows its card", pg.locator("#drive-place").count() == 1)
+    spot = lambda ok: js(pg, f"""(() => {{ const d = railplot.drive, w = d.world(), v = railplot.view3d, r = v.canvas.getBoundingClientRect();
+      const pts = new Set(railplot.p.control.points.map(q => q.item));
+      for (const a of w.graph.samples(40)) {{
+        const f = w.fit('{rake}', a), good = !('error' in f);
+        // the middle of a piece: at a joint the pointer can as well be on the piece next door
+        if (Math.abs(a.s - w.graph.routeLength(a.item, a.route) / 2) > 30) continue;
+        if ({'true' if ok else 'false'} ? !good : !pts.has(a.item)) continue;
+        const p = w.graph.pose(a), s = v.toCanvas(p.x, p.y, p.z + 5);
+        if (s && s.x > 40 && s.y > 40 && s.x < r.width - 40 && s.y < r.height - 140) return [r.left + s.x, r.top + s.y];
+      }} return null; }})()""")
+    bad = spot(False)
+    if bad: pg.mouse.move(bad[0], bad[1]); pg.wait_for_timeout(150)
+    check("the ghost on a point says why not", bad and "point" in pg.locator("#drive-place-note").inner_text(), bad)
+    good = spot(True)
+    if good: pg.mouse.move(good[0] - 3, good[1]); pg.mouse.move(good[0], good[1]); pg.wait_for_timeout(150)
+    note = pg.locator("#drive-place-note").inner_text()
+    shot(pg, "09f-place")
+    if good: pg.mouse.click(good[0], good[1]); pg.wait_for_timeout(300)
+    check("clicking free track puts the rake there", js(pg, f"railplot.drive.world().consists.find(c => c.id === '{rake}').at.length") == 3 and pg.locator("#drive-place").count() == 0, (good, note))
+    cp = js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect();
+      const t = d.targets.find(t => t.kind === 'coupler' && t.id === '{rake}'); const s = t && v.toCanvas(t.x, t.y, t.z);
+      return s ? [r.left + s.x, r.top + s.y] : null; }})()""")
+    n = js(pg, "railplot.p.control.consists.length")
+    if cp: pg.mouse.move(cp[0], cp[1]); pg.wait_for_timeout(100); pg.mouse.click(cp[0], cp[1]); pg.wait_for_timeout(200)
+    check("clicking a coupler uncouples there", js(pg, "railplot.p.control.consists.length") == n + 1, cp)
+    # take the vans off again, from the Trains dialog
+    for _ in range(2):
+        pg.keyboard.press("t"); pg.wait_for_timeout(150)
+        opt = js(pg, "[...document.querySelectorAll('#trains-which option')].map(o => o.value).find(v => v.startsWith('c:') && !railplot.p.control.consists.find(c => 'c:' + c.id === v).train)")
+        pg.select_option("#trains-which", opt); pg.wait_for_timeout(100)
+        pg.click("#trains-remove"); pg.wait_for_timeout(150)
+        pg.keyboard.press("Escape"); pg.wait_for_timeout(100)
+    check("rakes come off the layout", js(pg, "railplot.p.control.consists.every(c => c.train)"))
+    pg.keyboard.press("k"); pg.wait_for_timeout(50)
+    check("K switches km/h and mph", pg.locator("#drive-hud .hud-speed").inner_text().find("mph") >= 0)
+    pg.keyboard.press("k")
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
+    check("Esc goes back to the plan", js(pg, "railplot.drive.open") == False and js(pg, "railplot.mode3d") == False)
     pg.click("text=Set up"); pg.wait_for_timeout(100)
     check("Claude can't use the controls until allowed", js(pg, "!!railplot.p.control.claude") == False and pg.locator("#claude-control").count() == 1)
     pg.check("#claude-control"); pg.wait_for_timeout(100)
@@ -366,6 +471,23 @@ with sync_playwright() as p:
     pg.locator("button:has-text('Wiring list')").click()
     check("wiring list shows block drivers", pg.locator("text=Driver 1: EN GPIO25").count() >= 1)
     pg.click("text=Done")
+    check("Set up shows the joiners and track feeds on the plan", js(pg, "railplot.ctl.wiringPlan().js.length") == js(pg, "railplot.ctl.engine.topo.boundaries.length") and js(pg, "railplot.ctl.wiringPlan().fs.length") >= js(pg, "railplot.p.control.blocks.length"))
+    pg.click("#wiring-diagram"); pg.wait_for_timeout(150)
+    check("the wiring diagram opens", pg.locator(".wiring-svg svg").count() == 1)
+    pg.click(".dialog button:has-text('Done')")
+    pg.check("#det-current"); pg.wait_for_timeout(100)
+    # a block with no train in it or booked for one (a train that just left it may take 10 s to clear)
+    # (and no vehicle standing in it: a train stopped across a block joint is in both blocks)
+    empty = js(pg, """(() => { const e = railplot.ctl.engine, w = railplot.drive.world() || [...railplot.ctl.links.values()][0].world;
+      const used = new Set(w.consists.flatMap(c => [...w.blocksOf(c)]));
+      return railplot.p.control.blocks.map(b => b.id).find(b => !e.trainIn(b) && !e.claimedBy.get(b) && !used.has(b)); })()""")
+    pg.select_option("#det-stray-block", empty); pg.click("#det-stray")
+    try: pg.wait_for_function(f"railplot.ctl.engine.strays.has('{empty}')", timeout=15000); found = True
+    except Exception: found = False
+    check("current detection finds a wagon left where no train is booked", found, js(pg, "[...railplot.ctl.engine.detected]"))
+    pg.click("#det-stray"); pg.wait_for_timeout(1500)
+    check("and lets go when it's taken away", js(pg, "railplot.ctl.engine.strays.size") == 0)
+    pg.uncheck("#det-current"); pg.wait_for_timeout(100)
     shot(pg, "09-control")
 
     # F18 routes and automations
@@ -376,9 +498,12 @@ with sync_playwright() as p:
     check("Auto tab lists routes and the demo automation", pg.locator(".setup-sec >> text=Main line").count() == 1 and pg.locator("text=Goods shuttle").count() >= 1)
     goods = js(pg, "railplot.p.control.trains[0].id")
     gstart = js(pg, "railplot.p.control.trains[0].block")
+    # the express drove on earlier: put it back in East by hand, clear of the shuttle's way
+    js(pg, "(() => { const c = railplot.p.control; railplot.ctl.act({ c: 'place', train: c.trains[1].id, block: c.blocks.find(b => b.name === 'East').id }); })()")
+    pg.wait_for_timeout(200)
     pg.locator(".auto-row button:has-text('Start')").first.click()
     pg.wait_for_timeout(5000)
-    check("the goods shuttle sets off on its own", js(pg, "railplot.p.control.trains[0].block") != gstart, js(pg, "JSON.stringify([...railplot.ctl.engine.autoRuns])"))
+    check("the goods shuttle sets off on its own", js(pg, "railplot.p.control.trains[0].block") != gstart, js(pg, "JSON.stringify([railplot.p.control.trains.map(t => railplot.ctl.engine.blockName(t.block)), [...railplot.ctl.engine.autoRuns]])"))
     check("its status shows the step it is on", pg.locator(".auto-row .auto-status").first.inner_text().startswith("Step "))
     pg.locator(".auto-row button:has-text('Stop')").first.click()
     check("stopping an automation", not js(pg, "[...railplot.ctl.engine.autoRuns.values()][0].running"))

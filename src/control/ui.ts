@@ -15,6 +15,7 @@ import { ControlRuntime } from "./runtime";
 import { Cmd, LinkSummary, applyCommand, applySnapshot } from "./remote";
 import { HubClient, hubBase, hubStatus } from "./hubclient";
 import { renderAuto } from "./autoui";
+import { Feed, Joiner, feeds, joiners, wiringSvg } from "./wiringplan";
 import { ORIGINAL_HTML } from "../original";
 import { ControlConfig, DCCEX_CAB_BASE, channelName, channelsOf, emptyControl } from "./types";
 
@@ -238,12 +239,46 @@ export class ControlUI {
       });
     }
     ctx.globalAlpha = 1;
+    // blocks with something in them and no train booked: dashed red
+    if (e.strays.size) {
+      ctx.strokeStyle = "#e0413a"; ctx.lineWidth = Math.max(10, 6 * v.s); ctx.setLineDash([8, 6]); ctx.globalAlpha = 0.85;
+      for (const it of p.items) {
+        if (!e.strays.has(blockOf.get(it.id) ?? "")) continue;
+        ctx.beginPath();
+        for (const r of geom(it).routes) for (const pr of r.prims) strokePrim(ctx, v, pr);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
     // joints trains must never cross (DCC-EX next to another system)
     for (const bnd of e.topo.boundaries) {
       if (!bnd.isolated) continue;
       const s = toScreen(v, bnd);
       ctx.strokeStyle = "#e0413a"; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(s.x - 7, s.y - 7); ctx.lineTo(s.x + 7, s.y + 7); ctx.moveTo(s.x + 7, s.y - 7); ctx.lineTo(s.x - 7, s.y + 7); ctx.stroke();
+    }
+    // the wiring plan, while setting up: insulated joiners across the rails, and the track feeds
+    if (this.tab === "setup" && cfg.blocks.length) {
+      const { js, fs } = this.wiringPlan();
+      for (const j of js) {
+        const nx = -Math.sin(j.h), ny = Math.cos(j.h);
+        ctx.strokeStyle = j.why === "frog" ? "#b07c00" : "#111"; ctx.lineWidth = 3; ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        for (const side of [1, -1]) {
+          const a = toScreen(v, { x: j.x + nx * side * 5, y: j.y + ny * side * 5 }), b = toScreen(v, { x: j.x + nx * side * 13, y: j.y + ny * side * 13 });
+          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      for (const f of fs) {
+        const s = toScreen(v, f);
+        const b = cfg.blocks.find((x) => x.id === f.block);
+        ctx.fillStyle = b?.color ?? "#555"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(s.x, s.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#fff"; ctx.font = "bold 9px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("F", s.x, s.y + 0.5);
+      }
     }
     // points: show the route each is set to
     for (const pc of cfg.points) {
@@ -301,10 +336,11 @@ export class ControlUI {
     const b = this.cfg.blocks.find((x) => x.id === blockId);
     if (!b || !b.items.length) return null;
     const items = b.items.map((id) => this.app.p.items.find((i) => i.id === id)).filter(Boolean) as ReturnType<typeof geom>[] & any[];
+    // in the simulator, the train's loco is where it really is
     const sim = [...this.links.values()].find((l) => l instanceof SimLink) as SimLink | undefined;
-    const prog = trainId && sim ? sim.progressOf(trainId) : undefined;
-    const idx = prog !== undefined ? Math.min(items.length - 1, Math.floor(prog * items.length)) : Math.floor(items.length / 2);
-    const it = items[idx];
+    const at = trainId && sim ? sim.poseOf(trainId) : null;
+    if (at) return { x: at.x, y: at.y };
+    const it = items[Math.floor(items.length / 2)];
     const r = geom(it).routes[0];
     const pr = r.prims[Math.floor(r.prims.length / 2)];
     const q = primAt(pr, pr.len / 2);
@@ -478,6 +514,8 @@ export class ControlUI {
       h("button", { class: "btn stop-all", type: "button", onclick: () => this.doAndRender({ c: "stopAll" }, "All trains stopped.") },
         h("span", { html: icon("close", 18) }), "Stop all trains", h("kbd", {}, "Space")),
       e.powerOn ? h("button", { class: "btn btn-sm", type: "button", title: "Turn the track power off, like the power button on a DCC throttle", onclick: () => this.doAndRender({ c: "power", on: false }, "Track power off.") }, "Power off") : null));
+    if (cfg.controllers.some((c) => c.kind === "sim") && !this.hub && cfg.trains.some((t) => t.block))
+      el.append(h("div", { class: "btn-row" }, h("button", { class: "btn", type: "button", id: "drive-3d", title: "Drive the simulated trains in 3D (D)", onclick: () => this.app.drive.start(), html: `${icon("cube", 16)}<span>Drive in 3D</span>` })));
     if (!cfg.trains.length || !cfg.blocks.length) {
       el.append(h("div", { class: "ctl-empty" },
         h("h3", {}, "Nothing to drive yet"),
@@ -727,6 +765,35 @@ export class ControlUI {
         del("Delete sensor", () => { cfg.sensors = cfg.sensors.filter((x) => x !== s); }))),
       cfg.blocks.length > 1 ? h("div", { class: "btn-row" }, h("button", { class: "btn btn-sm", type: "button", onclick: () => { const n = addSensorsAtBoundaries(p, cfg); this.commitSetup(); this.render(); toast(n ? `${n} sensor${n === 1 ? "" : "s"} added.` : "Every block joint already has a sensor."); } }, "Add sensors at block joints")) : h("p", { class: "muted small" }, "Sensors need two or more blocks.")));
 
+    // the simulator
+    if (cfg.controllers.some((c) => c.kind === "sim")) {
+      const mode = h("select", { id: "sim-derail", "aria-label": "Derailments", onchange: (ev: Event) => { this.act({ c: "derailMode", mode: (ev.target as HTMLSelectElement).value as "off" }); this.commitSetup(); } },
+        ...([["realistic", "Realistic"], ["forgiving", "Forgiving"], ["off", "Off: hold trains at the limit"]] as const).map(([v, t]) => h("option", { value: v, selected: (cfg.derailments ?? "realistic") === v }, t)));
+      el.append(sec("Simulator",
+        h("div", { class: "setup-row" }, h("span", { class: "small grow" }, "Derailments"), mode),
+        h("p", { class: "muted small" }, "Simulated trains come off when driven too fast round a curve, through a point set against them, or into the end of the line. Forgiving lets them take curves half as fast again and run through points at walking pace. Re-rail them in Drive in 3D.")));
+    }
+
+    // detection by current
+    const det = cfg.detection ?? { current: false, threshold: 3 };
+    const sim = [...this.links.values()].find((l) => l instanceof SimLink) as SimLink | undefined;
+    const strayPick = h("select", { id: "det-stray-block", "aria-label": "Block" }, ...cfg.blocks.map((b) => h("option", { value: b.id }, b.name))) as HTMLSelectElement;
+    el.append(sec("Detecting trains by current",
+      h("label", { class: "check" }, h("input", { id: "det-current", type: "checkbox", checked: det.current, onchange: (ev: Event) => {
+        cfg.detection = { ...det, current: (ev.target as HTMLInputElement).checked };
+        this.commitSetup(); this.engine.updateDetection("", [], undefined); this.render();
+      } }), "Detect trains by the current they draw"),
+      h("p", { class: "muted small" }, "Each DRV8876 driver measures its block's current. Under power a moving loco shows up by itself; in blocks with no power, the controller (firmware 0.4 or later) sends a pulse too short to move anything and measures that. Locos always show. For wagons and coaches, fit one resistor wheelset to each: a 2.2 kΩ surface-mount resistor across the axle draws about 5 mA. Not with DRV8871 drivers, which can't measure current."),
+      h("div", { class: "setup-row" }, h("span", { class: "small grow" }, "Occupied from (mA)"),
+        num("det-threshold", det.threshold, (v) => { cfg.detection = { ...det, threshold: Math.max(1, v ?? 3) }; }, { min: 1, max: 200, step: 1, "aria-label": "Threshold in mA" })),
+      det.current && this.engine.strays.size ? h("p", { class: "warn-note" }, `Something is in ${[...this.engine.strays].map((b) => this.engine.blockName(b)).join(", ")} with no train booked there.`) : null,
+      sim && cfg.blocks.length ? h("div", { class: "setup-row" }, h("span", { class: "small grow" }, "Simulator: leave a wagon in"), strayPick,
+        h("button", { class: "btn btn-sm", type: "button", id: "det-stray", onclick: () => {
+          const b = strayPick.value;
+          sim.strays.has(b) ? sim.strays.delete(b) : sim.strays.add(b);
+          toast(sim.strays.has(b) ? `A wagon is left in ${this.engine.blockName(b)}.` : `The wagon in ${this.engine.blockName(b)} is gone.`);
+        } }, "Leave / take away")) : null));
+
     // signals
     el.append(sec("Signals",
       ...cfg.signals.map((s) => h("div", { class: "setup-row signal-row" },
@@ -771,7 +838,8 @@ export class ControlUI {
       cfg.trains.length > Math.max(1, cfg.blocks.length / 2) ? h("p", { class: "warn-note" }, "Each train needs a block of its own and a free block between trains. Add more blocks before running this many trains.") : null));
 
     el.append(h("div", { class: "btn-row" },
-      h("button", { class: "btn", type: "button", onclick: () => this.showWiring(), html: `${icon("list", 16)}<span>Wiring list</span>` })));
+      h("button", { class: "btn", type: "button", onclick: () => this.showWiring(), html: `${icon("list", 16)}<span>Wiring list</span>` }),
+      h("button", { class: "btn", type: "button", id: "wiring-diagram", onclick: () => this.showWiringDiagram(), html: `${icon("control", 16)}<span>Wiring diagram</span>` })));
   }
 
   /** Connecting from Set up: whose layout wins? */
@@ -783,6 +851,28 @@ export class ControlUI {
       { label: "Use the hub's layout", onClick: () => { this.connectHub(host, true); } },
       { label: "Send this layout", primary: true, onClick: () => { this.connectHub(host, false); } },
     ]);
+  }
+
+  private wiringCache: { key: string; js: Joiner[]; fs: Feed[] } | null = null;
+  /** Joiners and feeds, worked out again only when the track or the blocks change. */
+  wiringPlan() {
+    const p = this.app.p, cfg = this.cfg;
+    const key = `${p.nextId}|${p.items.length}|${p.items.map((i) => `${i.x},${i.y},${i.rot}`).join(";")}|${JSON.stringify(cfg.blocks.map((b) => b.items))}`;
+    if (this.wiringCache?.key !== key) this.wiringCache = { key, js: joiners(p, cfg), fs: feeds(p, cfg) };
+    return this.wiringCache;
+  }
+
+  showWiringDiagram() {
+    const svg = wiringSvg(this.app.p, this.cfg);
+    const { js, fs } = this.wiringPlan();
+    const frogs = js.filter((j) => j.why === "frog").length;
+    const body = h("div", {},
+      h("p", { class: "muted" }, `On the plan (Set up), black ticks across the rails mark the ${js.length - frogs} block joint${js.length - frogs === 1 ? "" : "s"} that need insulated joiners${frogs ? `, amber ticks the ${frogs} Electrofrog exit${frogs === 1 ? "" : "s"}` : ""}, and F the ${fs.length} track feed${fs.length === 1 ? "" : "s"}, at most ${1.5} m apart along each block. Feed every block the same way round: OUT1 to the same rail all round the layout.`),
+      h("div", { class: "wiring-svg", html: svg }));
+    dialog("Wiring diagram", body, [
+      { label: "Save SVG", onClick: async () => { await this.app.saveFile(`${this.app.p.name} wiring.svg`, new Blob([svg], { type: "image/svg+xml" }), { name: "SVG drawing", extensions: ["svg"], mime: "image/svg+xml" }); return true; } },
+      { label: "Done", primary: true },
+    ], { wide: true });
   }
 
   showWiring() {

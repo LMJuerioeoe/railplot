@@ -3,7 +3,7 @@ import { DEG, biarc, distToPrim, primOf, tangentSegThrough, triangulate, walk } 
 import { LIBRARIES, getPart, validateLibrary } from "../src/library";
 import {
   analyze, continuationEnd, createFlex, deleteItems, findSnap, applySnap, geom, gradient, mirrorItems,
-  moveItems, newProject, partsList, placePart, rotateItems, setHeightAt, summarize, Item, Project,
+  moveItems, newProject, partsList, partsCsv, costOf, costByBoard, addRectBoard, placePart, rotateItems, setHeightAt, summarize, Item, Project,
 } from "../src/model";
 import { parseProject, serialize } from "../src/io";
 import { buildSample } from "../src/sample";
@@ -43,6 +43,23 @@ describe("placing and joining", () => {
     const an = analyze(p);
     expect(an.free.length).toBe(0);
     expect(an.bad.length).toBe(0);
+  });
+  test("Märklin C, Kato and Streamline curves close circles", () => {
+    for (const [k, n] of [["maerklin-c-h0/24130", 12], ["maerklin-c-h0/24530", 12], ["kato-unitrack-ho/2-210", 16], ["kato-unitrack-ho/2-290", 36]] as const) {
+      const p = newProject();
+      chain(p, Array(n).fill(k));
+      expect(analyze(p).free.length).toBe(0);
+    }
+  });
+  test("a Märklin turnout and its counter-curve set the next track 77.5 mm over", () => {
+    const t = getPart("maerklin-c-h0/24611")!;
+    const p = newProject();
+    const it = placePart(p, t.key, { x: 0, y: 0, h: 0 });
+    const e = geom(it).ends[2];
+    const c = placePart(p, "maerklin-c-h0/24224", { ...e }, 0, true);
+    const out = geom(c).ends[1];
+    expect(Math.abs(out.y)).toBeCloseTo(77.5, 0);
+    expect(Math.cos(out.h)).toBeCloseTo(1, 4);
   });
   test("12 PIKO R1 curves close a circle", () => {
     const p = newProject();
@@ -151,6 +168,28 @@ describe("flex", () => {
     const flex = rows.find((r) => r.id === "55209")!;
     expect(flex.count).toBe(2);
     expect(flex.length!).toBeGreaterThan(1200);
+  });
+});
+
+describe("prices", () => {
+  test("the parts list totals the prices, counts what isn't priced, and puts them in the CSV", () => {
+    const p = newProject();
+    addRectBoard(p, 0, -100, 600, 200, "Left"); addRectBoard(p, 600, -100, 600, 200, "Right");
+    for (let i = 0; i < 6; i++) placePart(p, "hornby-oo/R600", { x: i * 168, y: 0, h: 0 });
+    createFlex(p, "peco-setrack-oo/SL-100", { x: 1008, y: 0, h: 0, z: 0 }, [{ kind: "s", len: 100 }]);
+    p.prices = { currency: "£", each: { "hornby-oo/R600": 2.5 } };
+    const rows = partsList(p);
+    expect(costOf(rows, p.prices)).toEqual({ total: 15, unpriced: 1 });
+    p.prices.each["peco-setrack-oo/SL-100"] = 6;
+    expect(costOf(partsList(p), p.prices).total).toBe(21);
+    const csv = partsCsv(partsList(p), p.prices);
+    expect(csv.split("\n")[0]).toContain("Price (£)");
+    expect(csv.split("\n").at(-1)).toContain("21.00");
+    // by board: four straights have their middles on the left board, two and the short piece of flex (100 of 914 mm) on the right
+    const per = costByBoard(p);
+    expect(per[0].track).toBeCloseTo(10, 5);
+    expect(per[1].track).toBeCloseTo(5 + 6 * 100 / 914, 5);
+    expect(parseProject(serialize(p)).prices).toEqual(p.prices);
   });
 });
 

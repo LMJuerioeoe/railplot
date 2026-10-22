@@ -114,6 +114,15 @@ export class ControlEngine {
   autoRuns = new Map<string, AutoRun>();     // automation -> progress
   powerOn = true;
   events: string[] = [];
+  /** Blocks drawing current, as the drivers report it (only with current detection on). */
+  detected = new Set<string>();
+  /** Occupied blocks with no train booked in them: a wagon left behind, or a train put down by hand. */
+  strays = new Set<string>();
+  /** Readings in a row that disagree with `detected`, per block, so one odd reading changes nothing. */
+  private detectVotes = new Map<string, number>();
+  /** When a train last left each block (engine seconds): its last wagons may still be there for a while. */
+  private leftAt = new Map<string, number>();
+  private clock = 0;
 
   constructor(public p: Project, public cfg: ControlConfig) {
     this.topo = topology(p, cfg);
@@ -144,6 +153,7 @@ export class ControlEngine {
 
   /** Work out which blocks each train may use, then the power for every block and the signal aspects. */
   assign() {
+    this.findStrays();
     const { p, cfg, topo } = this;
     const claimed = new Map<string, string>();
     for (const t of cfg.trains) if (t.block && cfg.blocks.some((b) => b.id === t.block)) claimed.set(t.block, t.id);
@@ -156,7 +166,7 @@ export class ControlEngine {
       if (run.target === 0 && Math.abs(run.speed) < 0.005) continue;
       const path = this.run(t.id).path;
       for (const n of neighbours(p, cfg, topo, t.block)) {
-        if (claimed.has(n) || stopped(t.block, n) || this.faults.has(n)) continue;
+        if (claimed.has(n) || stopped(t.block, n) || this.faults.has(n) || this.strays.has(n)) continue;
         if (path && !path.includes(n)) continue;
         (wants.get(n) ?? wants.set(n, new Set()).get(n)!).add(t.id);
       }
@@ -188,7 +198,7 @@ export class ControlEngine {
     const trainHere = this.trainIn(s.from);
     const owner = this.claimedBy.get(s.to);
     if (!neighbours(p, cfg, topo, s.from).includes(s.to)) return "red";
-    if (this.trainIn(s.to)) return "red";
+    if (this.trainIn(s.to) || this.strays.has(s.to)) return "red";
     if (owner && owner !== trainHere?.id) return "red";
     if (!trainHere && owner) return "red";
     const onward = neighbours(p, cfg, topo, s.to).filter((b) => b !== s.from);
@@ -198,6 +208,7 @@ export class ControlEngine {
 
   /** Advance automations and momentum by dt seconds. */
   step(dt: number) {
+    this.clock += dt;
     for (const a of this.automations()) {
       const r = this.autoRuns.get(a.id);
       if (r?.running) this.advanceAuto(a, r, dt);
@@ -285,6 +296,16 @@ export class ControlEngine {
     }
     this.autoRuns.set(id, { running: true, step: 0, t: 0, phase: 0, status: "Starting" });
     return null;
+  }
+
+  /** Stop every automation driving a train, saying why (the train derailed, say). */
+  haltAutos(trainId: string, why: string) {
+    for (const a of this.automations()) {
+      const r = this.autoRuns.get(a.id);
+      if (a.train !== trainId || !r?.running) continue;
+      r.running = false; r.status = `Stopped: ${why}`;
+      this.events.push(`${a.name} stopped: ${why}.`);
+    }
   }
 
   stopAuto(id: string) {
@@ -404,6 +425,7 @@ export class ControlEngine {
     for (const [from, to] of [[a, b], [b, a]] as const) {
       const t = this.trainIn(from);
       if (t && this.claimedBy.get(to) === t.id) {
+        this.leftAt.set(from, this.clock);
         t.block = to;
         // automations move trains all the time: only tell people about trains they drive themselves
         if (!this.automations().some((x) => x.train === t.id && this.autoRuns.get(x.id)?.running)) this.events.push(`${t.name} entered ${this.blockName(to)}`);
@@ -438,6 +460,53 @@ export class ControlEngine {
         this.assign();
       }
     }
+  }
+
+  /**
+   * Occupancy from current. `mA` is what each driver draws while it powers its block; `idle` what it
+   * draws during the controller's short detection pulses into blocks with no power. A block reading at
+   * least the threshold three times in a row is occupied; three readings under it, and it is free.
+   */
+  updateDetection(controllerId: string, mA: number[], idle: number[] | undefined) {
+    const det = this.cfg.detection;
+    if (!det?.current) { if (this.detected.size || this.strays.size) { this.detected.clear(); this.strays.clear(); this.assign(); } return; }
+    let changed = false;
+    for (const b of this.cfg.blocks) {
+      if (b.controller !== controllerId || b.channel === undefined) continue;
+      const powered = (this.power.get(b.id) ?? 0) !== 0;
+      const reading = powered ? mA[b.channel] : idle?.[b.channel];
+      if (reading === undefined) continue;
+      const on = reading >= det.threshold;
+      if (on === this.detected.has(b.id)) { this.detectVotes.delete(b.id); continue; }
+      const v = (this.detectVotes.get(b.id) ?? 0) + 1;
+      if (v < 3) { this.detectVotes.set(b.id, v); continue; }
+      this.detectVotes.delete(b.id);
+      if (on) this.detected.add(b.id); else this.detected.delete(b.id);
+      changed = true;
+    }
+    if (changed) this.afterDetection();
+  }
+
+  private afterDetection() {
+    // a train whose block went quiet while exactly one block it was given lit up has moved on, even if no sensor saw it
+    for (const t of this.cfg.trains) {
+      if (!t.block || this.detected.has(t.block)) continue;
+      const ahead = [...this.claimedBy].filter(([b, id]) => id === t.id && b !== t.block && this.detected.has(b)).map(([b]) => b);
+      if (ahead.length !== 1) continue;
+      this.leftAt.set(t.block, this.clock);
+      t.block = ahead[0];
+      this.events.push(`${t.name} entered ${this.blockName(ahead[0])} (seen by its current; no sensor saw it)`);
+    }
+    this.assign();
+  }
+
+  /** Occupied blocks with no train booked, none about to arrive, and none just leaving (its tail may still be there). */
+  private findStrays() {
+    if (!this.cfg.detection?.current) { this.strays = new Set(); return; }
+    const before = this.strays;
+    this.strays = new Set([...this.detected].filter((b) => !this.trainIn(b) && !this.claimedBy.get(b) && this.clock - (this.leftAt.get(b) ?? -1e9) > 10));
+    for (const b of this.strays) if (!before.has(b))
+      this.events.push(`Something is in ${this.blockName(b)} but no train is booked there: a wagon left behind, or a train put down by hand. Trains won't be sent into it until it's clear, or you place a train there.`);
   }
 
   clearFault(block: string) { this.faults.delete(block); this.assign(); }
