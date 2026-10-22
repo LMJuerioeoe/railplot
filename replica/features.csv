@@ -1,0 +1,41 @@
+feature,area,priority,original,clone,notes
+Open a 3D drive view of your own layout from Control mode,drive view,must,yes,no,Railplot's 3D view exists; needs moving trains
+Trains follow the real track geometry through points as set,simulation,must,yes,no,replaces the block-progress simulator; hardest part
+Drive the selected train with a throttle (keys and slider),driving,must,yes,no,Q/E and arrow keys as in the original (source 9)
+Reverse direction,driving,must,yes,no,
+Speed shown in scale km/h or mph,driving,must,yes,no,units patch (source 6); scale from the track library (OO 1:76 / H0 1:87)
+Tabletop camera (orbit the whole layout),cameras,must,yes,no,exists as the current 3D camera
+Chase camera behind the selected train,cameras,must,yes,no,
+Cab camera,cameras,must,yes,no,
+Throw points by clicking them in 3D,operation,must,yes,no,2D version exists in Control mode
+Signals shown in 3D with live aspects and obeyed,operation,must,yes,no,control engine already sets aspects
+Make up a train from simple rolling stock (loco and wagons),rolling stock,must,yes,no,own box models; no Rolling Line assets
+Place a train on the track facing a chosen way,rolling stock,must,yes,no,
+Uncouple and couple wagons,shunting,must,yes,no,buffers touching below a speed couple
+Trains stop at open ends and at another train's buffers,simulation,should,yes,no,no derailments (see skip)
+Auto drive: train obeys signals and stops in a chosen block,automation,should,yes,no,Auto Drive patch (source 6); Railplot trips and automations exist
+Walk the layout at miniature scale (first person),cameras,should,yes,no,the original's large/miniature switch
+Blocks sensors and current detection follow where vehicles really are,simulation,should,no,no,Railplot's own: keeps the control features honest
+Shunting session laid out in 3D with the dealt wagons,shunting,should,no,no,builds on Tools > Shunting session
+Consists and their positions saved with the layout,files,should,yes,no,
+Pause and a key list overlay,drive view,should,yes,no,
+Works on a phone browser (touch throttle and orbit),drive view,should,no,no,the original is PC only; Railplot runs on phones
+Click a train to follow it,cameras,should,yes,no,
+Horn,driving,should,yes,no,a simple generated tone; no game sounds
+Simple engine and rail sounds,sound,could,yes,no,own generated sounds only
+Smoke or steam puffs,effects,could,yes,no,particle effects patch (source 7)
+Auto switch: points set for an empty road,automation,could,yes,no,source 6
+Trackside trigger markers (horn here / slow here),automation,could,yes,no,AI trigger signs (source 6)
+Speed limit per train,driving,could,yes,no,
+Debug lines showing where auto trains are heading,automation,could,yes,no,AI debug view (source 6)
+Photo mode (save a picture from any camera),cameras,could,yes,no,3D view already saves pictures
+Day and night lighting,effects,could,yes,no,
+VR headsets and hand controllers,platform,skip,yes,skip,Railplot is a browser and desktop app in plain WebGL
+Multiplayer servers and server browser,multiplayer,skip,yes,skip,Railplot's hub already lets several phones drive one layout
+Steam Workshop layouts mods and liveries,content,skip,yes,skip,their community and network; not a feature to rebuild
+Official layouts from NZ US Brazil,content,skip,yes,skip,their content
+In-game magazine,content,skip,yes,skip,their content
+Rolling Line models liveries and sounds,content,skip,yes,skip,their assets; Railplot draws its own simple stock
+Layout and scenery building in 3D,building,skip,yes,skip,Railplot is the planner; the scenery builder was removed on request
+Derailments and full physics collisions,simulation,skip,yes,skip,trains stop instead; keeps the simulator predictable
+Weather,effects,skip,yes,skip,
