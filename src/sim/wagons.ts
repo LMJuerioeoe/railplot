@@ -25,6 +25,8 @@ export interface VanSpec {
   wheelR?: number;
   /** Planks laid lengthways (the GWR's later vans) rather than upright. */
   horizontal?: boolean;
+  /** Plywood sides: smooth, no planks. */
+  plywood?: boolean;
   /** Braces from the top corners down to the foot of the door posts, rather than up to them. */
   braceDown?: boolean;
   /** Upright stanchions part way between the ends and the doors. */
@@ -44,7 +46,8 @@ export function drawVan(s: Shapes, p: VanSpec) {
   s.box(-bh, bh, -w + 0.6, w - 0.6, z0, t, p.body);
   for (const e of SIDES) {
     const f = e * (w - 0.6);
-    if (p.horizontal) planking(s, f, -bh, bh, z0, t, Math.round((t - z0) / 2.2), darker(p.body, 0.7), true);
+    if (p.plywood) { /* smooth sheets */ }
+    else if (p.horizontal) planking(s, f, -bh, bh, z0, t, Math.round((t - z0) / 2.2), darker(p.body, 0.7), true);
     else planking(s, f, -bh, bh, z0, t, Math.round((2 * bh) / 4.2), darker(p.body, 0.7));
     for (const x of p.stanchions ?? []) strip(s, f, x, z0, x, t, 1.1, strap);
     strip(s, f, -bh, z0 + 0.6, bh, z0 + 0.6, 1.1, strap); strip(s, f, -bh, t - 0.6, bh, t - 0.6, 1.1, strap);   // bottom and top rails
@@ -100,9 +103,10 @@ function barY2(s: Shapes, x: number, z: number, half: number, col: RGB) {
 
 /** A seven-plank open wagon in a private owner's red, loaded with coal. */
 export function drawPlankOpen(s: Shapes, p: { length: number; width: number; body: RGB; band: RGB; load: boolean }) {
-  const half = p.length / 2, w = p.width / 2, bh = 34.5, z0 = 14.6, t = 31;
+  // traced from Hornby's side view: seven planks from 15.1 to 33.9 mm, a 10 ft wheelbase
+  const half = p.length / 2, w = p.width / 2, bh = 35.1, z0 = 15.1, t = 33.9;
   headstocks(s, half, UNDER, { width: w - 1.4 });
-  wagonGear(s, bh, 36, 6.1, UNDER, w - 1.2);
+  wagonGear(s, bh, 39.9, 6.1, UNDER, w - 1.2);
   const strap = BLACK;
   s.box(-bh, bh, -w + 0.4, w - 0.4, z0 - 0.4, z0 + 0.6, darker(p.body, 0.8));                    // floor
   for (const e of SIDES) {
@@ -112,7 +116,7 @@ export function drawPlankOpen(s: Shapes, p: { length: number; width: number; bod
     for (const x of [-bh + 0.5, bh - 0.5, -10, 10]) strip(s, f, x, z0, x, t, 1.1, strap);         // corner and door stanchions
     for (const x of [-25, 25]) strip(s, f, x, z0 + 0.5, x + (x > 0 ? -6 : 6), t - 0.5, 0.8, strap);   // diagonal braces
     for (const z of [z0 + 2.5, t - 2.5]) strip(s, f, -10, z, 10, z, 0.7, strap);                  // door hinges and bands
-    s.box(-bh + 3, bh - 3, Math.min(f, f + e * 0.2), Math.max(f, f + e * 0.2), z0 + 7.5, z0 + 11.5, p.band);   // the owner's name, on a lighter band
+    s.box(-bh + 3, bh - 3, Math.min(f, f + e * 0.2), Math.max(f, f + e * 0.2), z0 + 10, z0 + 15.6, p.band);   // the owner's name, on a lighter band
     lettering(s, w - 0.2, -bh + 5, bh - 5, z0 + 8.3, 2.4, WHITE, 9);
   }
   for (const e of SIDES) { const a = e * (bh - 1), b = e * bh; s.box(Math.min(a, b), Math.max(a, b), -w + 0.4, w - 0.4, z0, t, p.body); }
@@ -122,16 +126,18 @@ export function drawPlankOpen(s: Shapes, p: { length: number; width: number; bod
 
 /** A BR 16 ton steel mineral wagon: pressed steel sides with ribs, side and top doors, end door. */
 export function drawMineral(s: Shapes, p: { length: number; width: number; body: RGB; load: boolean }) {
-  const half = p.length / 2, w = p.width / 2, bh = 32, z0 = 14.6, t = 32.5;
+  // traced from Accurascale's drawing: sides 35.4 mm high, pressed stanchions only at the ends and the door
+  const half = p.length / 2, w = p.width / 2, bh = 35, z0 = 15.2, t = 35.4;
   headstocks(s, half, UNDER, { width: w - 1.4 });
-  wagonGear(s, bh, 36, 6.1, UNDER, w - 1.2);
+  wagonGear(s, bh, 36.9, 6.4, UNDER, w - 1.2);
   const rib = darker(p.body, 0.7);
   for (const e of SIDES) {
     const a = e * (w - 0.4), b = e * (w - 1.2), f = a;
     s.box(-bh, bh, Math.min(a, b), Math.max(a, b), z0, t, p.body);
-    for (const x of [-bh + 0.6, -22, -9, 9, 22, bh - 0.6]) strip(s, f, x, z0, x, t, 1, rib, 0.4);     // pressed ribs
+    for (const x of [-bh + 1, -bh + 2.6, -9, 9, bh - 2.6, bh - 1]) strip(s, f, x, z0, x, t, 0.9, rib, 0.4);   // pressed stanchions
     strip(s, f, -bh, t - 0.5, bh, t - 0.5, 1, rib, 0.4);                                              // top rim
-    strip(s, f, -9, z0 + 1, 9, z0 + 1, 0.6, rib, 0.45); strip(s, f, -9, t - 4.5, 9, t - 4.5, 0.5, rib, 0.45);   // side door and top flap
+    strip(s, f, -9, z0 + 1, 9, z0 + 1, 0.6, rib, 0.45); strip(s, f, -9, t - 4, 9, t - 4, 0.6, rib, 0.45);       // side door and top flap
+    for (const x of [-4.5, 4.5]) strip(s, f, x, z0 + 1.5, x, t - 5, 0.4, rib, 0.3);
     s.box(-2, 2, Math.min(f, f + e * 0.8), Math.max(f, f + e * 0.8), z0 + 1.5, z0 + 3, DARK_STEEL);
     lettering(s, w - 0.3, -bh + 3, -12, z0 + 3, 1.6, WHITE, 5);
   }
@@ -158,44 +164,57 @@ export function drawTankWagon(s: Shapes, p: { length: number; width: number; bod
     const y = e * (r + 0.6);
     for (const x of [-4, 0]) s.beam(x, z0 + 1, x + 2.5, zc + r - 2, Math.min(y, y + e * 0.4), Math.max(y, y + e * 0.4), 0.4, STEEL);
     for (let z = z0 + 3; z < zc + r - 3; z += 2.5) s.beam(-4 + ((z - z0 - 1) / (zc + r - 3 - z0)) * 2.5, z, ((z - z0 - 1) / (zc + r - 3 - z0)) * 2.5, z, Math.min(y, y + e * 0.4), Math.max(y, y + e * 0.4), 0.35, STEEL);
-    s.beam(-bh + 3, z0 + 4.2, bh - 3, z0 + 4.2, Math.min(e * 9, e * 9.6), Math.max(e * 9, e * 9.6), 0.5, UNDER);   // tie bars
+    // end stanchions up to the barrel's waist, and the tie rods running from their tops down to the middle of the underframe
+    const ya = e * (w - 1.6), yb = e * (w - 0.9), zt = zc + 1;
+    for (const d of SIDES) {
+      s.box(d * (bh + 0.2) - 0.6, d * (bh + 0.2) + 0.6, Math.min(ya, yb), Math.max(ya, yb), z0 - 1, zt, UNDER);
+      s.beam(d * (bh + 0.2), zt, 0, 5, Math.min(ya, yb), Math.max(ya, yb), 0.5, UNDER);
+    }
+    s.beam(-bh, zt - 0.3, bh, zt - 0.3, Math.min(e * (r + 0.2), e * (r + 0.7)), Math.max(e * (r + 0.2), e * (r + 0.7)), 0.4, UNDER);   // the band round the barrel's waist
     lettering(s, r - 0.5, -bh + 10, -10, zc - 2, 2.4, WHITE, 6);
   }
 }
 
 /** The BR standard 20 ton brake van: a body with a verandah at each end, end platforms and duckets. */
 export function drawBRBrakeVan(s: Shapes, p: { length: number; width: number; body: RGB }) {
-  const half = p.length / 2, w = p.width / 2, z0 = 14.6, t = 43.5, face = half - 5.5;
+  // traced from Bachmann's side view: the body with its verandahs 65 mm long, a 63 mm wheelbase,
+  // the long end platforms bare, the verandahs open above the platform
+  const half = p.length / 2, w = p.width / 2, z0 = 15.8, t = 43.3, face = half - 5.5;
   headstocks(s, half, UNDER, { width: w - 1.4 });
-  wagonGear(s, face - 1, 40, 6.1, UNDER, w - 1.2);
+  wagonGear(s, face - 1, 63, 6.2, UNDER, w - 1.2);
   const strap = darker(p.body, 0.55);
-  s.box(-face + 1, face - 1, -w + 1, w - 1, z0 - 0.6, z0 + 0.6, darker(p.body, 0.8));               // the long platform
-  // the body, with verandahs at each end inside it
-  const b0 = -22, b1 = 22, v = 9;
+  s.box(-face + 1, face - 1, -w + 1, w - 1, z0 - 4.6, z0 - 0.4, UNDER);                           // deep solebars
+  s.box(-face + 1, face - 1, -w + 1, w - 1, z0 - 0.4, z0 + 1.4, darker(p.body, 0.8));               // the long platform
+  const b0 = -32.5, b1 = 32.5, v = 12;
   s.box(b0 + v, b1 - v, -w + 0.6, w - 0.6, z0, t, p.body);
   for (const e of SIDES) {
     const f = e * (w - 0.6);
-    planking(s, f, b0 + v, b1 - v, z0, t, 9, darker(p.body, 0.7));
-    s.box(-4, 4, Math.min(f, f + e * 0.9), Math.max(f, f + e * 0.9), z0 + 12, t - 6, p.body);         // ducket
-    s.box(-3, 3, Math.min(f + e * 0.9, f + e * 1.05), Math.max(f + e * 0.9, f + e * 1.05), z0 + 18, t - 8, GLASS);
-    strip(s, f, b0 + v, t - 1, b1 - v, t - 1, 0.8, strap); strip(s, f, b0 + v, z0 + 1, b1 - v, z0 + 1, 0.8, strap);
-    for (const x of [b0 + v + 1, b1 - v - 1]) s.box(x - 0.8, x + 0.8, Math.min(f, f + e * 0.3), Math.max(f, f + e * 0.3), z0 + 1, t - 1, strap);
+    planking(s, f, b0 + v, b1 - v, z0, t, 16, darker(p.body, 0.72));
+    // the ducket: a bay window standing out from the side, glazed at front and back
+    s.prismY([[-6.3, z0 + 6.7], [5.5, z0 + 6.7], [5.5, 37.4], [-6.3, 37.4]], Math.min(f, f + e * 1.05), Math.max(f, f + e * 1.05), p.body);
+    s.prismY([[-4.8, z0 + 8.5], [4, z0 + 8.5], [3, 35.5], [-3.8, 35.5]], Math.min(f + e * 1.05, f + e * 1.2), Math.max(f + e * 1.05, f + e * 1.2), darker(p.body, 0.85));
+    for (const x of [-5.8, 5]) s.box(x - 0.5, x + 0.5, Math.min(f + e * 0.3, f + e * 1.1), Math.max(f + e * 0.3, f + e * 1.1), 30, 35, GLASS);
+    strip(s, f, b0 + v, t - 1, b1 - v, t - 1, 0.8, strap);
+    for (const x of [b0 + v + 0.6, b1 - v - 0.6]) s.box(x - 0.6, x + 0.6, Math.min(f, f + e * 0.3), Math.max(f, f + e * 0.3), z0, t - 1, strap);
+    // white handrails: along the side below the ducket, up beside the verandah doors
+    barX(s, b0 + v, b1 - v, e * (w + 0.1), 21.7, 0.35, WHITE);
+    for (const x of [b0 + v + 0.3, b1 - v - 0.3]) barZ(s, x, e * (w + 0.1), z0 - 1, 33, 0.35, WHITE);
     for (const [x0, x1] of [[b0, b0 + v], [b1 - v, b1]]) {
-      // verandah: corner posts and a half-height side, the roof carried over
-      s.box(Math.min(x0, x1) + (x0 === b0 ? 0 : v - 1.2), Math.min(x0, x1) + (x0 === b0 ? 1.2 : v), Math.min(f, f - e * 1.2), Math.max(f, f - e * 1.2), z0, t, p.body);
-      s.box(x0, x1, Math.min(f, f - e * 0.8), Math.max(f, f - e * 0.8), z0, z0 + 10, p.body);
-      barX(s, x0, x1, f, z0 + 16, 0.35, WHITE);
+      // verandah: corner posts carrying the roof, a low kerb
+      const xo = x0 === b0 ? b0 : b1 - 1.2;
+      s.box(xo, xo + 1.2, Math.min(f, f - e * 1.2), Math.max(f, f - e * 1.2), z0, t, p.body);
+      s.box(x0, x1, Math.min(f, f - e * 0.8), Math.max(f, f - e * 0.8), z0, z0 + 1.6, p.body);
+      barZ(s, x0 === b0 ? b0 + 1.6 : b1 - 1.6, e * (w - 0.2), z0 + 2, t - 3, 0.3, WHITE);
     }
-    // handrails and steps along the platform
-    for (const x of [-face + 4, face - 4]) { barZ(s, x, e * (w - 0.8), z0, z0 + 11, 0.35, WHITE); step(s, x, e * (w - 0.2), z0 - 0.6); }
-    barX(s, b1 + 1, face - 2, e * (w - 1), z0 + 10.5, 0.3, WHITE); barX(s, -face + 2, b0 - 1, e * (w - 1), z0 + 10.5, 0.3, WHITE);
+    for (const x of [-face + 4, face - 4]) step(s, x, e * (w - 0.2), z0 - 4.8);
     lettering(s, w - 0.4, b0 + v + 2, b1 - v - 2, z0 + 3, 2, WHITE, 5);
   }
-  for (const x of [b0, b1]) s.box(x - 0.4, x + 0.4, -w + 0.6, w - 0.6, z0, z0 + 10, p.body);
-  // the sandboxes on the end platforms
-  for (const e of SIDES) s.box(Math.min(e * (b1 + 2), e * (face - 3)), Math.max(e * (b1 + 2), e * (face - 3)), -w + 2.5, w - 2.5, z0 + 0.6, z0 + 4.2, p.body);
-  s.roof(b0 - 1, b1 + 1, w, t, 3.6, darker(p.body, 0.85));
-  barZ(s, 6, -7, t + 1.8, t + 4.2, 0.9, BLACK);
+  // the verandahs' inner ends: the cabin's end walls with their doors
+  for (const x of [b0 + v, b1 - v]) s.box(x - 0.4, x + 0.4, -w + 0.6, w - 0.6, z0, t, darker(p.body, 0.9));
+  // low sandboxes on the end platforms
+  for (const e of SIDES) s.box(Math.min(e * (b1 + 2), e * (face - 4)), Math.max(e * (b1 + 2), e * (face - 4)), -w + 3, w - 3, z0 + 1.4, z0 + 2.8, p.body);
+  s.roof(b0 - 0.5, b1 + 0.5, w, t, 2.8, [0.55, 0.57, 0.58]);
+  barZ(s, -12, -6, t + 1.8, t + 5.6, 0.9, BLACK);
 }
 
 /** The GWR Toad: a long closed body with one verandah, at the tail. */

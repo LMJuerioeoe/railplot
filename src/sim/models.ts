@@ -350,12 +350,12 @@ export const MODELS: Model[] = [
   {
     id: "lms-vent-van", maker: "", name: "LMS / BR 12 ton ventilated van, bauxite", group: "wagon", kind: "van",
     length: 82, width: 33, height: 48, color: "#7a4226",
-    note: "The LMS design BR built in thousands: corrugated steel ends, plain planked sides, BR bauxite",
+    note: "The LMS design BR built in thousands, here with plywood sides: corrugated steel ends, 10 ft wheelbase, BR bauxite; traced from Bachmann's side view",
     marks: [
-      side(15.95, -32, -12, 16, 18.6, WHITE_T("B 760134", "condensed")), side(15.95, -32, -23, 19.2, 20.8, DATA("VENT")),
-      side(15.95, 22, 32, 16, 18, DATA("12 T")),
+      side(15.95, 21, 33, 17, 19.6, WHITE_T("B 760134", "condensed")), side(15.95, -33, -24, 21, 24.4, WHITE_T("XP")),
+      side(15.95, 25, 29, 20.4, 21.8, DATA("12T")),
     ],
-    draw: (s) => drawVan(s, { length: 82, width: 33, height: 48, bodyHalf: 34.5, wheelbase: 36, top: 41.5, rise: 5.5, body: BAUXITE, corrugatedEnds: true, endVents: true, doors: [0], doorWidth: 16, marks: [{ x0: -32, x1: -20, z: 17, chars: 6 }] }),
+    draw: (s) => drawVan(s, { length: 82, width: 33, height: 48, bodyHalf: 35.7, wheelbase: 39.6, top: 41.6, rise: 3.8, body: BAUXITE, corrugatedEnds: true, endVents: true, plywood: true, diagonals: true, braceDown: true, stanchions: [-23.3, 23.3], doors: [0], doorWidth: 23, marks: [{ x0: -32, x1: -20, z: 17, chars: 6 }] }),
   },
   {
     id: "efe-gwr-fish", maker: "EFE Rail", name: "GWR 10T Bloater fish van", group: "wagon", kind: "van",
@@ -380,37 +380,37 @@ export const MODELS: Model[] = [
   },
   {
     id: "po-7plank", maker: "", name: "7-plank open wagon, private owner, with coal", group: "wagon", kind: "wagon",
-    length: 82, width: 31, height: 33, color: "#80291c",
-    note: "The colliery and coal merchants' wagon of the steam age: 7 planks, side door, a load of coal",
+    length: 82, width: 31, height: 36.5, color: "#80291c",
+    note: "The colliery and coal merchants' wagon of the steam age: 7 planks, side door, a load of coal; traced from Hornby's side view",
     marks: [
-      side(15.35, -30, 30, 22.4, 25.8, { text: "J. ASHWORTH & SONS", color: "#f5f1e6", font: "serif" }),
+      side(15.35, -31, 31, 25.5, 30.5, { text: "J. ASHWORTH & SONS", color: "#f5f1e6", font: "serif" }),
       side(15.15, -33, -26, 15.6, 17.8, DATA("No 47")), side(15.15, 26, 33, 15.6, 17.8, DATA("COAL")),
     ],
     draw: (s) => drawPlankOpen(s, { length: 82, width: 31, body: PO_RED, band: [0.42, 0.13, 0.09], load: true }),
   },
   {
     id: "br-16t-mineral", maker: "", name: "BR 16 ton mineral wagon", group: "wagon", kind: "wagon",
-    length: 80, width: 31, height: 34, color: "#80807a",
-    note: "BR's steel coal wagon, built by the quarter-million: pressed-steel sides, side and top flap doors, loaded",
+    length: 80, width: 31, height: 37.5, color: "#80807a",
+    note: "BR's steel coal wagon, built by the quarter-million: pressed-steel sides, side and top flap doors, loaded; traced from Accurascale's drawing",
     marks: [
-      side(15.15, -30, -15, 15.8, 18.2, WHITE_T("B 87654", "condensed")), side(15.15, 17, 28, 15.8, 17.6, DATA("16 T")),
+      side(15.15, -31, -21, 16.6, 19, WHITE_T("B 87654", "condensed")), side(15.15, -31, -21, 19.8, 22, WHITE_T("COAL 16", "condensed")),
     ],
     draw: (s) => drawMineral(s, { length: 80, width: 31, body: MINERAL_GREY, load: true }),
   },
   {
     id: "tank-14t", maker: "", name: "14 ton tank wagon, black", group: "wagon", kind: "tank",
-    length: 85, width: 31, height: 46, color: "#1c1c1e",
-    note: "A Class B tank wagon for oil: barrel on cradles, dome, ladders and tie bars",
+    length: 85, width: 31, height: 50.5, color: "#1c1c1e",
+    note: "A Class B tank wagon for oil: barrel on cradles, dome, ladders and tie rods; traced from Dapol's side view",
     marks: [
-      side(12.05, -26, -6, 26.5, 29.3, WHITE_T("MINERAL OIL", "condensed")), side(12.05, 6, 18, 26.8, 28.8, DATA("CLASS B")),
+      side(14.45, -32, -10, 30, 35, WHITE_T("MINERAL OIL", "condensed")), side(14.45, 10, 24, 30.8, 33.2, DATA("CLASS B")),
     ],
-    draw: (s) => drawTankWagon(s, { length: 85, width: 31, body: [0.1, 0.1, 0.11] }),
+    draw: (s) => drawTankWagon(s, { length: 85, width: 31, body: [0.1, 0.1, 0.11], bodyHalf: 37.5, r: 14.4, wheelbase: 41.6, wheelR: 6.3 }),
   },
   {
     id: "br-20t-brake", maker: "", name: "BR standard 20 ton brake van, bauxite", group: "wagon", kind: "brake",
-    length: 107, width: 32, height: 48, color: "#7a4226",
-    note: "BR's goods brake van: verandahs at both ends, long end platforms, duckets for the guard",
-    marks: [side(15.45, -12, 4, 16.4, 18.8, WHITE_T("B 954321", "condensed"))],
+    length: 107, width: 32, height: 49.5, color: "#7a4226",
+    note: "BR's goods brake van: verandahs at both ends, long end platforms, duckets for the guard; traced from Bachmann's side view",
+    marks: [side(15.45, -19.5, -9, 16.8, 19.2, WHITE_T("B 954321", "condensed")), side(15.45, -17, -12, 19.8, 21, DATA("CAP"))],
     draw: (s) => drawBRBrakeVan(s, { length: 107, width: 32, body: BAUXITE }),
   },
 ];
