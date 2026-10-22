@@ -1,0 +1,127 @@
+/* Railplot Drive design tokens, generated from tokens.json and tokens-dark.json.
+   Reference only: what ships is src/styles.css, whose custom properties carry the same values
+   (--ink is text, --ink-2 text-muted, --ink-3 text-faint, --panel surface, --line border,
+   --line-input border-input, --accent accent, --ok success, --bad danger, --warn warning, --warn-ink warning-ink). */
+:root {
+  --bg: #fbfbf8;
+  --chrome: #e7eae4;
+  --surface: #f4f5f1;
+  --raised: #ffffff;
+  --border: #d2d8cf;
+  --border-strong: #b9c1b6;
+  --border-input: #888e86;
+  --text: #1b221e;
+  --text-muted: #57615a;
+  --text-faint: #636a64;
+  --accent: #965b0b;
+  --on-accent: #ffffff;
+  --accent-soft: #f3e4cb;
+  --danger: #b3362b;
+  --danger-soft: #f6dcd8;
+  --success: #297841;
+  --success-soft: #dcefe1;
+  --warning: #a87700;
+  --warning-ink: #8d6300;
+  --warning-soft: #f6ebc9;
+  --proposal: #2f63c8;
+  --proposal-soft: #e3ebfa;
+  --on-ink: #fbfbf8;
+  --hud-bg: #151917;
+  --hud-surface: #232925;
+  --hud-border: #6b726d;
+  --hud-text: #e2e7e1;
+  --hud-muted: #a3ada5;
+  --hud-accent: #e3a548;
+  --on-hud-accent: #1b1408;
+  --hud-warn: #e2b23e;
+  --hud-danger: #f07a6c;
+  --hud-danger-bg: #3c1f1c;
+  --hud-danger-text: #ffd9d3;
+  --lamp-red: #ff5a47;
+  --lamp-yellow: #ffc233;
+  --lamp-green: #3ddc6e;
+  --lamp-off: #3a3f3c;
+  --ghost-ok: #7ea6f2;
+  --ghost-bad: #f07a6c;
+  --coupler: #e3a548;
+  --coupler-open: #a3ada5;
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Ubuntu, Cantarell, "Noto Sans", sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Ubuntu, sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", "SF Mono", ui-monospace, "Ubuntu Mono", "DejaVu Sans Mono", Consolas, monospace;
+  --type-xs: 500 11px/14px;
+  --type-sm: 400 12px/17px;
+  --type-base: 400 13px/18px;
+  --type-md: 600 15px/20px;
+  --type-lg: 600 16px/21px;
+  --type-xl: 600 18px/22px;
+  --type-hud-speed: 600 28px/30px;
+  --space-0: 0px;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 16px;
+  --space-8: 24px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+  --shadow-pop: 0 8px 28px rgb(20 30 24 / 0.16), 0 1px 3px rgb(20 30 24 / 0.12);
+  --shadow-hud: 0 6px 20px rgb(0 0 0 / 0.45);
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111412;
+    --chrome: #151917;
+    --surface: #1b201d;
+    --raised: #232925;
+    --border: #2d3430;
+    --border-strong: #3d4640;
+    --border-input: #6b726d;
+    --text: #e2e7e1;
+    --text-muted: #a3ada5;
+    --text-faint: #879089;
+    --accent: #e3a548;
+    --on-accent: #1b1408;
+    --accent-soft: #3b2e19;
+    --danger: #f07a6c;
+    --danger-soft: #3c1f1c;
+    --success: #5cc27a;
+    --success-soft: #1d3324;
+    --warning: #e2b23e;
+    --warning-ink: #e2b23e;
+    --warning-soft: #3a3218;
+    --proposal: #7ea6f2;
+    --proposal-soft: #1c2638;
+    --on-ink: #111412;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111412;
+  --chrome: #151917;
+  --surface: #1b201d;
+  --raised: #232925;
+  --border: #2d3430;
+  --border-strong: #3d4640;
+  --border-input: #6b726d;
+  --text: #e2e7e1;
+  --text-muted: #a3ada5;
+  --text-faint: #879089;
+  --accent: #e3a548;
+  --on-accent: #1b1408;
+  --accent-soft: #3b2e19;
+  --danger: #f07a6c;
+  --danger-soft: #3c1f1c;
+  --success: #5cc27a;
+  --success-soft: #1d3324;
+  --warning: #e2b23e;
+  --warning-ink: #e2b23e;
+  --warning-soft: #3a3218;
+  --proposal: #7ea6f2;
+  --proposal-soft: #1c2638;
+  --on-ink: #111412;
+}

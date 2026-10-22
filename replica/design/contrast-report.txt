@@ -1,0 +1,101 @@
+  AAA   15.65:1  text                     on bg                   
+  AAA   14.82:1  text                     on surface              
+  AAA   16.23:1  text                     on raised               
+  AAA   13.36:1  text                     on chrome               
+  AA     5.88:1  text-muted               on surface              
+  AA     6.44:1  text-muted               on raised               
+  AA     5.30:1  text-muted               on chrome               
+  AA     5.08:1  text-faint               on surface              
+  AA     5.56:1  text-faint               on raised               
+  AA     4.58:1  text-faint               on chrome               
+  AA     5.53:1  on-accent                on accent               
+  AA     5.05:1  accent                   on surface              
+  AA     5.53:1  accent                   on raised               
+  AA     4.55:1  accent                   on chrome               
+  AA     6.04:1  danger                   on raised               
+  AA     4.64:1  danger                   on danger-soft          
+  AA     5.44:1  success                  on raised               
+  AA     4.53:1  success                  on success-soft         
+  AA     5.36:1  warning-ink              on raised               
+  AA     4.50:1  warning-ink              on warning-soft         
+  AAA   13.63:1  text                     on warning-soft         
+  AA     5.62:1  proposal                 on raised               
+  AA     5.13:1  proposal                 on surface              
+  AAA   15.65:1  on-ink                   on text                 
+  PASS   3.35:1  border-input             on raised               ui
+  PASS   3.06:1  border-input             on surface              ui
+  PASS   5.53:1  accent                   on raised               ui
+  PASS   3.82:1  warning                  on bg                   ui
+  PASS   5.25:1  success                  on bg                   ui
+  PASS   5.82:1  danger                   on bg                   ui
+  AAA   14.16:1  hud-text                 on hud-bg               
+  AAA   11.84:1  hud-text                 on hud-surface          
+  AAA    7.67:1  hud-muted                on hud-bg               
+  AA     6.41:1  hud-muted                on hud-surface          
+  AAA    8.47:1  on-hud-accent            on hud-accent           
+  AAA    8.23:1  hud-accent               on hud-bg               
+  AAA    9.02:1  hud-warn                 on hud-bg               
+  AA     6.51:1  hud-danger               on hud-bg               
+  AAA   11.47:1  hud-danger-text          on hud-danger-bg        
+  PASS   3.59:1  hud-border               on hud-bg               ui
+  PASS   3.00:1  hud-border               on hud-surface          ui
+  PASS   5.75:1  lamp-red                 on hud-bg               ui
+  PASS  11.00:1  lamp-yellow              on hud-bg               ui
+  PASS   9.85:1  lamp-green               on hud-bg               ui
+  PASS   7.29:1  ghost-ok                 on hud-bg               ui
+  PASS   6.51:1  ghost-bad                on hud-bg               ui
+  PASS   8.23:1  coupler                  on hud-bg               ui
+  PASS   7.67:1  coupler-open             on hud-bg               ui
+
+  48 pairs, 0 failing AA
+
+  AAA   14.79:1  text                     on bg                   
+  AAA   13.18:1  text                     on surface              
+  AAA   11.84:1  text                     on raised               
+  AAA   14.16:1  text                     on chrome               
+  AAA    7.14:1  text-muted               on surface              
+  AA     6.41:1  text-muted               on raised               
+  AAA    7.67:1  text-muted               on chrome               
+  AA     5.02:1  text-faint               on surface              
+  AA     4.51:1  text-faint               on raised               
+  AA     5.39:1  text-faint               on chrome               
+  AAA    8.47:1  on-accent                on accent               
+  AAA    7.66:1  accent                   on surface              
+  AA     6.88:1  accent                   on raised               
+  AAA    8.23:1  accent                   on chrome               
+  AA     5.44:1  danger                   on raised               
+  AA     5.48:1  danger                   on danger-soft          
+  AA     6.68:1  success                  on raised               
+  AA     6.09:1  success                  on success-soft         
+  AAA    7.54:1  warning-ink              on raised               
+  AA     6.47:1  warning-ink              on warning-soft         
+  AAA   10.16:1  text                     on warning-soft         
+  AA     6.09:1  proposal                 on raised               
+  AA     6.79:1  proposal                 on surface              
+  AAA   14.79:1  on-ink                   on text                 
+  PASS   3.00:1  border-input             on raised               ui
+  PASS   3.35:1  border-input             on surface              ui
+  PASS   6.88:1  accent                   on raised               ui
+  PASS   9.42:1  warning                  on bg                   ui
+  PASS   8.35:1  success                  on bg                   ui
+  PASS   6.80:1  danger                   on bg                   ui
+  AAA   14.16:1  hud-text                 on hud-bg               
+  AAA   11.84:1  hud-text                 on hud-surface          
+  AAA    7.67:1  hud-muted                on hud-bg               
+  AA     6.41:1  hud-muted                on hud-surface          
+  AAA    8.47:1  on-hud-accent            on hud-accent           
+  AAA    8.23:1  hud-accent               on hud-bg               
+  AAA    9.02:1  hud-warn                 on hud-bg               
+  AA     6.51:1  hud-danger               on hud-bg               
+  AAA   11.47:1  hud-danger-text          on hud-danger-bg        
+  PASS   3.59:1  hud-border               on hud-bg               ui
+  PASS   3.00:1  hud-border               on hud-surface          ui
+  PASS   5.75:1  lamp-red                 on hud-bg               ui
+  PASS  11.00:1  lamp-yellow              on hud-bg               ui
+  PASS   9.85:1  lamp-green               on hud-bg               ui
+  PASS   7.29:1  ghost-ok                 on hud-bg               ui
+  PASS   6.51:1  ghost-bad                on hud-bg               ui
+  PASS   8.23:1  coupler                  on hud-bg               ui
+  PASS   7.67:1  coupler-open             on hud-bg               ui
+
+  48 pairs, 0 failing AA
