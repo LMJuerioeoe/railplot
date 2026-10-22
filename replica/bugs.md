@@ -164,3 +164,31 @@ Steps
 Expected: "Place on the track" can be clicked. Actual: the dialog grew taller than the window and its body didn't scroll (a flex child without `min-height: 0`), so the button was out of reach.
 Evidence: tests/e2e/test_drive.py timed out on "Place on the track"; F02-E13
 Status: fixed: dialogs now cap their height at the window (`100dvh`; the old `100%` resolved against the dialog's own content, so no long dialog anywhere in the app ever scrolled), the body scrolls, and the actions sit under the train they act on, above the catalogue
+
+### BUG-012: "Try it with the simulator" on the sample layout: the train stops dead as soon as it moves
+
+- Severity: S1
+- Flow / case: F01, reported by the owner on v0.12.0
+- Screen: Control > Drive
+
+Steps
+1. Open Railplot (the sample oval with a passing loop), Control, Try it with the simulator.
+2. Move Train 1's slider.
+
+Expected: the train runs round the oval. Actual: it moved a few centimetres and stopped, the slider still up. The simulator had stood it on the loop road, facing a point set for the main line, so it derailed trailing through it at once; the 2D panel only flashed a toast and kept no sign of it.
+Evidence: tests/sim.test.ts BUG-012
+Status: fixed: a train the simulator stands on the track itself goes where it can run 1.5 m both ways without trailing a point set against it; the train's card in Control > Drive says when it has derailed and why, with re-rail buttons
+
+### BUG-013: "Re-rail where it last stood" re-rails it where it came off
+
+- Severity: S2
+- Flow / case: F07
+- Screen: S13, Control > Drive
+
+Steps
+1. Drive a train into a point set against it.
+2. Re-rail where it last stood.
+
+Expected: back where it last stood still. Actual: back on the point it came off at (and straight off again): the last standing place was forgotten as soon as the train moved.
+Evidence: tests/sim.test.ts BUG-013
+Status: fixed: the last standing place is kept while the train runs

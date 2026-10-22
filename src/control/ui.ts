@@ -555,6 +555,7 @@ export class ControlUI {
           const a = (cfg.automations ?? []).find((x) => x.train === t.id && e.autoRuns.get(x.id)?.running);
           return a ? `${a.name}: ${e.autoRuns.get(a.id)!.status}` : "";
         }, "muted small auto-status"),
+        this.derailedNote(t.id, t.name),
         h("div", { class: "btn-row" },
           h("button", { class: "btn btn-sm", type: "button", onclick: () => { slider.value = "0"; apply(); } }, "Stop"),
           !t.block ? h("button", { class: "btn btn-sm btn-primary", type: "button", onclick: () => { this.tool = { kind: "place", train: t.id }; toast(`Tap the block where ${t.name} is.`); } }, "Place on the plan") : null));
@@ -625,6 +626,27 @@ export class ControlUI {
         el.append(h("div", { class: "light-row" }, h("label", { class: "check" }, sw, l.name), lvl));
       }
     }
+  }
+
+  /** In the simulator, a train that's come off the rails says so here, with why and a way back on. */
+  private derailedNote(train: string, name: string): HTMLElement {
+    const why = h("span", { class: "grow" });
+    const note = h("div", { class: "derailed-note", role: "status", hidden: true },
+      h("strong", {}, `${name} derailed`), why,
+      h("div", { class: "btn-row" },
+        h("button", { class: "btn btn-sm btn-primary", type: "button", onclick: () => this.rerail(train, name, "last-stop") }, "Re-rail where it last stood"),
+        h("button", { class: "btn btn-sm", type: "button", onclick: () => this.rerail(train, name, "here") }, "Re-rail here")));
+    this.addLive(note, () => {
+      const w = this.app.drive.world(), c = w?.consistOf(train), off = c?.derailed;
+      note.hidden = !off;
+      if (off) { const d = w!.describe(off); if (why.textContent !== d) why.textContent = d; }
+    });
+    return note;
+  }
+
+  private rerail(train: string, name: string, how: "here" | "last-stop") {
+    this.act({ c: "rerail", train, how });
+    toast(`${name} is back on the rails.`);
   }
 
   private quick(kind: "esp32" | "sim") {
