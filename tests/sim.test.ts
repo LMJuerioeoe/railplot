@@ -397,6 +397,6 @@ describe("the model catalogue", () => {
     expect(c.at).toHaveLength(4);
     // centre to centre: half of each plus the buffer gap
     const a = w.graph.pose(c.at[0]), b = w.graph.pose(c.at[1]);
-    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo((164 + 84) / 2 + 2, 0);
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo((MODELS[0].length + MODELS[1].length) / 2 + 2, 0);
   });
 });

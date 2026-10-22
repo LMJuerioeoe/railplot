@@ -90,12 +90,32 @@ function mirrored(s: Shapes): Shapes {
   };
 }
 
+/** The same shapes stretched or squeezed: to fit a model to its maker's published size. */
+function scaled(s: Shapes, kx: number, ky: number, kz: number): Shapes {
+  const r = (v: number) => v * Math.min(ky, kz);
+  return {
+    box: (x0, x1, y0, y1, z0, z1, c) => s.box(x0 * kx, x1 * kx, y0 * ky, y1 * ky, z0 * kz, z1 * kz, c),
+    barX: (x0, x1, y, z, rr, c) => s.barX(x0 * kx, x1 * kx, y * ky, z * kz, r(rr), c),
+    barY: (x, y0, y1, z, rr, c) => s.barY(x * kx, y0 * ky, y1 * ky, z * kz, Math.min(r(rr), z * kz), c),
+    barZ: (x, y, z0, z1, rr, c) => s.barZ(x * kx, y * ky, z0 * kz, z1 * kz, r(rr), c),
+    strip: (f, x0, z0, x1, z1, w, c) => s.strip(f * ky, x0 * kx, z0 * kz, x1 * kx, z1 * kz, w, c),
+    roof: (x0, x1, half, ze, rise, c) => s.roof(x0 * kx, x1 * kx, half * ky, ze * kz, rise * kz, c),
+  };
+}
+
+/** The GWR "shirt button" roundel: a disc on each side. */
+function roundel(s: Shapes, x: number, z: number, r: number, half: number, col: RGB) {
+  for (const e of [1, -1]) s.barY(x, e * half, e * (half + 0.3), z, r, col);
+}
+
 export const MODELS: Model[] = [
   {
     id: "dapol-51xx", maker: "Dapol", name: "GWR 51xx Large Prairie 2-6-2T", kind: "loco",
-    length: 164, width: 35, height: 51, color: "#1a4024",
-    note: "GWR green with black smokebox and red buffer beams, as 5134",
-    draw(s) {
+    length: 164, width: 34, height: 48, color: "#1a4024",
+    note: "Dapol 4S-041-010: 5134 in GWR green with the shirt-button roundel; 164 × 34 × 48 mm",
+    draw(full) {
+      // drawn from the prototype's proportions, then fitted to Dapol's published 164 × 34 × 48 mm
+      const s = scaled(full, 1, 34 / 35, 48 / 51);
       // frames, footplate and buffer beams
       s.box(-74, 74, -7, 7, 4, 13, BLACK);
       s.box(-78, 78, -17.5, 17.5, 13, 15, BLACK);
@@ -121,6 +141,7 @@ export const MODELS: Model[] = [
       s.box(-70, -36, -15, 15, 38, 42, COAL);
       s.box(-2, 3, -6, -1, 38, 44, GLASS); s.box(-2, 3, 1, 6, 38, 44, GLASS);   // spectacle plates
       // brass number plates on the cab sides, safety lining on the tanks
+      roundel(s, 30, 27, 3.2, 17.5, BRASS);                                 // shirt button on the tanks
       for (const face of [17.6, -17.6]) {
         s.strip(face, -21, 24, -11, 24, 3.5, BRASS);
         s.strip(face, 11, 17, 49, 17, 0.5, BRASS); s.strip(face, 11, 36, 49, 36, 0.5, BRASS);
@@ -135,44 +156,54 @@ export const MODELS: Model[] = [
     },
   },
   {
-    id: "dapol-10t-van", maker: "Dapol", name: "10 ton van", kind: "van",
-    length: 84, width: 32, height: 46, color: "#5e3a29",
-    note: "Brown with a white roof and diagonal strapping, 9 ft wheelbase",
+    id: "dapol-10t-van", maker: "Dapol", name: "Ventilated van, GWR type", kind: "van",
+    length: 82, width: 33, height: 48, color: "#5e3a29",
+    note: "Dapol 4F-011 / 4F-012: GWR planked ends, diagonal strapping, white roof; 82 × 33 × 48 mm, 9 ft wheelbase",
     draw(s) {
-      buffers(s, 42, UNDER);
-      wagonUnderframe(s, 42, 36);
-      s.box(-35, 35, -16, 16, 11, 40, VAN_BROWN);
-      vanSides(s, -35, 35, 16, 11, 40, darker(VAN_BROWN, 0.6), true);
-      for (const e of [1, -1]) s.box(e > 0 ? 34.5 : -35.2, e > 0 ? 35.2 : -34.5, -15, 15, 12, 40, darker(VAN_BROWN, 0.8));   // end planking
-      s.roof(-36, 36, 16.5, 40, 5.5, WHITE_ROOF);
-    },
-  },
-  {
-    id: "efe-gwr-fish", maker: "EFE Rail", name: "GWR Fish van (Bloater)", kind: "van",
-    length: 130, width: 32, height: 47, color: "#4d3024",
-    note: "GWR brown, white roof, long wheelbase, lettered Fish Bloater",
-    draw(s) {
-      buffers(s, 65, UNDER);
-      wagonUnderframe(s, 65, 94, 6.5);
-      for (const y of [-1, 1]) s.box(-26, 26, y * 6, y * 8, 2.5, 7, UNDER);   // V-hangers and brake gear
-      s.box(-58, 58, -16, 16, 11, 40.5, GWR_BROWN);
-      vanSides(s, -58, 58, 16, 11, 40.5, darker(GWR_BROWN, 0.55), false);
-      for (const face of [16, -16]) {
-        for (const x of [-30, 30]) s.strip(face, x, 12, x, 40, 1, darker(GWR_BROWN, 0.55));
-        s.strip(face, -6, 34, 6, 34, 1.6, WHITE_ROOF);                         // the GWR roundel and lettering, as pale panels
-        s.strip(face, -52, 14, -40, 14, 2.2, WHITE_ROOF);
-        s.strip(face, 44, 15, 54, 15, 2.2, WHITE_ROOF);
+      buffers(s, 41, UNDER);
+      wagonUnderframe(s, 41, 36);
+      s.box(-34, 34, -16.5, 16.5, 11, 42, VAN_BROWN);
+      vanSides(s, -34, 34, 16.5, 11, 42, darker(VAN_BROWN, 0.6), true);
+      for (const e of [1, -1]) {
+        const a = e * 34, b = e * 34.6;
+        s.box(Math.min(a, b), Math.max(a, b), -15.5, 15.5, 12, 42, darker(VAN_BROWN, 0.8));          // planked ends
+        for (const y of [-9, 9]) s.box(Math.min(a, b) - 0.2, Math.max(a, b) + 0.2, y - 3, y + 3, 36, 40, darker(VAN_BROWN, 0.45));   // end vents
       }
-      s.roof(-59, 59, 16.5, 40.5, 6, WHITE_ROOF);
-      for (const x of [-30, 0, 30]) s.box(x - 1.5, x + 1.5, -1.5, 1.5, 46, 47, darker(WHITE_ROOF, 0.8));   // roof vents
+      s.roof(-35, 35, 16.5, 42, 5.5, WHITE_ROOF);
     },
   },
   {
-    id: "br-toad", maker: "", name: "GWR Toad brake van, BR grey", kind: "brake",
-    length: 106, width: 32, height: 50, color: "#888f88",
-    note: "20 ton brake van with a verandah at one end, BR grey, lettered Basingstoke",
+    id: "efe-gwr-fish", maker: "EFE Rail", name: "GWR 10T Bloater fish van", kind: "van",
+    length: 128, width: 32, height: 47, color: "#4d3024",
+    note: "EFE Rail E87059: Diagram S9 No. 2603, GWR brown with the shirt-button roundel, three doors a side, shell roof ventilators; 128 mm",
+    draw(s) {
+      buffers(s, 64, UNDER);
+      wagonUnderframe(s, 64, 92, 6.5);
+      for (const y of [-1, 1]) s.box(-26, 26, y * 6, y * 8, 2.5, 7, UNDER);   // V-hangers and brake gear
+      s.box(-57, 57, -16, 16, 11, 40.5, GWR_BROWN);
+      vanSides(s, -57, 57, 16, 11, 40.5, darker(GWR_BROWN, 0.55), false);
+      const strap = darker(GWR_BROWN, 0.55);
+      for (const face of [16, -16]) {
+        // three doors a side, each between two posts, with a diagonal support
+        for (const c of [-36, 0, 36]) {
+          s.strip(face, c - 8, 12, c - 8, 40, 1, strap); s.strip(face, c + 8, 12, c + 8, 40, 1, strap);
+          s.strip(face, c - 7, 13, c + 7, 39, 0.8, strap);
+        }
+        s.strip(face, -53, 14, -44, 14, 2.2, WHITE_ROOF);                     // "XP" and the number, as pale panels
+        s.strip(face, 46, 15, 54, 15, 2.2, WHITE_ROOF);
+      }
+      roundel(s, 0, 33, 3, 16, [0.85, 0.72, 0.42]);                         // shirt button, centre top
+      s.roof(-58, 58, 16.5, 40.5, 6, WHITE_ROOF);
+      for (const x of [-36, 0, 36]) s.barZ(x, 0, 45.5, 47, 2.6, darker(WHITE_ROOF, 0.8));   // shell ventilators
+    },
+  },
+  {
+    id: "br-toad", maker: "Oxford Rail", name: "GWR Toad brake van, BR grey", kind: "brake",
+    length: 103, width: 32, height: 50, color: "#888f88",
+    note: "Oxford Rail OR76TOB003: W35717 in BR grey, lettered Basingstoke; the early 20 ft-bodied Toad. 103 mm, measured from the owner's model",
     draw(front) {
-      const s = mirrored(front);   // drawn verandah-first, but it runs verandah last, at the tail of the train
+      // drawn verandah-first, but it runs verandah last, at the tail of the train; fitted to 103 mm
+      const s = scaled(mirrored(front), 103 / 106, 1, 1);
       buffers(s, 53, UNDER);
       wagonUnderframe(s, 53, 72, 6.3);
       s.box(-50, 50, -15.5, 15.5, 11, 13, UNDER);                            // floor and verandah deck
