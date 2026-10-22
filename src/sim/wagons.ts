@@ -23,6 +23,16 @@ export interface VanSpec {
   emblem?: { x: number; z: number; r: number; col: RGB };
   marks?: { x0: number; x1: number; z: number; chars: number }[];
   wheelR?: number;
+  /** Planks laid lengthways (the GWR's later vans) rather than upright. */
+  horizontal?: boolean;
+  /** Braces from the top corners down to the foot of the door posts, rather than up to them. */
+  braceDown?: boolean;
+  /** Upright stanchions part way between the ends and the doors. */
+  stanchions?: number[];
+  /** X-braced panels between the doors: centre and half width. */
+  crosses?: { x: number; half: number }[];
+  /** Doors braced with an inverted V, two diagonals meeting at the top (the GWR's Bloaters). */
+  doorChevron?: boolean;
 }
 
 /** A closed van: planked body, strapping, doors, ends and a white roof. */
@@ -34,7 +44,9 @@ export function drawVan(s: Shapes, p: VanSpec) {
   s.box(-bh, bh, -w + 0.6, w - 0.6, z0, t, p.body);
   for (const e of SIDES) {
     const f = e * (w - 0.6);
-    planking(s, f, -bh, bh, z0, t, Math.round((2 * bh) / 4.2), darker(p.body, 0.7));
+    if (p.horizontal) planking(s, f, -bh, bh, z0, t, Math.round((t - z0) / 2.2), darker(p.body, 0.7), true);
+    else planking(s, f, -bh, bh, z0, t, Math.round((2 * bh) / 4.2), darker(p.body, 0.7));
+    for (const x of p.stanchions ?? []) strip(s, f, x, z0, x, t, 1.1, strap);
     strip(s, f, -bh, z0 + 0.6, bh, z0 + 0.6, 1.1, strap); strip(s, f, -bh, t - 0.6, bh, t - 0.6, 1.1, strap);   // bottom and top rails
     for (const x of [-bh + 0.6, bh - 0.6]) strip(s, f, x, z0, x, t, 1.2, strap);                              // corner pillars
     const doors = p.doors ?? [0], dw = p.doorWidth ?? 16;
@@ -43,15 +55,22 @@ export function drawVan(s: Shapes, p: VanSpec) {
       strip(s, f, c, z0 + 0.5, c, t - 0.5, 0.5, strap);
       for (const z of [z0 + 4, t - 4]) strip(s, f, c - dw / 2, z, c + dw / 2, z, 0.8, strap);               // door bands
       s.box(c + 1, c + 2.6, Math.min(f, f + e * 0.6), Math.max(f, f + e * 0.6), (z0 + t) / 2 - 0.5, (z0 + t) / 2 + 0.5, DARK_STEEL);   // bolt
-      if (p.diagonals) strip(s, f, c - dw / 2 + 0.8, z0 + 1, c + dw / 2 - 0.8, t - 1, 0.7, strap);
+      if (p.doorChevron) { strip(s, f, c - dw / 2 + 1, z0 + 1, c, t - 1, 0.7, strap); strip(s, f, c + dw / 2 - 1, z0 + 1, c, t - 1, 0.7, strap); }
+      else if (p.diagonals && !p.braceDown) strip(s, f, c - dw / 2 + 0.8, z0 + 1, c + dw / 2 - 0.8, t - 1, 0.7, strap);
+    }
+    for (const c of p.crosses ?? []) {
+      strip(s, f, c.x - c.half, z0 + 1, c.x + c.half, t - 1, 0.8, strap); strip(s, f, c.x - c.half, t - 1, c.x + c.half, z0 + 1, 0.8, strap);
     }
     if (p.diagonals) {
       // diagonal braces either side of the doors, running up towards them
       const d0 = Math.min(...doors) - dw / 2, d1 = Math.max(...doors) + dw / 2;
-      strip(s, f, -bh + 1.2, z0 + 1, d0 - 1, t - 1, 0.8, strap);
-      strip(s, f, bh - 1.2, z0 + 1, d1 + 1, t - 1, 0.8, strap);
-      strip(s, f, (-bh + d0) / 2, z0 + 0.8, (-bh + d0) / 2, t - 0.8, 0.8, strap);
-      strip(s, f, (bh + d1) / 2, z0 + 0.8, (bh + d1) / 2, t - 0.8, 0.8, strap);
+      const [lo, hi] = p.braceDown ? [t - 1, z0 + 1] : [z0 + 1, t - 1];
+      strip(s, f, -bh + 1.2, lo, d0 - 1, hi, 0.8, strap);
+      strip(s, f, bh - 1.2, lo, d1 + 1, hi, 0.8, strap);
+      if (!p.stanchions) {
+        strip(s, f, (-bh + d0) / 2, z0 + 0.8, (-bh + d0) / 2, t - 0.8, 0.8, strap);
+        strip(s, f, (bh + d1) / 2, z0 + 0.8, (bh + d1) / 2, t - 0.8, 0.8, strap);
+      }
     }
   }
   for (const e of SIDES) {

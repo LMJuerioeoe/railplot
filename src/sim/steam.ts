@@ -51,7 +51,7 @@ export interface SteamSpec {
   safety: { x: number; kind: "bonnet" | "pop" | "ramsbottom"; top?: number };
   topFeed?: { x: number };
   /** `sill` and `opening`: the side cut-out's bottom and its fore-and-aft extent, when not the default. */
-  cab: { x0: number; x1: number; eave: number; rise: number; half: number; window: "round" | "square" | "big"; back: "bunker" | "open"; sill?: number; opening?: [number, number] };
+  cab: { x0: number; x1: number; eave: number; rise: number; half: number; window: "round" | "square" | "big"; back: "bunker" | "open"; sill?: number; opening?: [number, number]; openTop?: number; z0?: number };
   /** `topFront`: side tanks whose top falls towards the front. */
   tanks?: { kind: "side" | "pannier"; x0: number; x1: number; top: number; inner: number; bottom?: number; topFront?: number };
   bunker?: { x0: number; top: number };
@@ -262,9 +262,15 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
       s.prismX([[inner, z0 - 0.01], [outer - e * 1.2, z0 - 0.01], [outer - e * 1.2, z0 - 0.6], [inner, z0 - 0.6]], T.x0 + 1, T.x1 - 1, darker(body, 0.6));   // shadow under the tank
     }
     if (line) lining(s, w - 0.3, T.x0 + 2, z0 + 2, T.x1 - 2, T.top - 2.4, line[0], 0.4, line[1]);
-  } else if (p.splashers) {
+    // under the tanks: the boiler's lower half, splashers and sandboxes fill down to the plate
+    s.box(T.x0, SB.x0, -T.inner, T.inner, pl.z, z0, darker(body, 0.7));
+  }
+  // between the tanks and the smokebox on a tank engine: the boiler's underside and the frames, down to the plate
+  if (T?.kind === "side" && T.x1 < SB.x0) s.box(T.x1, SB.x0, -B.rFront * 0.8, B.rFront * 0.8, pl.z, B.z, darker(body, 0.7));
+  if (p.splashers) {
     for (const wh of driven) {
       if (2 * wh.r + 0.8 <= pl.z) continue;
+      if (T && wh.x + wh.r > T.x0 && wh.x - wh.r < T.x1) continue;   // hidden under a tank
       for (const e of SIDES) {
         const pts: [number, number][] = [];
         const R = wh.r + 1.0, lo = Math.asin(Math.max(-1, Math.min(1, (pl.z - wh.r) / R)));
@@ -292,11 +298,12 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
   // ---------- cab ----------
   const C = p.cab, roofCol = L.roof ?? (body === BLACK ? BLACK : darker(body, 0.9));
   const shade = darker(body === BLACK ? [0.2, 0.2, 0.2] : body, 0.42);   // the inside faces of the cab, in shadow
-  const wz0 = C.sill ?? Math.max(pl.z + 9, C.eave - 13), wz1 = C.eave - 3;   // the side opening
+  const wz0 = C.sill ?? Math.max(pl.z + 9, C.eave - 13), wz1 = C.openTop ?? C.eave - 3;   // the side opening
+  const cz0 = C.z0 ?? pl.z;   // Stanier cabs carry their sides down below the running plate
   const [ox0, ox1] = C.opening ?? [C.x0 + (C.back === "open" ? 2.2 : 3), C.x1 - 3.5];
   for (const e of SIDES) {
     const out = e * C.half, inn = e * (C.half - 0.7), lo = Math.min(out, inn), hi = Math.max(out, inn);
-    s.box(C.x0, C.x1, lo, hi, pl.z, wz0, body);                                                   // below the opening
+    s.box(C.x0, C.x1, lo, hi, cz0, wz0, body);                                                    // below the opening
     s.box(C.x0, C.x1, lo, hi, wz1, C.eave, body);                                                 // above it
     s.box(ox1, C.x1, lo, hi, wz0, wz1, body);                                                     // front pillar
     s.box(C.x0, ox0, lo, hi, wz0, wz1, body);                                                     // back pillar
@@ -326,8 +333,9 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
     if (C.window === "round") { s.cyl("x", C.x1, C.x1 + 0.15, y, z, 2.2, 2.2, GLASS); s.ring("x", C.x1, C.x1 + 0.3, y, z, 2.6, 2.2, L.beading ?? darker(body, 0.7)); }
     else s.box(C.x1, C.x1 + 0.15, y - 2.4, y + 2.4, z - 2.4, z + 2.2, GLASS);
   }
-  s.roof(C.x0 - 1.5, C.x1 + 1, C.half + 0.6, C.eave, C.rise, roofCol);
-  for (const e of SIDES) barX(s, C.x0 - 1.5, C.x1 + 1, e * (C.half - 1.2), C.eave + C.rise * 0.45, 0.25, darker(roofCol, 0.7));   // rain strips
+  const rx0 = Math.max(C.x0 - 1.5, -half);   // the roof overhangs at the back, but not past the drag beam
+  s.roof(rx0, C.x1 + 1, C.half + 0.6, C.eave, C.rise, roofCol);
+  for (const e of SIDES) barX(s, rx0, C.x1 + 1, e * (C.half - 1.2), C.eave + C.rise * 0.45, 0.25, darker(roofCol, 0.7));   // rain strips
   if (C.back === "bunker" && p.bunker) {
     const Bk = p.bunker;
     s.box(C.x0 - 0.8, C.x0, -C.half, C.half, pl.z, C.eave, body);
@@ -339,7 +347,7 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
     for (const y of [-6, 0, 6]) s.box(Bk.x0 - 0.6, Bk.x0, y - 0.4, y + 0.4, Bk.top - 3, Bk.top - 0.5, DARK_STEEL);
   } else {
     // the fallplate and the cab's open back, with the reverser beside the firebox
-    s.box(C.x0 - 3, C.x0, -C.half + 2, C.half - 2, pl.z - 0.3, pl.z, DARK_STEEL);
+    s.box(Math.max(C.x0 - 3, -half), Math.max(C.x0, -half + 0.5), -C.half + 2, C.half - 2, pl.z - 0.3, pl.z, DARK_STEEL);
   }
   if (line) lining(s, C.half, C.x0 + 1.2, pl.z + 2.4, C.x1 - 1.2, wz0 - 1.2, line[0], 0.45, line[1]);
   if (L.emblem) badge(s, L.emblem.x < C.x0 ? C.half : (T ? w - 0.1 : C.half), L.emblem.x, L.emblem.z, L.emblem.r, L.emblem.col, L.emblem.ring);
@@ -379,7 +387,8 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
 export interface TenderSpec {
   length: number; width: number; height: number;
   wheels: number[]; r: number;
-  body: { x0: number; x1: number; z0: number; top: number; flare?: boolean; coalRails?: boolean };
+  /** `step`: the sides drop to a lower top towards the back (GWR Collett); `coal`: the top of the heap, when not well above the sides. */
+  body: { x0: number; x1: number; z0: number; top: number; flare?: boolean; coalRails?: boolean; step?: { x: number; top: number }; coal?: number };
   /** Outside frames with axleboxes and springs showing. */
   outsideFrames: boolean;
   livery: { body: RGB; frames: RGB; beams: RGB; lining?: [RGB, RGB?]; emblem?: { x: number; z: number; r: number; col: RGB; ring?: RGB }; lettering?: { col: RGB; x0: number; x1: number; z: number; chars: number } };
@@ -414,9 +423,15 @@ export function drawTender(s: Shapes, p: TenderSpec) {
   if (b.flare) {
     s.box(b.x0, b.x1, -w + 1.2, w - 1.2, b.z0, t - 4, L.body);
     for (const e of SIDES) { const a = e * (w - 1.2), c = e * w; s.prismX([[Math.min(a, c), t - 4], [Math.max(a, c), t - 4], [e > 0 ? w : -w + 0.8, t], [e > 0 ? w - 0.8 : -w, t]], b.x0 + 0.5, b.x1, L.body); }
+  } else if (b.step) {
+    // lower at the back, the higher sides rounded down to it
+    const R = Math.min(4, t - b.step.top);
+    s.box(b.x0, b.step.x, -w + 0.2, w - 0.2, b.z0, b.step.top, L.body);
+    s.prismY([[b.step.x, b.z0], [b.x1, b.z0], [b.x1, t], ...arc(b.step.x + R, t - R, R, Math.PI / 2, Math.PI, 6).slice(1)].map(([x, z]) => [x, z] as [number, number]), -w + 0.2, w - 0.2, L.body);
   } else s.box(b.x0, b.x1, -w + 0.2, w - 0.2, b.z0, t, L.body);
   // coal heaped up at the front, the tank top and water filler behind
-  coal(s, b.x1 - 30, b.x1 - 3, w - 2, t - 1, 5, 11);
+  if (b.coal !== undefined) coal(s, b.x1 - 30, b.x1 - 3, w - 2, b.coal - 3, 3, 11);
+  else coal(s, b.x1 - 30, b.x1 - 3, w - 2, t - 1, 5, 11);
   s.box(b.x0 + 1, b.x1 - 30, -w + 2, w - 2, t - 0.2, t + 0.3, darker(L.body, 0.85));
   barZ(s, b.x0 + 9, 0, t, t + 1.6, 3, darker(L.body, 0.8)); s.cyl("z", t + 1.6, t + 2.1, b.x0 + 9, 0, 3.4, 3.4, darker(L.body, 0.7));
   if (b.coalRails) for (const e of SIDES) for (const z of [t + 1.5, t + 3]) barX(s, b.x1 - 30, b.x1 - 3, e * (w - 1), z, 0.3, L.body);
@@ -426,7 +441,7 @@ export function drawTender(s: Shapes, p: TenderSpec) {
   for (const e of SIDES) { barZ(s, b.x1 - 0.5, e * (w - 0.5), b.z0 + 2, t - 1, 0.3, STEEL); barZ(s, b.x0 + 0.6, e * (w - 2.5), b.z0 + 2, t, 0.3, STEEL); }
   // lamp irons at the back
   for (const y of [-6, 0, 6]) s.box(b.x0 - 0.6, b.x0, y - 0.4, y + 0.4, t - 4, t - 1.5, DARK_STEEL);
-  if (L.lining) lining(s, w - 0.2, b.x0 + 2.2, b.z0 + 2.4, b.x1 - 2.2, t - 2.6, L.lining[0], 0.45, L.lining[1]);
+  if (L.lining) lining(s, w - 0.2, b.x0 + 2.2, b.z0 + 2.4, b.x1 - 2.2, (b.step?.top ?? t) - 2.6, L.lining[0], 0.45, L.lining[1]);
   if (L.emblem) badge(s, w - 0.2, L.emblem.x, L.emblem.z, L.emblem.r, L.emblem.col, L.emblem.ring);
   if (L.lettering) for (const e of SIDES) {
     const l = L.lettering, wd = (l.x1 - l.x0) / (l.chars * 1.5);
