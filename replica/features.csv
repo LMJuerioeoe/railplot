@@ -12,7 +12,16 @@ Signals shown in 3D with live aspects and obeyed,operation,must,yes,no,control e
 Make up a train from simple rolling stock (loco and wagons),rolling stock,must,yes,no,own box models; no Rolling Line assets
 Place a train on the track facing a chosen way,rolling stock,must,yes,no,
 Uncouple and couple wagons,shunting,must,yes,no,buffers touching below a speed couple
-Trains stop at open ends and at another train's buffers,simulation,should,yes,no,no derailments (see skip)
+Trains derail when driven too fast round a curve,derailments,must,unknown,no,v²/r over a limit; Railplot's rule (recon: derailment rules)
+Re-rail a derailed train (where it is or at its last stop),derailments,must,unknown,no,
+Trains derail trailing through a point set against them,derailments,should,unknown,no,facing moves take the road the point is set for
+Collisions: gentle ones bounce back and stop; fast ones derail both trains,derailments,should,unknown,no,replaces stopping dead at buffers
+A derailment shows as a fault in its block like a real short,derailments,should,no,no,the control engine already cuts shorted blocks
+Derailments setting: off / forgiving / realistic,derailments,should,unknown,no,off: trains stop at the limit instead
+Curve-speed warning on the speed readout,derailments,should,no,no,
+Derailed vehicles tip and slide in 3D; card with cause speed and limit,derailments,should,unknown,no,
+Trains run off open ends,derailments,should,unknown,no,
+Buffer-locking when propelling long stock through an S-bend,derailments,could,no,no,uses the train-fit check's reverse-curve rule
 Auto drive: train obeys signals and stops in a chosen block,automation,should,yes,no,Auto Drive patch (source 6); Railplot trips and automations exist
 Walk the layout at miniature scale (first person),cameras,should,yes,no,the original's large/miniature switch
 Blocks sensors and current detection follow where vehicles really are,simulation,should,no,no,Railplot's own: keeps the control features honest
@@ -37,5 +46,4 @@ Official layouts from NZ US Brazil,content,skip,yes,skip,their content
 In-game magazine,content,skip,yes,skip,their content
 Rolling Line models liveries and sounds,content,skip,yes,skip,their assets; Railplot draws its own simple stock
 Layout and scenery building in 3D,building,skip,yes,skip,Railplot is the planner; the scenery builder was removed on request
-Derailments and full physics collisions,simulation,skip,yes,skip,trains stop instead; keeps the simulator predictable
 Weather,effects,skip,yes,skip,
