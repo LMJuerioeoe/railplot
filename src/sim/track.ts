@@ -111,6 +111,16 @@ export class TrackGraph {
     return { item, route: 0, s: info.routes[0].len / 2, dir: 1 };
   }
 
+  /** Positions every `step` mm along every route of every piece, for finding the track on screen. */
+  samples(step = 25): TrackPos[] {
+    const out: TrackPos[] = [];
+    for (const [id, info] of this.items) info.routes.forEach((r, ri) => {
+      const n = Math.max(1, Math.round(r.len / step));
+      for (let k = 0; k <= n; k++) out.push({ item: id, route: ri, s: (r.len * k) / n, dir: 1 });
+    });
+    return out;
+  }
+
   /** The nearest position on the track to a plan point, within `tol` mm, on any piece. */
   nearest(q: { x: number; y: number }, tol = 30): TrackPos | null {
     let best: TrackPos | null = null, bd = tol;

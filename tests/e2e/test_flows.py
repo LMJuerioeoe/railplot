@@ -413,6 +413,52 @@ with sync_playwright() as p:
     click_target("point"); click_target("signal")
     pg.keyboard.press("Space"); pg.wait_for_timeout(100)
     check("Space stops the selected train", js(pg, "railplot.ctl.engine.run(railplot.drive.train).target") == 0)
+    # F17c make up a rake of vans, place it by clicking the track, uncouple it by its coupler
+    pg.keyboard.press("t"); pg.wait_for_timeout(200)
+    check("T opens the Trains dialog on the selected train's stock", pg.locator("#trains-strip .veh").count() >= 1)
+    pg.click("#trains-new-rake"); pg.wait_for_timeout(100)
+    for _ in range(3): pg.click(".stock-tile[data-kind=van]"); pg.wait_for_timeout(60)
+    check("stock tiles add vehicles to the back", pg.locator("#trains-strip .veh").count() == 4)
+    pg.locator("#trains-strip .veh").nth(0).click(); pg.keyboard.press("Delete"); pg.wait_for_timeout(100)
+    check("Delete takes the picked vehicle out", pg.locator("#trains-strip .veh").count() == 3)
+    shot(pg, "09e-trains")
+    rake = js(pg, "railplot.drive.editing")
+    pg.click("#trains-place"); pg.wait_for_timeout(300)
+    check("placing shows its card", pg.locator("#drive-place").count() == 1)
+    spot = lambda ok: js(pg, f"""(() => {{ const d = railplot.drive, w = d.world(), v = railplot.view3d, r = v.canvas.getBoundingClientRect();
+      const pts = new Set(railplot.p.control.points.map(q => q.item));
+      for (const a of w.graph.samples(40)) {{
+        const f = w.fit('{rake}', a), good = !('error' in f);
+        if ({'true' if ok else 'false'} ? !good || Math.abs(a.s - w.graph.routeLength(a.item, a.route) / 2) > 30 : !pts.has(a.item)) continue;
+        const p = w.graph.pose(a), s = v.toCanvas(p.x, p.y, p.z + 5);
+        if (s && s.x > 40 && s.y > 40 && s.x < r.width - 40 && s.y < r.height - 140) return [r.left + s.x, r.top + s.y];
+      }} return null; }})()""")
+    bad = spot(False)
+    if bad: pg.mouse.move(bad[0], bad[1]); pg.wait_for_timeout(150)
+    check("the ghost on a point says why not", bad and "point" in pg.locator("#drive-place-note").inner_text(), bad)
+    good = spot(True)
+    if good: pg.mouse.move(good[0] - 3, good[1]); pg.mouse.move(good[0], good[1]); pg.wait_for_timeout(150)
+    note = pg.locator("#drive-place-note").inner_text()
+    shot(pg, "09f-place")
+    if good: pg.mouse.click(good[0], good[1]); pg.wait_for_timeout(300)
+    check("clicking free track puts the rake there", js(pg, f"railplot.drive.world().consists.find(c => c.id === '{rake}').at.length") == 3 and pg.locator("#drive-place").count() == 0, (good, note))
+    cp = js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect();
+      const t = d.targets.find(t => t.kind === 'coupler' && t.id === '{rake}'); const s = t && v.toCanvas(t.x, t.y, t.z);
+      return s ? [r.left + s.x, r.top + s.y] : null; }})()""")
+    n = js(pg, "railplot.p.control.consists.length")
+    if cp: pg.mouse.move(cp[0], cp[1]); pg.wait_for_timeout(100); pg.mouse.click(cp[0], cp[1]); pg.wait_for_timeout(200)
+    check("clicking a coupler uncouples there", js(pg, "railplot.p.control.consists.length") == n + 1, cp)
+    # take the vans off again, from the Trains dialog
+    for _ in range(2):
+        pg.keyboard.press("t"); pg.wait_for_timeout(150)
+        opt = js(pg, "[...document.querySelectorAll('#trains-which option')].map(o => o.value).find(v => v.startsWith('c:') && !railplot.p.control.consists.find(c => 'c:' + c.id === v).train)")
+        pg.select_option("#trains-which", opt); pg.wait_for_timeout(100)
+        pg.click("#trains-remove"); pg.wait_for_timeout(150)
+        pg.keyboard.press("Escape"); pg.wait_for_timeout(100)
+    check("rakes come off the layout", js(pg, "railplot.p.control.consists.every(c => c.train)"))
+    pg.keyboard.press("k"); pg.wait_for_timeout(50)
+    check("K switches km/h and mph", pg.locator("#drive-hud .hud-speed").inner_text().find("mph") >= 0)
+    pg.keyboard.press("k")
     pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
     check("Esc goes back to the plan", js(pg, "railplot.drive.open") == False and js(pg, "railplot.mode3d") == False)
     pg.click("text=Set up"); pg.wait_for_timeout(100)

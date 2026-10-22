@@ -282,11 +282,13 @@ export class View3D {
   private vehicleVaos = new Map<string, { vao: WebGLVertexArrayObject; count: number }>();
   /** Called with the canvas position (CSS px) of a click that wasn't a drag. */
   onPick: ((x: number, y: number) => void) | null = null;
+  /** The pointer moving over the view without dragging (canvas pixels). */
+  onHover: ((x: number, y: number) => void) | null = null;
   private lastMvp: M4 | null = null;
   /** A camera following something (chase, cab): eye and target in plan mm (x, y, z up). Null: orbit. */
   follow: { eye: [number, number, number]; target: [number, number, number] } | null = null;
 
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(readonly canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl2", { antialias: true, preserveDrawingBuffer: true });
     if (!gl) throw new Error("3D view needs WebGL 2, which this system doesn't provide.");
     this.gl = gl;
@@ -421,7 +423,10 @@ export class View3D {
       press = e.button === 0 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
     };
     const move = (e: PointerEvent) => {
-      if (!drag) return;
+      if (!drag) {
+        if (this.onHover) { const r = c.getBoundingClientRect(); this.onHover(e.clientX - r.left, e.clientY - r.top); }
+        return;
+      }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       drag.x = e.clientX; drag.y = e.clientY;
       if (drag.mode === "orbit") {

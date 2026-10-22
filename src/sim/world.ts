@@ -5,23 +5,18 @@ import { getLibrary } from "../library";
 import { Project, geom } from "../model";
 import type { ControlEngine } from "../control/engine";
 import { TrackGraph, TrackPos, TrackPose } from "./track";
-import { wagonLength } from "../yards";
+import { ConsistCfg, VehicleCfg, VehicleKind } from "../control/types";
+import { newVehicle } from "./stock";
 
-export type VehicleKind = "loco" | "coach" | "wagon" | "van" | "tank" | "brake";
-
-export interface Vehicle {
-  id: string;
-  kind: VehicleKind;
-  length: number;          // mm over buffers
-  color: string;
-  /** Draws current in a detection pulse: locos always; wagons with a resistor wheelset. */
-  detectable?: boolean;
-}
+export type { VehicleKind };
+export type Vehicle = VehicleCfg;
 
 export interface Consist {
   id: string;
-  /** The control train that drives it. */
+  /** The control train that drives it; none for wagons standing on their own. */
   train?: string;
+  /** Not saved in the layout: a loco the simulator gave a train that has no rolling stock of its own. */
+  auto?: boolean;
   vehicles: Vehicle[];      // front to back
   /** Each vehicle's centre on the track, facing the consist's front. */
   at: TrackPos[];
@@ -39,7 +34,7 @@ export interface Consist {
   held?: boolean;
 }
 
-export type DerailCause = "curve" | "trailing" | "open-end";
+export type DerailCause = "curve" | "trailing" | "open-end" | "collision";
 
 export interface Derailment {
   cause: DerailCause;
@@ -62,6 +57,10 @@ const BUFFER_SPEED = 120;
 
 /** Room between two vehicles' bodies (buffers just touching), mm. */
 const GAP = 2;
+/** Closing speed at which buffers touching couple up, mm/s; faster, the trains bounce apart and stop. */
+export const COUPLE_SPEED = 70;
+/** Closing speed over which a collision derails both trains, in coupling speeds (forgiving: 5). */
+const CRASH = 3;
 /** Simulation step, s. */
 const STEP = 1 / 120;
 /** How fast a loco's speed follows its power, s (the engine adds the train's own momentum). */
@@ -96,23 +95,43 @@ export class World {
 
   get p(): Project { return this.engine().p; }
 
-  /** Rebuild the track when the plan changed, and give every control train a loco where the engine says it is. */
+  /**
+   * Rebuild the track when the plan changed; take the rolling stock from the layout (control.consists);
+   * and give every control train without rolling stock of its own a loco, where the engine says it is.
+   */
   sync() {
-    const e = this.engine(), p = e.p;
+    const e = this.engine(), p = e.p, cfg = e.cfg;
     const key = `${p.nextId}|${p.items.length}|${p.items.map((i) => `${i.id}:${i.x.toFixed(2)},${i.y.toFixed(2)},${i.rot.toFixed(4)},${i.z.join("/")}`).join(";")}`;
     if (key !== this.graphKey) {
       this.graph = new TrackGraph(p);
       this.graphKey = key;
-      // vehicles on track that has gone: take the consist off, it goes back in its block below
+      // vehicles on track that has gone come off the layout (trains go back into their block below)
       this.consists = this.consists.filter((c) => c.at.every((a) => this.graph.has(a)));
     }
-    const cfg = e.cfg;
-    this.consists = this.consists.filter((c) => !c.train || cfg.trains.some((t) => t.id === c.train && t.block));
+    const saved = cfg.consists ?? [];
+    const trainOk = (id?: string) => !id || cfg.trains.some((t) => t.id === id);
+    // consists that went from the layout (deleted, undone), or whose train went
+    this.consists = this.consists.filter((c) => (c.auto ? trainOk(c.train) && !saved.some((s) => s.train === c.train) : saved.some((s) => s.id === c.id)) && trainOk(c.train));
+    for (const sc of saved) {
+      let c = this.consists.find((x) => x.id === sc.id);
+      const sig = JSON.stringify(sc.vehicles);
+      if (!c) {
+        c = { id: sc.id, train: sc.train, vehicles: sc.vehicles.map((v) => ({ ...v })), at: [], speed: 0, travel: 1, lastSign: 0 };
+        this.consists.push(c);
+        if (sc.at && this.graph.has(sc.at)) this.place(c, { ...sc.at });
+      } else if (JSON.stringify(c.vehicles) !== sig || c.train !== sc.train) {
+        // made up differently (the Trains dialog, an undo): the front stays where it is
+        const front = c.at[0];
+        c.vehicles = sc.vehicles.map((v) => ({ ...v }));
+        c.train = sc.train;
+        if (front && !this.place(c, front)) c.at = [];
+      }
+    }
     for (const t of cfg.trains) {
       if (!t.block) continue;
       let c = this.consists.find((x) => x.train === t.id);
       if (!c) {
-        c = { id: `v${this.nextId++}`, train: t.id, vehicles: [this.loco(t.color)], at: [], speed: 0, travel: 1, lastSign: 0 };
+        c = { id: `auto-${t.id}`, auto: true, train: t.id, vehicles: [this.loco(t.color)], at: [], speed: 0, travel: 1, lastSign: 0 };
         this.consists.push(c);
       }
       // the engine put the train somewhere none of its vehicles are (placed by hand): stand it there
@@ -121,8 +140,160 @@ export class World {
   }
 
   private loco(color: string): Vehicle {
-    const lib = this.p.items[0]?.part.split("/")[0] ?? "peco-setrack-oo";
-    return { id: `v${this.nextId++}`, kind: "loco", length: Math.round(wagonLength(lib) * 2.7), color, detectable: true };
+    return newVehicle("loco", this.libId(), `v${this.nextId++}`, color);
+  }
+
+  /** The track system most of the layout uses, for vehicle sizes and scale. */
+  libId(): string { return this.p.items[0]?.part.split("/")[0] ?? "peco-setrack-oo"; }
+
+  // ---------- making up trains ----------
+
+  /** The saved form of a consist (making it part of the layout if the simulator made it up by itself). */
+  private saved(c: Consist): ConsistCfg {
+    const cfg = this.engine().cfg;
+    cfg.consists ??= [];
+    let sc = cfg.consists.find((x) => x.id === c.id);
+    if (!sc) {
+      if (c.auto) { c.auto = false; c.id = `k${this.newId()}`; }
+      sc = { id: c.id, train: c.train, vehicles: c.vehicles.map((v) => ({ ...v })) };
+      cfg.consists.push(sc);
+    }
+    sc.vehicles = c.vehicles.map((v) => ({ ...v }));
+    sc.train = c.train;
+    if (c.at[0]) sc.at = { ...c.at[0] };
+    return sc;
+  }
+
+  private newId(): number {
+    const cfg = this.engine().cfg;
+    return cfg.nextId++;
+  }
+
+  /** Remember where every consist on the rails stands, in the layout (called when trains stop). */
+  savePositions() {
+    for (const sc of this.engine().cfg.consists ?? []) {
+      const c = this.consists.find((x) => x.id === sc.id);
+      if (c?.at[0] && !c.derailed) sc.at = { ...c.at[0] };
+    }
+  }
+
+  /** A train's rolling stock, made part of the layout so it can be changed; created with a loco if it has none. */
+  stockOf(train: string): ConsistCfg {
+    const c = this.consistOf(train);
+    if (c) return this.saved(c);
+    const t = this.engine().cfg.trains.find((x) => x.id === train);
+    const sc: ConsistCfg = { id: `k${this.newId()}`, train, vehicles: [this.loco(t?.color ?? "#2f5f9e")] };
+    (this.engine().cfg.consists ??= []).push(sc);
+    return sc;
+  }
+
+  /** A new rake of vehicles without a train (wagons standing on their own), not yet on the track. */
+  newRake(vehicles: Vehicle[]): ConsistCfg {
+    const sc: ConsistCfg = { id: `k${this.newId()}`, vehicles };
+    (this.engine().cfg.consists ??= []).push(sc);
+    return sc;
+  }
+
+  /**
+   * Where a consist would stand with its front vehicle's centre at `front`, or why it can't: the track
+   * ends under it, the front is on a point, or another consist is in the way.
+   */
+  fit(id: string, front: TrackPos): { at: TrackPos[] } | { error: string } {
+    const c = this.consists.find((x) => x.id === id);
+    if (!c) return { error: "That train isn't in the simulator." };
+    if (this.engine().cfg.points.some((q) => q.item === front.item)) return { error: "That's a point: pick plain track." };
+    const at = this.layout(c.vehicles, front, true);
+    if (!at) {
+      const need = c.vehicles.reduce((a, v) => a + v.length + GAP, -GAP);
+      return { error: `It won't fit there: the track ends (the train is ${Math.round(need)} mm long).` };
+    }
+    if (this.overlaps(c, at)) return { error: "Another train is in the way there." };
+    return { at };
+  }
+
+  /**
+   * Put a consist on the track with its front vehicle's centre at `front`. Refused (with the reason) when
+   * it won't fit there. A train's block in the engine follows.
+   */
+  placeConsist(id: string, front: TrackPos): string | null {
+    this.sync();
+    const f = this.fit(id, front);
+    if ("error" in f) return f.error;
+    const c = this.consists.find((x) => x.id === id)!;
+    c.at = f.at; c.speed = 0; c.travel = 1; c.lastSign = 0;
+    c.derailed = undefined; c.lastStop = undefined;
+    this.saved(c);
+    if (c.train) {
+      const t = this.engine().cfg.trains.find((x) => x.id === c.train);
+      const loco = Math.max(0, c.vehicles.findIndex((v) => v.kind === "loco"));
+      const block = this.engine().topo.blockOfItem.get(c.at[loco].item);
+      if (t && block) { t.block = block; this.engine().assign(); }
+    }
+    return null;
+  }
+
+  /** Turn a consist round where it stands: the back vehicle becomes the front. */
+  turnRound(id: string) {
+    const c = this.consists.find((x) => x.id === id);
+    if (!c?.at.length) return;
+    c.vehicles.reverse();
+    c.at = c.at.reverse().map((a) => TrackGraph.reversed(a));
+    c.travel = 1; c.speed = 0;
+    this.saved(c);
+  }
+
+  /** Split a consist behind vehicle `after`: the vehicles behind it become wagons standing on their own. */
+  uncouple(id: string, after: number): string | null {
+    const c = this.consists.find((x) => x.id === id);
+    if (!c || after < 0 || after >= c.vehicles.length - 1) return "There's nothing to uncouple there.";
+    if (c.derailed) return "Re-rail it first.";
+    // both halves face the same way and remember which way the driver last went
+    const back: Consist = { id: `k${this.newId()}`, vehicles: c.vehicles.slice(after + 1), at: c.at.slice(after + 1), speed: 0, travel: c.travel, lastSign: c.lastSign };
+    c.vehicles = c.vehicles.slice(0, after + 1); c.at = c.at.slice(0, after + 1);
+    c.speed = 0;
+    // the half with the loco keeps the train; the other half stands
+    if (c.train && !c.vehicles.some((v) => v.kind === "loco") && back.vehicles.some((v) => v.kind === "loco")) { back.train = c.train; c.train = undefined; }
+    this.consists.push(back);
+    this.saved(c); this.saved(back);
+    return null;
+  }
+
+  /** Every coupling between two vehicles of a consist on the rails, and where it is. */
+  couplers(): { consist: string; after: number; x: number; y: number; z: number }[] {
+    const out: { consist: string; after: number; x: number; y: number; z: number }[] = [];
+    for (const c of this.consists) {
+      if (c.derailed || c.at.length < 2) continue;
+      for (let i = 0; i < c.at.length - 1; i++) {
+        const p = this.graph.pose(this.graph.advance(c.at[i], -(c.vehicles[i].length + GAP) / 2, this.points).pos);
+        out.push({ consist: c.id, after: i, x: p.x, y: p.y, z: p.z });
+      }
+    }
+    return out;
+  }
+
+  /** Uncouple a train's loco from the vehicles it pushes or pulls: behind it, or in front if it's at the back. */
+  uncoupleLoco(train: string): string | null {
+    const c = this.consistOf(train);
+    if (!c || c.vehicles.length < 2) return "Nothing is coupled to this train.";
+    if (Math.abs(c.speed) > 1) return "Stop the train first.";
+    const loco = Math.max(0, c.vehicles.findIndex((v) => v.kind === "loco"));
+    return this.uncouple(c.id, loco === 0 ? 0 : loco - 1);
+  }
+
+  /** Take a consist off the layout altogether. */
+  remove(id: string) {
+    const cfg = this.engine().cfg;
+    cfg.consists = (cfg.consists ?? []).filter((x) => x.id !== id);
+    this.consists = this.consists.filter((x) => x.id !== id);
+  }
+
+  /** Would a consist standing at `at` stand on another consist's vehicles? */
+  private overlaps(c: Consist, at: TrackPos[]): boolean {
+    const mine = at.map((a, i) => ({ p: this.graph.pose(a), half: c.vehicles[i].length / 2 }));
+    return this.consists.some((o) => o !== c && o.at.some((a, i) => {
+      const q = this.graph.pose(a), half = o.vehicles[i].length / 2;
+      return mine.some((m) => Math.hypot(m.p.x - q.x, m.p.y - q.y) < m.half + half - 1 && Math.abs(m.p.z - q.z) < 30);
+    }));
   }
 
   /** Stand a consist in the middle of a block's longest piece, facing along it. */
@@ -138,16 +309,27 @@ export class World {
 
   /** Put a consist's front vehicle at `front`, the rest following behind it along the track. */
   place(c: Consist, front: TrackPos): boolean {
-    const at: TrackPos[] = [front];
-    for (let i = 1; i < c.vehicles.length; i++) {
-      const back = (c.vehicles[i - 1].length + c.vehicles[i].length) / 2 + GAP;
-      const r = this.graph.advance(at[i - 1], -back, this.points);
-      if (r.stop) return false;
-      at.push(r.pos);
-    }
+    const at = this.layout(c.vehicles, front);
+    if (!at) return false;
     c.at = at;
     c.speed = 0;
     return true;
+  }
+
+  /** Each vehicle's centre with the front one's at `front`, the rest behind it; null if the track ends under them. */
+  private layout(vehicles: Vehicle[], front: TrackPos, ends = false): TrackPos[] | null {
+    const at: TrackPos[] = [front];
+    for (let i = 1; i < vehicles.length; i++) {
+      const back = (vehicles[i - 1].length + vehicles[i].length) / 2 + GAP;
+      const r = this.graph.advance(at[i - 1], -back, this.points);
+      if (r.stop) return null;
+      at.push(r.pos);
+    }
+    if (!ends) return at;
+    // placing by hand: the ends of the front and back vehicles must be on the track too
+    const ahead = this.graph.advance(front, vehicles[0].length / 2, this.points);
+    const behind = this.graph.advance(at[at.length - 1], -vehicles[vehicles.length - 1].length / 2, this.points);
+    return ahead.stop || behind.stop ? null : at;
   }
 
   private points = (item: string) => this.engine().cfg.points.find((q) => q.item === item)?.state;
@@ -183,7 +365,7 @@ export class World {
   private powerOf(c: Consist): number {
     const e = this.engine();
     const i = c.vehicles.findIndex((v) => v.kind === "loco");
-    if (i < 0) return 0;
+    if (i < 0 || !c.at[i]) return 0;
     const block = e.topo.blockOfItem.get(c.at[i].item);
     return block ? e.power.get(block) ?? 0 : 0;
   }
@@ -196,7 +378,7 @@ export class World {
   private chooseTravel() {
     const e = this.engine();
     for (const c of this.consists) {
-      if (!c.train) continue;
+      if (!c.train || !c.at.length) continue;
       const d = this.powerOf(c);
       const t = e.cfg.trains.find((x) => x.id === c.train);
       const path = e.runs.get(c.train)?.path;
@@ -241,7 +423,7 @@ export class World {
 
   step(dt: number) {
     for (const c of this.consists) {
-      if (c.derailed) { c.speed = 0; continue; }
+      if (c.derailed || !c.at.length) { c.speed = 0; continue; }
       const target = c.travel * Math.abs(this.powerOf(c)) * this.fullSpeed;
       c.speed += (target - c.speed) * Math.min(1, dt / MOTOR_LAG);
       if (Math.abs(c.speed) < 0.01 && target === 0) c.speed = 0;
@@ -253,7 +435,12 @@ export class World {
         if (this.mode === "off") { c.speed = Math.sign(c.speed) * limit; c.held = true; }
         else { this.derail(c, "curve", at, limit, this.graph.pose(c.at[at]).r); continue; }
       }
-      if (c.speed === 0 && !c.lastStop) c.lastStop = c.at.map((a) => ({ ...a }));
+      if (c.speed === 0 && !c.lastStop) {
+        c.lastStop = c.at.map((a) => ({ ...a }));
+        // stood still: the layout remembers where
+        const sc = this.engine().cfg.consists?.find((x) => x.id === c.id);
+        if (sc && c.at[0]) sc.at = { ...c.at[0] };
+      }
       if (c.speed !== 0) c.lastStop = undefined;
       const ds = c.speed * dt;
       if (ds !== 0) this.move(c, ds);
@@ -281,8 +468,83 @@ export class World {
       if (this.mode !== "off" && speed > hard) { this.derail(c, "open-end", lead, hard, undefined, probe.pos.item); return; }
       c.speed = 0;
     }
-    if (go === 0) return;
-    c.at = c.at.map((a) => this.graph.advance(a, go, this.points).pos);
+    // another consist's buffers ahead: stop there, and couple, bounce or crash
+    const hit = this.contact(c, lead, sgn, Math.abs(go));
+    if (hit) go = sgn * Math.max(0, Math.min(Math.abs(go), hit.room));
+    if (go !== 0) c.at = c.at.map((a) => this.graph.advance(a, go, this.points).pos);
+    if (hit && hit.room <= Math.abs(ds) + 1e-6) this.meet(c, lead, sgn, hit.other, hit.end);
+  }
+
+  /** A consist's two buffer ends: where they are and which vehicle each belongs to. */
+  private endsOf(o: Consist): { x: number; y: number; z: number; h: number; vehicle: number }[] {
+    if (!o.at.length) return [];
+    const last = o.at.length - 1;
+    const pose = (a: TrackPos, d: number) => (o.derailed ? null : this.graph.pose(this.graph.advance(a, d, this.points).pos));
+    const out: { x: number; y: number; z: number; h: number; vehicle: number }[] = [];
+    for (const [i, d] of [[0, o.vehicles[0].length / 2], [last, -o.vehicles[last].length / 2]] as const) {
+      const p = pose(o.at[i], d);
+      if (p) out.push({ ...p, vehicle: i });
+      else { const q = o.derailed!.poses[i]; out.push({ x: q.x, y: q.y, z: q.z, h: q.h, vehicle: i }); }
+    }
+    return out;
+  }
+
+  /**
+   * The nearest other consist's end in front of a moving consist's leading end, within `reach` mm plus a
+   * buffer gap, on the same track (heading the same way or the opposite way, at the same height).
+   */
+  private contact(c: Consist, lead: number, sgn: number, reach: number): { other: Consist; end: number; room: number } | null {
+    const tip = this.graph.pose(this.graph.advance(c.at[lead], sgn * c.vehicles[lead].length / 2, this.points).pos);
+    const fx = Math.cos(tip.h) * sgn, fy = Math.sin(tip.h) * sgn;
+    let best: { other: Consist; end: number; room: number } | null = null;
+    for (const o of this.consists) {
+      if (o === c || !o.at.length) continue;
+      for (const e of this.endsOf(o)) {
+        const dx = e.x - tip.x, dy = e.y - tip.y, d = Math.hypot(dx, dy);
+        if (d > reach + GAP + 4 || Math.abs(e.z - tip.z) > 25) continue;
+        if (d > 1 && (dx * fx + dy * fy) / d < 0.5) continue;               // behind or beside
+        if (Math.abs(Math.cos(e.h - tip.h)) < 0.8 && !o.derailed) continue;  // on another track crossing here
+        const room = Math.max(0, d - GAP);
+        if (!best || room < best.room) best = { other: o, end: e.vehicle, room };
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Buffers meet. Gently, with one side free of a train, they couple; harder, both stop dead; much harder
+   * (or always, for two trains at speed), both come off.
+   */
+  private meet(c: Consist, lead: number, way: number, o: Consist, end: number) {
+    const rel = Math.abs(c.speed) + Math.abs(o.speed);
+    const crash = COUPLE_SPEED * (this.mode === "forgiving" ? 5 : CRASH);
+    if (this.mode !== "off" && rel > crash && !o.derailed) {
+      this.derail(c, "collision", lead, crash);
+      this.derail(o, "collision", end, crash);
+      return;
+    }
+    if (rel <= COUPLE_SPEED && !(c.train && o.train) && !o.derailed) { this.couple(c, way, o, end); return; }
+    c.speed = 0; o.speed = 0;
+  }
+
+  /** Join two consists whose ends touch into one (`way` +1: c's front touched). The one with the train keeps it. */
+  private couple(c: Consist, way: number, o: Consist, end: number) {
+    const flip = (way === 1) === (end === 0);
+    let ov = o.vehicles, oa = o.at;
+    if (flip) { ov = [...ov].reverse(); oa = [...oa].reverse().map((a) => TrackGraph.reversed(a)); }
+    const keep = c.train || !o.train ? c : o;
+    const vehicles = way === 1 ? [...ov, ...c.vehicles] : [...c.vehicles, ...ov];
+    const at = way === 1 ? [...oa, ...c.at] : [...c.at, ...oa];
+    const speed = c.speed, travel = c.travel, lastSign = c.lastSign, train = c.train ?? o.train;
+    const gone = keep === c ? o : c;
+    keep.vehicles = vehicles; keep.at = at; keep.train = train; keep.speed = speed; keep.travel = travel; keep.lastSign = lastSign;
+    keep.lastStop = undefined;
+    this.consists = this.consists.filter((x) => x !== gone);
+    const cfg = this.engine().cfg;
+    cfg.consists = (cfg.consists ?? []).filter((x) => x.id !== gone.id);
+    this.saved(keep);
+    const t = cfg.trains.find((x) => x.id === train);
+    if (t) this.engine().events.push(`${t.name} coupled up: ${vehicles.length} vehicles.`);
   }
 
   /** Take a consist off the rails: every vehicle slews outwards and tips, the train stops, its block shorts. */
@@ -321,6 +583,7 @@ export class World {
     const sp = (v: number) => (k ? `${Math.round((v * k * 3600) / 1e6)} km/h` : `${Math.round(v)} mm/s`);
     if (d.cause === "curve") return `${sp(d.speed)} on a ${Math.round(d.radius ?? 0)} mm curve, where about ${sp(d.limit)} is the limit`;
     if (d.cause === "trailing") return `it ran through a point set for the other road${d.limit ? ` faster than ${sp(d.limit)}` : ""}`;
+    if (d.cause === "collision") return `it hit another train at ${sp(d.speed)}: buffers only take about ${sp(d.limit)}`;
     return `it ran into the end of the line at ${sp(d.speed)}`;
   }
 
@@ -371,7 +634,7 @@ export class World {
     const mA: number[] = [], idle: number[] = [];
     for (const b of e.cfg.blocks) {
       if (b.controller !== controller || b.channel === undefined) continue;
-      const here = this.consists.flatMap((c) => c.vehicles.map((v, i) => ({ v, a: c.at[i] }))).filter(({ a }) => e.topo.blockOfItem.get(a.item) === b.id);
+      const here = this.consists.flatMap((c) => c.at.map((a, i) => ({ v: c.vehicles[i], a }))).filter(({ a }) => e.topo.blockOfItem.get(a.item) === b.id);
       const powered = (e.power.get(b.id) ?? 0) !== 0;
       const shorted = this.consists.some((c) => c.derailed && this.blocksOf(c).has(b.id));
       mA[b.channel] = powered && shorted ? 2000 : powered && here.some(({ v }) => v.kind === "loco") ? 150 : 0;
@@ -382,7 +645,7 @@ export class World {
 
   /** Every vehicle and where it is, for drawing. */
   vehiclePoses(): { consist: Consist; vehicle: Vehicle; pose: TrackPose & { tilt?: number } }[] {
-    return this.consists.flatMap((c) => c.vehicles.map((vehicle, i) => {
+    return this.consists.filter((c) => c.at.length).flatMap((c) => c.vehicles.map((vehicle, i) => {
       const off = c.derailed?.poses[i];
       return { consist: c, vehicle, pose: off ? { ...off, r: Infinity } : this.graph.pose(c.at[i]) };
     }));
@@ -391,7 +654,7 @@ export class World {
   /** How close a train is to the curve limit just ahead of it (0..1+), for the HUD's warning. */
   curveMargin(train: string): number {
     const c = this.consistOf(train);
-    if (!c || c.derailed || !c.speed) return 0;
+    if (!c?.at.length || c.derailed || !c.speed) return 0;
     const lead = c.speed > 0 ? 0 : c.at.length - 1;
     let worst = 0;
     for (const d of [0, 100, 200, 300]) {
@@ -417,7 +680,7 @@ export class World {
   /** The first point ahead of a train's leading end, within `reach` mm along the track as it's set. */
   pointAhead(train: string, reach = 1500): string | null {
     const c = this.consistOf(train);
-    if (!c) return null;
+    if (!c?.at.length) return null;
     const way = c.travel;
     const i = way === 1 ? 0 : c.at.length - 1;
     const under = new Set(c.at.map((a) => a.item));

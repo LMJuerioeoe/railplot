@@ -9,13 +9,13 @@ Chase camera behind the selected train,cameras,must,yes,yes,follows the track ro
 Cab camera,cameras,must,yes,yes,"at the loco's front, looking down the track"
 Throw points by clicking them in 3D,operation,must,yes,yes,"2D version exists in Control mode; click the lever beside the toe, or P for the next point ahead; refused with a train on it"
 Signals shown in 3D with live aspects and obeyed,operation,must,yes,yes,control engine already sets aspects; masts with lit lamps; click to hold at red; trains already obey them through the engine
-Make up a train from simple rolling stock (loco and wagons),rolling stock,must,yes,no,own box models; no Rolling Line assets
-Place a train on the track facing a chosen way,rolling stock,must,yes,no,
-Uncouple and couple wagons,shunting,must,yes,no,buffers touching below a speed couple
+Make up a train from simple rolling stock (loco and wagons),rolling stock,must,yes,yes,own box models; no Rolling Line assets; Trains dialog (T) with six kinds of stock
+Place a train on the track facing a chosen way,rolling stock,must,yes,yes,click the track in 3D; ghost shows where it fits; R turns it round; 2D plan placing still puts a train in a block
+Uncouple and couple wagons,shunting,must,yes,yes,buffers touching below 70 mm/s couple; click a coupling or U
 Trains derail when driven too fast round a curve,derailments,must,unknown,yes,v²/r over a limit; Railplot's rule (recon: derailment rules); v²/r over 0.8 m/s² (realistic); src/sim/world.ts
 Re-rail a derailed train (where it is or at its last stop),derailments,must,unknown,yes,"HUD card, R key, rerail command (works through a hub)"
 Trains derail trailing through a point set against them,derailments,should,unknown,yes,facing moves take the road the point is set for; forgiving lets it through at walking pace
-Collisions: gentle ones bounce back and stop; fast ones derail both trains,derailments,should,unknown,no,replaces stopping dead at buffers
+Collisions: gentle ones bounce back and stop; fast ones derail both trains,derailments,should,unknown,yes,both stop (no bounce back); over 3x coupling speed both derail
 A derailment shows as a fault in its block like a real short,derailments,should,no,yes,the control engine already cuts shorted blocks; the world reports 2 A; the engine's existing fault handling cuts the block
 Derailments setting: off / forgiving / realistic,derailments,should,unknown,yes,off: trains stop at the limit instead; Control > Set up > Simulator; derailMode command
 Curve-speed warning on the speed readout,derailments,should,no,yes,amber within 15% of the limit over the next 300 mm

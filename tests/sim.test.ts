@@ -5,6 +5,7 @@ import { analyze, geom, newProject, placePart, continuationEnd } from "../src/mo
 import { getPart } from "../src/library";
 import { TrackGraph } from "../src/sim/track";
 import { scaleOf, worldFor } from "../src/sim/world";
+import { newVehicle } from "../src/sim/stock";
 
 const noPoints = () => 0;
 
@@ -175,6 +176,110 @@ describe("derailments", () => {
       expect(!!c.derailed).toBe(off);
       if (off) expect(c.derailed!.cause).toBe("open-end");
       else expect(c.speed).toBe(0);
+    }
+  });
+});
+
+describe("making up trains, placing, coupling", () => {
+  /** A straight line of eight Setrack straights, one block, one train, nothing in the way. */
+  function line(mode: "off" | "forgiving" | "realistic" = "realistic") {
+    const p = newProject();
+    let at = { x: 0, y: 0, h: 0, z: 0 };
+    const items: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const it = placePart(p, "peco-setrack-oo/ST-200", at);
+      items.push(it.id);
+      at = { ...geom(it).ends[continuationEnd(getPart("peco-setrack-oo/ST-200")!, 0)] };
+    }
+    const { quickStart } = require("../src/control/engine");
+    const cfg = quickStart(p, undefined, "sim");
+    cfg.derailments = mode;
+    p.control = cfg;
+    const e = new ControlEngine(p, cfg);
+    const w = worldFor(e);
+    const t = cfg.trains[0]; t.momentum = 0; t.maxSpeed = 100; t.minSpeed = 0;
+    const mid = (i: number) => w.graph.middleOf(items[i])!;
+    const run = (secs: number, from = 0) => { for (let k = 0; k < secs * 10; k++) { e.step(0.1); w.advanceTo(from + k * 100 + 100); } return from + secs * 1000; };
+    return { p, cfg, e, w, t, items, mid, run };
+  }
+
+  test("a train's stock becomes part of the layout; placing checks the track and the other trains", () => {
+    const { cfg, w, t, items, mid } = line();
+    const sc = w.stockOf(t.id);
+    expect(cfg.consists!.map((x) => x.id)).toEqual([sc.id]);
+    expect(sc.vehicles[0].kind).toBe("loco");
+    expect(w.placeConsist(sc.id, mid(1))).toBeNull();
+    expect(sc.at!.item).toBe(items[1]);
+    const rake = w.newRake([0, 1, 2].map((i) => newVehicle("wagon", w.libId(), `w${i}`)));
+    w.sync();
+    // off the end of the line, on top of the loco, then somewhere free
+    expect(w.placeConsist(rake.id, { ...mid(0), s: 5 })).toContain("won't fit");
+    expect(w.placeConsist(rake.id, mid(1))).toContain("in the way");
+    expect(w.placeConsist(rake.id, mid(5))).toBeNull();
+    expect(w.consists.find((c) => c.id === rake.id)!.at).toHaveLength(3);
+    // turning it round keeps it where it is
+    const before = w.graph.pose(w.consists.find((c) => c.id === rake.id)!.at[0]);
+    w.turnRound(rake.id);
+    const after = w.graph.pose(w.consists.find((c) => c.id === rake.id)!.at[2]);
+    expect(Math.hypot(before.x - after.x, before.y - after.y)).toBeLessThan(0.5);
+  });
+
+  test("buffers meeting gently couple up; the loco pulls the wagons back, then uncouples and leaves them", () => {
+    const { cfg, e, w, t, mid, run } = line();
+    const sc = w.stockOf(t.id);
+    w.placeConsist(sc.id, mid(1));
+    const rake = w.newRake([0, 1, 2].map((i) => newVehicle("van", w.libId(), `w${i}`)));
+    w.sync();
+    w.placeConsist(rake.id, mid(5));
+    w.advanceTo(0);
+    e.setThrottle(t.id, 0.05);            // 40 mm/s: buffers touch under the coupling speed
+    let clock = run(20);
+    const c = w.consistOf(t.id)!;
+    expect(c.vehicles).toHaveLength(4);
+    expect(c.vehicles[3].kind).toBe("loco");
+    expect(cfg.consists!.some((x) => x.id === rake.id)).toBe(false);
+    expect(e.events.some((x) => x.includes("coupled up"))).toBe(true);
+    // back the other way: the whole train comes too
+    e.setThrottle(t.id, 0); clock = run(1, clock);
+    const front = w.graph.pose(c.at[0]).x;
+    e.setThrottle(t.id, -0.1); clock = run(3, clock);
+    expect(w.graph.pose(c.at[0]).x).toBeLessThan(front - 50);
+    // stop, uncouple the loco, pull away: the vans stay
+    e.setThrottle(t.id, 0); clock = run(2, clock);
+    expect(w.uncoupleLoco(t.id)).toBeNull();
+    const loco = w.consistOf(t.id)!;
+    expect(loco.vehicles.map((v) => v.kind)).toEqual(["loco"]);
+    const vans = w.consists.find((x) => !x.train)!;
+    const vansAt = w.graph.pose(vans.at[0]).x;
+    e.setThrottle(t.id, -0.1); clock = run(3, clock);
+    expect(w.graph.pose(vans.at[0]).x).toBeCloseTo(vansAt, 3);
+    expect(w.graph.pose(loco.at[0]).x).toBeLessThan(w.graph.pose(vans.at[2]).x - 50);
+    expect(cfg.consists).toHaveLength(2);
+  });
+
+  test("too fast to couple, both stop; much too fast, both come off", () => {
+    for (const [throttle, outcome] of [[0.15, "stopped"], [0.6, "collision"]] as const) {
+      const { e, w, t, mid, run } = line();
+      const sc = w.stockOf(t.id);
+      w.placeConsist(sc.id, mid(1));
+      const rake = w.newRake([newVehicle("tank", w.libId(), "w0")]);
+      w.sync();
+      w.placeConsist(rake.id, mid(6));
+      w.advanceTo(0);
+      e.setThrottle(t.id, throttle);
+      const c = w.consistOf(t.id)!, r = w.consists.find((x) => x.id === rake.id)!;
+      // run until the buffers meet: the first time the train stops (or comes off) while still on its own
+      let k = 0;
+      while (k < 1000 && c.vehicles.length === 1 && !c.derailed && !(k > 50 && c.speed === 0)) { e.step(0.01); w.advanceTo(++k * 10); }
+      expect(c.vehicles).toHaveLength(1);
+      if (outcome === "collision") {
+        expect(c.derailed?.cause).toBe("collision");
+        expect(r.derailed?.cause).toBe("collision");
+        expect(w.describe(c.derailed!)).toContain("hit another train");
+      } else {
+        expect(c.derailed).toBeUndefined();
+        expect(c.speed).toBe(0);
+      }
     }
   });
 });
