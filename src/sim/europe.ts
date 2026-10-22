@@ -87,6 +87,8 @@ export interface ElectricSpec {
   plough?: { col: RGB; stripe: RGB };
   /** Louvred grilles on the sides: [x0, x1, z0, z1]. */
   louvres?: [number, number, number, number][];
+  /** The louvres' colour, when not a dark shade of the body (the 103's silver grilles). */
+  louvreCol?: RGB;
   /** Horizontally ribbed panels on the sides: [x0, x1, z0, z1]. */
   ribs?: [number, number, number, number][];
   /** Round porthole windows along the sides: [x, z, r]. */
@@ -157,8 +159,10 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
     if (L.stripe) strip(s, f, -face, L.stripe.z, face, L.stripe.z, 0.7, L.stripe.col, 0.15);
     if (!p.plates) lettering(s, w, -8, 8, p.floor + 6, 2.2, WHITE, 6);
     for (const [x0, x1, z0, z1] of p.louvres ?? []) {
-      s.box(x0, x1, Math.min(f, f + e * 0.1), Math.max(f, f + e * 0.1), z0, z1, darker(L.body, 0.45));
-      for (let z = z0 + 0.4; z < z1 - 0.3; z += 0.8) strip(s, f, x0 + 0.4, z, x1 - 0.4, z, 0.3, darker(L.body, 0.8), 0.16);
+      const lc = p.louvreCol ?? darker(L.body, 0.45);
+      s.box(x0, x1, Math.min(f, f + e * 0.1), Math.max(f, f + e * 0.1), z0, z1, lc);
+      if (p.louvreCol) for (let x = x0 + 0.5; x < x1 - 0.3; x += 0.7) strip(s, f, x, z0 + 0.4, x, z1 - 0.4, 0.22, darker(lc, 0.7), 0.16);
+      else for (let z = z0 + 0.4; z < z1 - 0.3; z += 0.8) strip(s, f, x0 + 0.4, z, x1 - 0.4, z, 0.3, darker(L.body, 0.8), 0.16);
     }
     for (const [x0, x1, z0, z1] of p.ribs ?? []) for (let z = z0 + 0.6; z < z1; z += 1.15) strip(s, f, x0, z, x1, z, 0.28, darker(L.body, 0.72), 0.08);
     for (const [x, z, r] of p.portholes ?? []) {
