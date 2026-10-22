@@ -13,7 +13,7 @@ One line per screen: id, date, done or partial, what's missing, what was harder 
 | S07 | — | not started | Rolling stock and making up trains (each train is a loco only for now) | |
 | S08 | — | not started | Placing a train on the track by clicking | |
 | S09 | — | not started | Coupling and uncoupling | |
-| S10 | — | not started | Points and signals in 3D | |
+| S10 | 2026-10-22 | done | Point levers and signals are small at tabletop zoom: hard to hit on a phone | Picking needed the 3D view to remember its last projection and tell clicks from orbit drags. Locking a point under a train is checked in the drive view (and the engine already refuses moving trains' points); throwing from the 2D Control panel doesn't check vehicles standing still. |
 | S11 | — | not started | Auto drive from the HUD (trips already run, from the Auto tab) | |
 | S12 | — | not started | Settings and help overlay (U and C work as keys) | |
 | S13 | 2026-10-22 | done | Collisions between trains (with S09); the slide is not animated (vehicles appear tipped at rest) | **Speeds.** At the old simulated top speed (450 mm/s) no train could ever come off a Setrack curve. Real OO and H0 locos run at 0.6–1 m/s on 12 V and do fly off, so full speed is now 800 mm/s, and the default is Realistic, not Forgiving as `architecture.md` planned, so the feature is felt. The two-train demo's fast test runs with derailments off; the click-through drives the express at 60% where it checks block changes. |

@@ -215,6 +215,11 @@ export interface DynamicVehicle { kind: string; length: number; width: number; h
  */
 function vehicleMesh(kind: string): MeshBuilder {
   const m = new MeshBuilder();
+  if (kind === "box") {
+    // a plain unit box in the object's colour: signal masts, lamps, point levers
+    box(m, 0, 0, 0, 1, 1, 0, 1, [1, 1, 1]);
+    return m;
+  }
   const body: V3 = [1, 1, 1], dark: V3 = [0.16, 0.16, 0.17], roof: V3 = [0.45, 0.45, 0.47];
   const part = (x0: number, x1: number, w: number, z0: number, z1: number, col: V3) => box(m, (x0 + x1) / 2, 0, 0, x1 - x0, w, z0, z1, col);
   part(-0.5, 0.5, 0.86, 0.0, 0.16, dark);                    // underframe and wheels
@@ -275,6 +280,9 @@ export class View3D {
   /** Vehicles drawn over the layout this frame. */
   private dynamic: DynamicVehicle[] = [];
   private vehicleVaos = new Map<string, { vao: WebGLVertexArrayObject; count: number }>();
+  /** Called with the canvas position (CSS px) of a click that wasn't a drag. */
+  onPick: ((x: number, y: number) => void) | null = null;
+  private lastMvp: M4 | null = null;
   /** A camera following something (chase, cab): eye and target in plan mm (x, y, z up). Null: orbit. */
   follow: { eye: [number, number, number]; target: [number, number, number] } | null = null;
 
@@ -384,7 +392,8 @@ export class View3D {
     const proj = f ? persp(0.95, w / h, 2, this.extent * 4) : persp(0.75, w / h, Math.max(1, this.distance / 200), this.distance * 20 + this.extent * 4);
     const view = lookAt(eye, target, [0, 1, 0]);
     const loc = (n: string) => gl.getUniformLocation(this.prog, n);
-    gl.uniformMatrix4fv(loc("uMvp"), false, mul(proj, view));
+    this.lastMvp = mul(proj, view);
+    gl.uniformMatrix4fv(loc("uMvp"), false, this.lastMvp);
     gl.uniformMatrix4fv(loc("uModel"), false, IDENTITY);
     gl.uniform3fv(loc("uTint"), [1, 1, 1]);
     gl.uniform3fv(loc("uEye"), eye);
@@ -405,9 +414,11 @@ export class View3D {
   private bindControls() {
     const c = this.canvas;
     let drag: { x: number; y: number; mode: "orbit" | "pan" } | null = null;
+    let press: { x: number; y: number; t: number } | null = null;
     const down = (e: PointerEvent) => {
       c.setPointerCapture(e.pointerId);
       drag = { x: e.clientX, y: e.clientY, mode: e.button === 2 || e.button === 1 || e.shiftKey ? "pan" : "orbit" };
+      press = e.button === 0 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
     };
     const move = (e: PointerEvent) => {
       if (!drag) return;
@@ -428,7 +439,15 @@ export class View3D {
       }
       this.draw();
     };
-    const up = () => { drag = null; };
+    const up = (e: PointerEvent) => {
+      drag = null;
+      // a click, not a drag: tell whoever wants to know what was clicked
+      if (press && e.type === "pointerup" && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 5 && performance.now() - press.t < 500 && this.onPick) {
+        const r = c.getBoundingClientRect();
+        this.onPick(e.clientX - r.left, e.clientY - r.top);
+      }
+      press = null;
+    };
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
       this.distance = Math.max(60, Math.min(this.extent * 8, this.distance * Math.exp(e.deltaY * 0.0012)));
@@ -447,6 +466,16 @@ export class View3D {
       c.removeEventListener("wheel", wheel); c.removeEventListener("contextmenu", ctx); c.removeEventListener("dblclick", dbl);
       ro.disconnect();
     });
+  }
+
+  /** Where a plan point (mm, z up) is on the canvas, in CSS px; null when it's behind the camera. */
+  toCanvas(x: number, y: number, z: number): { x: number; y: number } | null {
+    const m = this.lastMvp;
+    if (!m) return null;
+    const [a, b, c] = W(x, y, z);
+    const cx = m[0] * a + m[4] * b + m[8] * c + m[12], cy = m[1] * a + m[5] * b + m[9] * c + m[13], cw = m[3] * a + m[7] * b + m[11] * c + m[15];
+    if (cw <= 0) return null;
+    return { x: (cx / cw * 0.5 + 0.5) * this.canvas.clientWidth, y: (1 - (cy / cw * 0.5 + 0.5)) * this.canvas.clientHeight };
   }
 
   orbitBy(dyaw: number, dpitch: number) { this.yaw += dyaw; this.pitch = Math.max(0.05, Math.min(1.5, this.pitch + dpitch)); this.draw(); }

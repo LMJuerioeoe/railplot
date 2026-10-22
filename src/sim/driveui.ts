@@ -7,6 +7,7 @@ import { h, clear } from "../ui/dom";
 import { confirmDialog, toast } from "../ui/dialogs";
 import { store } from "../platform";
 import { DynamicVehicle } from "../view3d";
+import { geom } from "../model";
 import { World, scaleOf, worldFor } from "./world";
 import { TrackPose } from "./track";
 
@@ -32,6 +33,10 @@ export class DriveView {
   private look: [number, number, number] | null = null;
   private refs: { speed?: HTMLElement; speedBox?: HTMLElement; unit?: HTMLElement; tag?: HTMLElement; throttle?: HTMLInputElement; throttleLabel?: HTMLElement; trains?: HTMLElement; camera?: HTMLElement; card?: HTMLElement } = {};
   private cardFor: string | null = null;
+  /** Things in the scene that can be clicked: points and signals, where they are this frame. */
+  targets: { kind: "point" | "signal"; id: string; x: number; y: number; z: number }[] = [];
+  private zCache = new Map<string, number>();
+  private zGraph: unknown = null;
 
   constructor(private app: App) {
     try { const d = JSON.parse(store.get(PREFS) ?? "{}"); if (d.units === "mph") this.units = "mph"; if (CAMERAS.includes(d.camera)) this.camera = d.camera; } catch { /* defaults */ }
@@ -66,6 +71,7 @@ export class DriveView {
     this.app.root.classList.add("is-driving");
     this.buildHud();
     this.eye = null;
+    if (this.app.view3d) this.app.view3d.onPick = (x, y) => this.pick(x, y);
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame(() => this.frame());
   }
@@ -77,7 +83,7 @@ export class DriveView {
     this.hud?.remove(); this.hud = null;
     this.refs.card?.remove(); this.refs = {}; this.cardFor = null;
     this.app.root.classList.remove("is-driving");
-    if (this.app.view3d) { this.app.view3d.follow = null; this.app.view3d.setDynamic([]); }
+    if (this.app.view3d) { this.app.view3d.follow = null; this.app.view3d.onPick = null; this.app.view3d.setDynamic([]); }
   }
 
   // ---------- HUD ----------
@@ -177,6 +183,11 @@ export class DriveView {
     if (e.code === "Space") { e.preventDefault(); if (e.shiftKey) this.ctl.act({ c: "stopAll" }); else this.setThrottle(0, true); return true; }
     if (k === "c" || k === "C") { this.nextCamera(); return true; }
     if (k === "r" || k === "R") { this.rerail("here"); return true; }
+    if (k === "p" || k === "P") {
+      const w = this.world(), item = this.train && w ? w.pointAhead(this.train) : null;
+      if (item) this.throwPoint(item); else toast("No point ahead of this train.");
+      return true;
+    }
     if (k === "u" || k === "U") { this.units = this.units === "kmh" ? "mph" : "kmh"; this.savePrefs(); if (this.refs.unit) this.refs.unit.textContent = this.unitName(); return true; }
     if (/^[1-9]$/.test(k)) {
       const t = this.ctl.cfg.trains.filter((x) => x.block)[+k - 1];
@@ -200,13 +211,92 @@ export class DriveView {
         kind: vehicle.kind, length: vehicle.length - 2, width: gauge * 1.9, height: vehicle.kind === "loco" ? gauge * 3 : gauge * 2.6,
         color: hexRgb(vehicle.color), x: pose.x, y: pose.y, z: pose.z + railTop, h: pose.h, tilt: pose.tilt,
       }));
-      v3.setDynamic(vehicles);
+      v3.setDynamic([...vehicles, ...this.scenery(w)]);
       const at = this.train ? w.poseOf(this.train) : null;
       if (at && this.camera !== "tabletop") this.followCamera(at, w);
       else v3.follow = null;
       this.updateSpeed(w);
     }
     this.raf = requestAnimationFrame(() => this.frame());
+  }
+
+  /** Signal masts with their lamps lit as the engine sets them, and a lever beside each point. */
+  private scenery(w: World): DynamicVehicle[] {
+    const e = this.ctl.engine, cfg = this.ctl.cfg;
+    if (this.zGraph !== w.graph) { this.zCache.clear(); this.zGraph = w.graph; }
+    const zAt = (key: string, x: number, y: number) => {
+      let z = this.zCache.get(key);
+      if (z === undefined) { const at = w.graph.nearest({ x, y }, 40); z = at ? w.graph.pose(at).z : 0; this.zCache.set(key, z); }
+      return z;
+    };
+    const out: DynamicVehicle[] = [];
+    const box = (x: number, y: number, z: number, h: number, l: number, wd: number, ht: number, color: [number, number, number]) =>
+      out.push({ kind: "box", x, y, z, h, length: l, width: wd, height: ht, color });
+    this.targets = [];
+    const dark: [number, number, number] = [0.13, 0.14, 0.14];
+    const lampOff: [number, number, number] = [0.23, 0.25, 0.24];
+    const LAMP: Record<string, [number, number, number]> = { red: [1, 0.35, 0.28], yellow: [1, 0.76, 0.2], green: [0.24, 0.86, 0.43] };
+    for (const sg of cfg.signals) {
+      const z = zAt(`s${sg.id}`, sg.x, sg.y);
+      // beside the track on the right, as on the plan
+      const x = sg.x + Math.sin(sg.h) * 26, y = sg.y - Math.cos(sg.h) * 26;
+      const aspect = e.aspects.get(sg.id) ?? "red";
+      box(x, y, z, sg.h, 3, 3, 70, dark);
+      box(x, y, z + 58, sg.h, 6, 10, 28, dark);
+      // the lamps face the trains coming
+      const fx = x - Math.cos(sg.h) * 3.5, fy = y - Math.sin(sg.h) * 3.5;
+      (["red", "yellow", "green"] as const).forEach((col, i) => {
+        if (col === "yellow" && sg.yellow === undefined) return;
+        box(fx, fy, z + 78 - i * 8, sg.h, 2, 6, 6, aspect === col ? LAMP[col] : lampOff);
+      });
+      if (sg.mode === "stop") box(x, y, z + 50, sg.h, 4, 12, 4, [0.95, 0.95, 0.95]);
+      this.targets.push({ kind: "signal", id: sg.id, x, y, z: z + 70 });
+    }
+    const under = w.itemsUnder();
+    for (const pc of cfg.points) {
+      const it = this.app.p.items.find((i) => i.id === pc.item);
+      if (!it) continue;
+      const toe = geom(it).ends[0];
+      // the toe's heading points out of the point; the lever stands to its right, a little way in
+      const ih = toe.h + Math.PI;
+      const x = toe.x + Math.cos(ih) * 20 + Math.sin(ih) * 26, y = toe.y + Math.sin(ih) * 20 - Math.cos(ih) * 26;
+      const z = (it.z[0] ?? 0);
+      const locked = under.has(it.id);
+      const col: [number, number, number] = locked ? [0.4, 0.4, 0.4] : pc.state ? [0.89, 0.65, 0.28] : [0.88, 0.89, 0.86];
+      box(x, y, z, ih + (pc.state ? 0.5 : -0.5), 12, 4, 8, col);
+      box(x, y, z, ih, 8, 8, 4, dark);
+      this.targets.push({ kind: "point", id: it.id, x, y, z: z + 6 });
+    }
+    return out;
+  }
+
+  /** A click in the 3D view: the nearest point lever or signal within reach of it. */
+  private pick(cx: number, cy: number) {
+    const v3 = this.app.view3d;
+    if (!v3) return;
+    let best: (typeof this.targets)[number] | null = null, bd = 30;
+    for (const t of this.targets) {
+      const s = v3.toCanvas(t.x, t.y, t.z);
+      if (!s) continue;
+      const d = Math.hypot(s.x - cx, s.y - cy);
+      if (d < bd) { bd = d; best = t; }
+    }
+    if (!best) return;
+    if (best.kind === "point") this.throwPoint(best.id);
+    else {
+      const sg = this.ctl.cfg.signals.find((x) => x.id === best!.id);
+      if (sg) this.ctl.act({ c: "signal", id: sg.id, mode: sg.mode === "stop" ? "auto" : "stop" });
+    }
+  }
+
+  /** Throw a point to its next road, unless a train stands on it. */
+  private throwPoint(item: string) {
+    const w = this.world();
+    if (w?.itemsUnder().has(item)) { toast("A train is standing on that point."); return; }
+    const pc = this.ctl.cfg.points.find((q) => q.item === item);
+    if (!pc) return;
+    const roads = Math.max(2, pc.us.length);
+    this.ctl.act({ c: "point", item, state: (pc.state + 1) % roads });
   }
 
   /**

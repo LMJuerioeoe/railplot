@@ -7,8 +7,8 @@ Speed shown in scale km/h or mph,driving,must,yes,yes,"units patch (source 6); s
 Tabletop camera (orbit the whole layout),cameras,must,yes,yes,exists as the current 3D camera
 Chase camera behind the selected train,cameras,must,yes,yes,follows the track round curves
 Cab camera,cameras,must,yes,yes,"at the loco's front, looking down the track"
-Throw points by clicking them in 3D,operation,must,yes,no,2D version exists in Control mode
-Signals shown in 3D with live aspects and obeyed,operation,must,yes,no,control engine already sets aspects
+Throw points by clicking them in 3D,operation,must,yes,yes,"2D version exists in Control mode; click the lever beside the toe, or P for the next point ahead; refused with a train on it"
+Signals shown in 3D with live aspects and obeyed,operation,must,yes,yes,control engine already sets aspects; masts with lit lamps; click to hold at red; trains already obey them through the engine
 Make up a train from simple rolling stock (loco and wagons),rolling stock,must,yes,no,own box models; no Rolling Line assets
 Place a train on the track facing a chosen way,rolling stock,must,yes,no,
 Uncouple and couple wagons,shunting,must,yes,no,buffers touching below a speed couple

@@ -395,6 +395,22 @@ with sync_playwright() as p:
     shot(pg, "09c-derailed")
     pg.keyboard.press("r"); pg.wait_for_timeout(400)
     check("R re-rails it and clears the fault", pg.locator("#drive-derailed").count() == 0 and not js(pg, "!!railplot.drive.world().consistOf(railplot.drive.train).derailed") and js(pg, "railplot.ctl.engine.faults.size") == 0)
+    # points and signals in 3D: click the lever beside a point, and a signal's mast
+    while pg.locator("#drive-camera").inner_text().split()[0] != "Tabletop": pg.keyboard.press("c"); pg.wait_for_timeout(100)
+    pg.wait_for_timeout(300)
+    def click_target(kind):
+        at = js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect();
+          const free = d.world().itemsUnder();
+          const t = d.targets.find(t => t.kind === '{kind}' && !free.has(t.id)); const s = t && v.toCanvas(t.x, t.y, t.z);
+          return t && s ? [t.id, r.left + s.x, r.top + s.y] : null; }})()""")
+        if at: pg.mouse.click(at[1], at[2]); pg.wait_for_timeout(200)
+        return at and at[0]
+    pid = click_target("point")
+    check("clicking a point's lever in 3D throws it", pid and js(pg, f"railplot.p.control.points.find(q => q.item === '{pid}').state") == 1, pid)
+    sid = click_target("signal")
+    check("clicking a signal in 3D holds it at red", sid and js(pg, f"railplot.p.control.signals.find(s => s.id === '{sid}').mode") == "stop", sid)
+    shot(pg, "09d-points-signals")
+    click_target("point"); click_target("signal")
     pg.keyboard.press("Space"); pg.wait_for_timeout(100)
     check("Space stops the selected train", js(pg, "railplot.ctl.engine.run(railplot.drive.train).target") == 0)
     pg.keyboard.press("Escape"); pg.wait_for_timeout(200)

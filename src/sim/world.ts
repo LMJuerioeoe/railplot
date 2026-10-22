@@ -403,6 +403,32 @@ export class World {
 
   consistOf(train: string) { return this.consists.find((c) => c.train === train); }
 
+  /** Track pieces with a vehicle on them (any part of it). */
+  itemsUnder(): Set<string> {
+    const out = new Set<string>();
+    for (const c of this.consists) c.at.forEach((a, i) => {
+      const half = c.vehicles[i].length / 2;
+      out.add(a.item);
+      for (const d of [-half, half]) out.add(this.graph.advance(a, d, this.points).pos.item);
+    });
+    return out;
+  }
+
+  /** The first point ahead of a train's leading end, within `reach` mm along the track as it's set. */
+  pointAhead(train: string, reach = 1500): string | null {
+    const c = this.consistOf(train);
+    if (!c) return null;
+    const way = c.travel;
+    const i = way === 1 ? 0 : c.at.length - 1;
+    const under = new Set(c.at.map((a) => a.item));
+    let pos = c.at[i];
+    for (let d = 0; d < reach; d += 20) {
+      pos = this.graph.advance(pos, way * 20, this.points).pos;
+      if (!under.has(pos.item) && this.engine().cfg.points.some((q) => q.item === pos.item)) return pos.item;
+    }
+    return null;
+  }
+
   /** Where a train's loco is. */
   poseOf(train: string): TrackPose | null {
     const c = this.consistOf(train);
