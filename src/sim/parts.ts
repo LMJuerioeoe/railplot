@@ -2,6 +2,9 @@
 // (wheels, buffers, axleboxes, lining), at OO scale (1:76.2, 16.5 mm gauge).
 // Coordinates in mm: x along the vehicle (+ is its front), y across it (+ is its left), z up from the rail top.
 
+import type { Label } from "./decals";
+export type { Label };
+
 export type RGB = [number, number, number];
 export type Axis = "x" | "y" | "z";
 
@@ -23,6 +26,12 @@ export interface Shapes {
   prismX(profile: [number, number][], x0: number, x1: number, col: RGB, smooth?: boolean): void;
   /** A convex outline seen from the side, as (x, z) points, between y0 and y1: splashers, cab fronts, noses. */
   prismY(profile: [number, number][], y0: number, y1: number, col: RGB, smooth?: boolean): void;
+  /**
+   * A decal flat on the body: lettering, a number plate, an emblem. Along a side (axis "y") it sits at
+   * y = ±face, from x u0 to u1, on both sides unless `side` picks one; on an end (axis "x") at x = face,
+   * from y u0 to u1. Always reads the right way round from where it's seen.
+   */
+  decal(axis: "x" | "y", face: number, u0: number, u1: number, z0: number, z1: number, label: Label, side?: 1 | -1): void;
   /** A shallow curved cap facing along an axis (dir ±1) from a: a smokebox door, a buffer head, a tank end. */
   dish(axis: Axis, a: number, dir: 1 | -1, u: number, v: number, r: number, depth: number, col: RGB): void;
   /** An arched roof from x0 to x1, its eaves at ±half wide and zEave high, rising `rise` in the middle. */
@@ -49,6 +58,7 @@ export function boundsOf(draw: (s: Shapes) => void) {
     roof: (x0, x1, half, ze, rise) => see(x0, x1, half, ze, ze + rise),
     dome: (x, y, z, r, _c, sq = 1) => see(x - r, x + r, Math.abs(y) + r, z, z + r * sq),
     dish: (axis, a, dir, u, v, r, depth) => round(axis, Math.min(a, a + dir * depth), Math.max(a, a + dir * depth), u, v, r),
+    decal: () => { /* flat on the body: takes no room */ },
   });
   return b;
 }
@@ -108,6 +118,8 @@ export function badge(s: Shapes, half: number, x: number, z: number, r: number, 
 
 /** A row of pale marks standing in for lettering or a number, on both sides. */
 export function lettering(s: Shapes, half: number, x0: number, x1: number, z: number, height: number, col: RGB, chars = 4) {
+  // markings are decals now (see the models' marks); this only stood in for them
+  return; // eslint-disable-line no-unreachable
   const w = (x1 - x0) / (chars * 1.35);
   for (let i = 0; i < chars; i++) {
     const x = x0 + i * w * 1.35;
@@ -296,6 +308,14 @@ export function planking(s: Shapes, face: number, x0: number, x1: number, z0: nu
     if (horizontal) { const z = z0 + ((z1 - z0) * i) / n; strip(s, face, x0, z, x1, z, 0.22, col, 0.08); }
     else { const x = x0 + ((x1 - x0) * i) / n; strip(s, face, x, z0, x, z1, 0.22, col, 0.08); }
   }
+}
+
+/** A ladder of steps hanging below a cab door: two stiles and rungs, from zTop down to zBottom. */
+export function ladder(s: Shapes, x: number, face: number, zTop: number, zBottom: number, col: RGB) {
+  const yo = Math.sign(face) * (Math.abs(face) - 0.2), yi = Math.sign(face) * (Math.abs(face) - 1.6);
+  const lo = Math.min(yo, yi), hi = Math.max(yo, yi);
+  for (const dx of [-2.2, 2.2]) s.box(x + dx - 0.3, x + dx + 0.3, lo, hi, zBottom, zTop, col);
+  for (let z = zBottom + 0.4; z < zTop - 0.5; z += 3.2) s.box(x - 2.2, x + 2.2, lo, hi, z, z + 0.5, col);
 }
 
 /** Steps: a hanging bracket and a tread, below a door or the cab. */

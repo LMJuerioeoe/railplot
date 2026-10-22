@@ -87,6 +87,10 @@ export function drawCoach(s: Shapes, p: CoachSpec) {
         if (t === "D") glass(x0 + 1.6, x1 - 1.6, bot + 1, top);
         else { glass(x0 + 2, x1 - 2, bot + 3, top - 1); for (let b = x0 + 3; b < x1 - 2; b += 1.6) strip(s, f, b, bot + 3, b, top - 1, 0.25, frames, 0.25); }
         s.box(x0 + 1.2, x0 + 2.6, Math.min(f, f + e * 0.5), Math.max(f, f + e * 0.5), p.waist - 1.8, p.waist - 1.2, BRASS);   // handle
+        strip(s, f, x0 + 1.4, top + 0.7, x1 - 1.4, top + 0.7, 0.55, darker(upper, 0.55), 0.35);                                // ventilator hood over the droplight
+        const ys = e * (w - tb), yo = e * (w - tb + 0.9);
+        s.box(x0 + 1, x1 - 1, Math.min(ys, yo), Math.max(ys, yo), p.floor - 4.2, p.floor - 3.6, UNDER);                      // step below the door
+        s.box(x0 + 1.2, x0 + 1.7, Math.min(ys, yo), Math.max(ys, yo), p.floor - 4.2, p.floor - 1, UNDER);
         for (const xg of [x0 - 0.6, x1 + 0.6]) barZ(s, xg, e * (w + 0.35), p.waist - 6, p.waist - 1, 0.22, STEEL);
       }
       x = x0;
@@ -125,10 +129,15 @@ export function drawCoach(s: Shapes, p: CoachSpec) {
     for (const x of [-mid * 0.45, mid * 0.45]) s.box(x - 0.4, x + 0.4, Math.min(y0, y1), Math.max(y0, y1), zl, p.floor - 2, UNDER);
   }
   for (const c of [p.bogieCentre, -p.bogieCentre]) bogie(s, c, p.bogieWheelbase, p.wheelR, p.floor - 3.2);
+  for (const e of SIDES) s.beam(-p.bogieCentre + 8, p.floor - 5.5, p.bogieCentre - 8, p.floor - 5.5, Math.min(e * 2.5, e * 3.1), Math.max(e * 2.5, e * 3.1), 0.45, UNDER);   // brake rodding
+  for (const d of SIDES) for (const e of SIDES) {
+    const y = e * w * 0.5, z = p.eave + p.rise * 0.75;
+    s.cyl("z", z - 0.5, z + 0.9, d * (bh - 6), y, 0.7, 0.7, darker(L.roof, 0.7));                   // water filler pipes on the roof
+  }
 }
 
 /** A two-axle bogie: side frames with axleboxes and springs, a bolster, the wheels. */
-export function bogie(s: Shapes, x: number, wb: number, r: number, top: number, col: RGB = UNDER) {
+export function bogie(s: Shapes, x: number, wb: number, r: number, top: number, col: RGB = UNDER, loco = false) {
   const a = wb / 2;
   for (const e of SIDES) {
     const y0 = e * 10.2, y1 = e * 11.4;
@@ -144,6 +153,14 @@ export function bogie(s: Shapes, x: number, wb: number, r: number, top: number, 
     s.box(x - 5, x + 5, lo, hi, r + 2.6, top, col);                                                // bolster end
   }
   s.box(x - 4, x + 4, -10, 10, top - 1.8, top, col);
+  for (const e of SIDES) barY(s, x + e * 3.5, -5, 5, r + 0.5, 1.4, darker(col, 0.8));                 // brake cylinders
+  if (loco) for (const e of SIDES) for (const d of SIDES) {
+    // sandboxes at the bogie ends, with their pipes to the rail; a damper to the body
+    const xs = x + d * (a + r + 1.6), lo = Math.min(e * 10.3, e * 12.6), hi = Math.max(e * 10.3, e * 12.6);
+    s.box(xs - 1.2, xs + 1.2, lo, hi, r + 1.5, r + 5.5, col);
+    s.beam(xs, r + 1.5, x + d * (a + r * 0.6), 1.2, Math.min(e * 8.4, e * 8.8), Math.max(e * 8.4, e * 8.8), 0.35, DARK_STEEL);
+    s.beam(x + d * 4, r + 3, x + d * 8, top - 0.5, Math.min(e * 11.6, e * 12.4), Math.max(e * 11.6, e * 12.4), 0.7, DARK_STEEL);
+  }
   for (const ax of [x - a, x + a]) discWheels(s, ax, r);
   for (const ax of [x - a, x + a]) for (const e of SIDES) s.box(ax - Math.sign(ax - x) * (r + 0.3) - 0.5, ax - Math.sign(ax - x) * (r + 0.3) + 0.5, Math.min(e * 6.8, e * 9.4), Math.max(e * 6.8, e * 9.4), r - 2.4, r + 2.4, BLACK);   // brake blocks
 }

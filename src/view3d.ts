@@ -3,11 +3,16 @@ import { Pose, Prim, primAt, triangulate } from "./geom";
 import { Item, Project, geom, isVisible, projectBounds } from "./model";
 import { getModule, moduleToWorld, overallDepth } from "./modules";
 import { Model, RGB, Shapes, modelById } from "./sim/models";
+import { Label, paintLabel } from "./sim/decals";
 
 type V3 = [number, number, number];
 
 class MeshBuilder {
   pos: number[] = []; nrm: number[] = []; col: number[] = []; idx: number[] = [];
+  /** Texture coordinates, for decal meshes. */
+  uv: number[] = [];
+  /** A model's decals, laid out but not yet painted: corners (unit space), normal, label, size in mm. */
+  decals: { corners: V3[]; n: V3; label: Label; w: number; h: number }[] = [];
   vert(p: V3, n: V3, c: V3) {
     this.pos.push(...p); this.nrm.push(...n); this.col.push(...c);
     return this.pos.length / 3 - 1;
@@ -187,25 +192,29 @@ function mul(a: M4, b: M4): M4 {
 }
 
 const VS = `#version 300 es
-in vec3 aPos; in vec3 aNrm; in vec3 aCol;
+in vec3 aPos; in vec3 aNrm; in vec3 aCol; in vec2 aUV;
 uniform mat4 uMvp; uniform mat4 uModel; uniform vec3 uEye; uniform vec3 uTint;
-out vec3 vN; out vec3 vC; out float vD; out vec3 vW; out float vH;
-void main(){ vec4 w=uModel*vec4(aPos,1.0); vN=mat3(uModel)*aNrm; vC=aCol*uTint; vD=distance(w.xyz,uEye); vW=w.xyz; vH=aPos.y; gl_Position=uMvp*w; }`;
+out vec3 vN; out vec3 vC; out float vD; out vec3 vW; out float vH; out vec2 vUV;
+void main(){ vec4 w=uModel*vec4(aPos,1.0); vN=mat3(uModel)*aNrm; vC=aCol*uTint; vD=distance(w.xyz,uEye); vW=w.xyz; vH=aPos.y; vUV=aUV; gl_Position=uMvp*w; }`;
 const FS = `#version 300 es
 precision highp float;
-in vec3 vN; in vec3 vC; in float vD; in vec3 vW; in float vH;
+in vec3 vN; in vec3 vC; in float vD; in vec3 vW; in float vH; in vec2 vUV;
 uniform vec3 uBg; uniform float uFog; uniform vec3 uEye; uniform float uSpec; uniform float uAO; uniform float uShadow;
+uniform sampler2D uTex; uniform float uUseTex;
 out vec4 o;
 void main(){
   // a contact shadow: dark, as see-through as its colour says
   if(uShadow>0.0){ o=vec4(0.0,0.0,0.0,vC.r*uShadow); return; }
+  vec3 base=vC; float alpha=1.0;
+  // a decal: its painted texture, lit like the body under it
+  if(uUseTex>0.5){ vec4 t=texture(uTex,vUV); if(t.a<0.02) discard; base=t.rgb; alpha=t.a; }
   vec3 n=normalize(vN);
   vec3 V=normalize(uEye-vW);
   if(dot(n,V)<0.0) n=-n;   // lit from whichever side is seen
   vec3 L=normalize(vec3(-0.45,0.85,0.35));
   float d=max(dot(n,L),0.0);
   float hemi=0.5+0.5*n.y;
-  vec3 c=vC*(0.38+0.22*hemi+0.55*d);
+  vec3 c=base*(0.38+0.22*hemi+0.55*d);
   // paint and metal catch the light: a soft highlight, and a little sky reflected at grazing angles
   float sp=pow(max(dot(n,normalize(L+V)),0.0),28.0)*uSpec;
   float rim=pow(1.0-max(dot(n,V),0.0),3.0)*uSpec*0.35;
@@ -213,7 +222,7 @@ void main(){
   // vehicles: the closer to the rails, the less sky reaches (wheels and underframes sit in shade)
   c*=mix(1.0,0.5+0.5*smoothstep(0.0,0.42,vH),uAO);
   float f=clamp((vD-uFog)/(uFog*3.0),0.0,0.6);
-  o=vec4(mix(c,uBg,f),1.0);
+  o=vec4(mix(c,uBg,f),alpha);
 }`;
 
 /** A vehicle to draw this frame: its kind and size, colour, and where it stands. */
@@ -229,6 +238,8 @@ export interface DynamicVehicle { kind: string; length: number; width: number; h
  * z up from 0 to 1. Its millimetres are divided by its size here and multiplied back by the vehicle's matrix,
  * so normals are divided twice to come out square to the surface after that stretch.
  */
+const SIDES_ = [1, -1] as const;
+
 function modelMesh(md: Model): MeshBuilder {
   const m = new MeshBuilder();
   const L = md.length, Wd = md.width, H = md.height;
@@ -247,7 +258,7 @@ function modelMesh(md: Model): MeshBuilder {
   const dirOf = (axis: "x" | "y" | "z", t: number): P3 => around(axis, 0, 0, 0, t, 1);
   const unit = (axis: "x" | "y" | "z", sgn: number): P3 => (axis === "x" ? [sgn, 0, 0] : axis === "y" ? [0, sgn, 0] : [0, 0, sgn]);
   // round things get more sides the bigger they are
-  const segs = (r: number) => Math.max(10, Math.min(32, Math.round(r * 2.4)));
+  const segs = (r: number) => Math.max(12, Math.min(56, Math.round(r * 3.6)));
   /** Outward normals of a convex outline's edges (in its own 2D plane), whichever way round it's given. */
   const edgeNormals = (pts: [number, number][]): [number, number][] => {
     let area = 0;
@@ -326,8 +337,22 @@ function modelMesh(md: Model): MeshBuilder {
         quadN([x, y0, z], [x2, y0, z2], [x2, y1, z2], [x, y1, z], [na[0], 0, na[1]], [nb[0], 0, nb[1]], [nb[0], 0, nb[1]], [na[0], 0, na[1]], col);
       });
     },
+    decal(axis, face, u0, u1, z0, z1, label, side) {
+      // a few hundredths of a mm proud of the body, its corners ordered so it reads from outside
+      const out = 0.06;
+      const add = (c: P3[], n: P3, w: number, h: number) => m.decals.push({ corners: c.map(P), n: N(n), label, w, h });
+      if (axis === "y") {
+        for (const e of side ? [side] : SIDES_) {
+          const y = e * (face + out), [xl, xr] = e > 0 ? [u1, u0] : [u0, u1];
+          add([[xl, y, z0], [xr, y, z0], [xr, y, z1], [xl, y, z1]], [0, e, 0], Math.abs(u1 - u0), z1 - z0);
+        }
+      } else {
+        const e = Math.sign(face) || 1, x = face + e * out, [yl, yr] = e > 0 ? [u0, u1] : [u1, u0];
+        add([[x, yl, z0], [x, yr, z0], [x, yr, z1], [x, yl, z1]], [e, 0, 0], Math.abs(u1 - u0), z1 - z0);
+      }
+    },
     dish(axis, a, dir, u, v, r, depth, col) {
-      const n = segs(r), rings = 5;
+      const n = segs(r), rings = 8;
       for (let i = 0; i < rings; i++) {
         const p0 = (i / rings) * Math.PI / 2, p1 = ((i + 1) / rings) * Math.PI / 2;
         for (let k = 0; k < n; k++) {
@@ -339,7 +364,7 @@ function modelMesh(md: Model): MeshBuilder {
       }
     },
     roof(x0, x1, half, zEave, rise, col) {
-      const n = 16, zAt = (u: number) => zEave + rise * (1 - u * u);
+      const n = 28, zAt = (u: number) => zEave + rise * (1 - u * u);
       const nAt = (u: number): P3 => [0, (2 * rise * u) / half, 1];
       for (let k = 0; k < n; k++) {
         const u0 = -1 + (2 * k) / n, u1 = -1 + (2 * (k + 1)) / n;
@@ -349,7 +374,7 @@ function modelMesh(md: Model): MeshBuilder {
       }
     },
     dome(x, y, z, r, col, squash = 1) {
-      const n = segs(r), rings = 6;
+      const n = segs(r), rings = 9;
       for (let i = 0; i < rings; i++) {
         const p0 = (i / rings) * Math.PI / 2, p1 = ((i + 1) / rings) * Math.PI / 2;
         for (let k = 0; k < n; k++) {
@@ -432,7 +457,7 @@ export class View3D {
   private project: Project | null = null;
   /** Vehicles drawn over the layout this frame. */
   private dynamic: DynamicVehicle[] = [];
-  private vehicleVaos = new Map<string, { vao: WebGLVertexArrayObject; count: number }>();
+  private vehicleVaos = new Map<string, { vao: WebGLVertexArrayObject; count: number; decals?: { vao: WebGLVertexArrayObject; count: number; tex: WebGLTexture } }>();
   /** Called with the canvas position (CSS px) of a click that wasn't a drag. */
   onPick: ((x: number, y: number) => void) | null = null;
   /** The pointer moving over the view without dragging (canvas pixels). */
@@ -467,13 +492,15 @@ export class View3D {
     const gl = this.gl;
     const vao = gl.createVertexArray()!;
     gl.bindVertexArray(vao);
-    const attr = (name: string, data: number[]) => {
+    const attr = (name: string, data: number[], size = 3) => {
       const b = gl.createBuffer()!; keep.push(b);
       gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
       const loc = gl.getAttribLocation(this.prog, name);
-      gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      if (loc < 0) return;
+      gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
     };
     attr("aPos", m.pos); attr("aNrm", m.nrm); attr("aCol", m.col);
+    if (m.uv.length) attr("aUV", m.uv, 2);
     const ib = gl.createBuffer()!; keep.push(ib);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(m.idx), gl.STATIC_DRAW);
     gl.bindVertexArray(null);
@@ -522,9 +549,58 @@ export class View3D {
 
   private vehicleVao(kind: string) {
     let x = this.vehicleVaos.get(kind);
-    if (!x) { const m = vehicleMesh(kind); x = { vao: this.upload(m, this.vehicleBufs), count: m.idx.length }; this.vehicleVaos.set(kind, x); }
+    if (!x) {
+      const m = vehicleMesh(kind);
+      x = { vao: this.upload(m, this.vehicleBufs), count: m.idx.length, decals: m.decals.length ? this.decalVao(m) : undefined };
+      this.vehicleVaos.set(kind, x);
+    }
     return x;
   }
+
+  /**
+   * Paint a model's decals into one texture, packed in rows, and make the quads that carry them.
+   * About 24 pixels to the mm, less if a model has so many that they wouldn't fit 2048 × 2048.
+   */
+  private decalVao(m: MeshBuilder) {
+    const gl = this.gl, W_ = 2048, pad = 3;
+    let k = 24, rows: { x: number; y: number; w: number; h: number }[] = [], H = 0;
+    for (let tries = 0; tries < 8; tries++) {
+      rows = []; let x = pad, y = pad, rowH = 0;
+      for (const d of m.decals) {
+        const w = Math.max(4, Math.ceil(d.w * k)), h = Math.max(4, Math.ceil(d.h * k));
+        if (x + w + pad > W_) { x = pad; y += rowH + pad; rowH = 0; }
+        rows.push({ x, y, w: Math.min(w, W_ - 2 * pad), h }); x += w + pad; rowH = Math.max(rowH, h);
+      }
+      H = y + rowH + pad;
+      if (H <= 2048) break;
+      k *= 0.75;
+    }
+    const cv = document.createElement("canvas");
+    cv.width = W_; cv.height = Math.min(2048, 1 << Math.ceil(Math.log2(Math.max(16, H))));
+    const g = cv.getContext("2d")!;
+    const dm = new MeshBuilder();
+    m.decals.forEach((d, i) => {
+      const r = rows[i];
+      paintLabel(g, r.x, r.y, r.w, r.h, d.label, k);
+      const u0 = r.x / cv.width, u1 = (r.x + r.w) / cv.width, v0 = r.y / cv.height, v1 = (r.y + r.h) / cv.height;
+      const uv: [number, number][] = [[u0, v1], [u1, v1], [u1, v0], [u0, v0]];
+      const idx = d.corners.map((c, j) => { const n = dm.vert(c, d.n, [1, 1, 1]); dm.uv.push(...uv[j]); return n; });
+      dm.idx.push(idx[0], idx[1], idx[2], idx[0], idx[2], idx[3]);
+    });
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const aniso = gl.getExtension("EXT_texture_filter_anisotropic");
+    if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+    this.decalTextures.push(tex);
+    return { vao: this.upload(dm, this.vehicleBufs), count: dm.idx.length, tex };
+  }
+  private decalTextures: WebGLTexture[] = [];
   private vehicleBufs: WebGLBuffer[] = [];
 
   rebuild() { if (this.project) this.setProject(this.project, false); }
@@ -554,7 +630,8 @@ export class View3D {
 
   render() {
     const gl = this.gl, c = this.canvas;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // render above the screen's resolution on ordinary displays (the browser scales it down smoothly)
+    const dpr = Math.min(2.5, Math.max(1.5, (window.devicePixelRatio || 1) * 1.25));
     const w = Math.max(1, Math.round(c.clientWidth * dpr)), h = Math.max(1, Math.round(c.clientHeight * dpr));
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     gl.viewport(0, 0, w, h);
@@ -606,6 +683,17 @@ export class View3D {
       gl.uniform1f(loc("uAO"), v.kind === "box" ? 0 : 1);
       gl.bindVertexArray(mesh.vao);
       gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
+      if (mesh.decals) {
+        // its lettering and emblems, blended over the paint
+        gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, mesh.decals.tex);
+        gl.uniform1i(loc("uTex"), 0); gl.uniform1f(loc("uUseTex"), 1);
+        gl.bindVertexArray(mesh.decals.vao);
+        gl.drawElements(gl.TRIANGLES, mesh.decals.count, gl.UNSIGNED_INT, 0);
+        gl.uniform1f(loc("uUseTex"), 0);
+        gl.disable(gl.BLEND); gl.disable(gl.POLYGON_OFFSET_FILL);
+      }
     }
     gl.bindVertexArray(null);
   }
@@ -694,7 +782,8 @@ export class View3D {
     const gl = this.gl;
     for (const b of [...this.bufs, ...this.vehicleBufs]) gl.deleteBuffer(b);
     if (this.vao) gl.deleteVertexArray(this.vao);
-    for (const x of this.vehicleVaos.values()) gl.deleteVertexArray(x.vao);
+    for (const x of this.vehicleVaos.values()) { gl.deleteVertexArray(x.vao); if (x.decals) gl.deleteVertexArray(x.decals.vao); }
+    for (const t of this.decalTextures) gl.deleteTexture(t);
     if (this.shadowMesh) gl.deleteVertexArray(this.shadowMesh.vao);
     gl.deleteProgram(this.prog);
   }

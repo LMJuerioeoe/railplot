@@ -2,7 +2,7 @@
 // are, how big the boiler is, what the cab and tanks look like, and the livery.
 import {
   BLACK, BRASS, CAB_INSIDE, COAL, COPPER, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER,
-  WHEEL_FACE, arc, badge, coal, barX, barY, barZ, darker, discWheels, headstocks, lining, spokedWheels, step, strip,
+  WHEEL_BACK, WHEEL_FACE, arc, badge, coal, barX, barY, barZ, darker, discWheels, headstocks, lining, spokedWheels, step, strip,
 } from "./parts";
 
 export interface SteamLivery {
@@ -266,12 +266,19 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
     s.box(C.x0, C.x0 + (C.back === "open" ? 2.2 : 3), lo, hi, wz0, wz1, body);                    // back pillar
     if (L.beading) { strip(s, out, C.x0 + 3, wz0, C.x1 - 3.5, wz0, 0.4, L.beading); strip(s, out, C.x1 - 3.5, wz0, C.x1 - 3.5, wz1, 0.4, L.beading); }
     if (C.window !== "big") s.box(C.x1 - 3.4, C.x1 - 0.5, Math.min(out, out + e * 0.05), Math.max(out, out + e * 0.05), wz1 - 0.1, C.eave - 0.8, GLASS);   // small side window
-    if (L.numberPlate) s.box(C.x0 + 4, C.x0 + 11, Math.min(out, out + e * 0.35), Math.max(out, out + e * 0.35), pl.z + 4, pl.z + 6.8, L.numberPlate);
+
     // grab handles beside the opening, steps below
     barZ(s, C.x0 + 0.8, e * (C.half + 0.5), pl.z + 1, wz1, 0.28, STEEL);
     step(s, C.x0 + 3.5, e * (pl.half - 0.2), pl.z - 0.6);
   }
-  s.box(C.x0 + 0.5, C.x1 - 0.5, -C.half + 0.7, C.half - 0.7, pl.z, C.eave - 0.5, CAB_INSIDE);        // the dark inside
+  // inside the cab: the floor, the boiler's backhead with the firehole glowing, gauges and the regulator
+  s.box(C.x0 + 0.5, C.x1 - 0.5, -C.half + 0.7, C.half - 0.7, pl.z, pl.z + 0.5, CAB_INSIDE);
+  s.box(C.x1 - 4, C.x1 - 0.8, -Math.min(FB.half, C.half - 1.5), Math.min(FB.half, C.half - 1.5), pl.z, C.eave - 2, [0.16, 0.15, 0.14]);
+  s.cyl("x", C.x1 - 4.15, C.x1 - 4, 0, pl.z + 6, 1.8, 1.8, [1, 0.55, 0.16]);                          // the firehole
+  s.ring("x", C.x1 - 4.3, C.x1 - 4, 0, pl.z + 6, 2.5, 1.8, DARK_STEEL);
+  for (const y of [-3, 3]) { s.cyl("x", C.x1 - 4.2, C.x1 - 4, y, C.eave - 7, 1.1, 1.1, [0.9, 0.88, 0.8]); s.ring("x", C.x1 - 4.3, C.x1 - 4, y, C.eave - 7, 1.35, 1.1, BRASS); }   // gauges
+  s.beam(C.x1 - 4.2, C.eave - 10, C.x1 - 6, C.eave - 12.5, -0.3, 0.3, 0.45, STEEL);                     // regulator
+  s.box(C.x0 + 1, C.x0 + 6, C.half - 6, C.half - 1, pl.z + 0.5, pl.z + 6, [0.3, 0.22, 0.14]);           // a seat
   // cab front, with its spectacle windows either side of the firebox
   s.box(C.x1 - 0.8, C.x1, -C.half, C.half, pl.z, C.eave, body);
   for (const e of SIDES) {
@@ -296,12 +303,31 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
   }
   if (line) lining(s, C.half, C.x0 + 1.2, pl.z + 2.4, C.x1 - 1.2, wz0 - 1.2, line[0], 0.45, line[1]);
   if (L.emblem) badge(s, L.emblem.x < C.x0 ? C.half : (T ? w - 0.1 : C.half), L.emblem.x, L.emblem.z, L.emblem.r, L.emblem.col, L.emblem.ring);
-  if (L.numbers) for (const e of SIDES) {
-    const n = 4, wd = (L.numbers.x1 - L.numbers.x0) / (n * 1.4);
-    for (let i = 0; i < n; i++) { const x = L.numbers.x0 + i * wd * 1.4; s.box(x, x + wd, e > 0 ? C.half : -C.half - 0.25, e > 0 ? C.half + 0.25 : -C.half, L.numbers.z, L.numbers.z + 2.6, L.numbers.col); }
+
+
+  // ---------- brakes, sanding, drain cocks, reversing rod ----------
+  for (const wh of driven) for (const e of SIDES) {
+    const xs = wh.x + wh.r + 0.5, lo = Math.min(e * WHEEL_BACK, e * (WHEEL_FACE - 0.4)), hi = Math.max(e * WHEEL_BACK, e * (WHEEL_FACE - 0.4));
+    s.prismY([[xs - 0.6, wh.r - 3], [xs + 0.6, wh.r - 2.6], [xs + 0.6, wh.r + 2.6], [xs - 0.6, wh.r + 3]], lo, hi, DARK_STEEL);   // brake shoe
+    s.beam(xs + 0.4, wh.r + 2.6, xs + 1.6, pl.z - 2, Math.min(e * 6.4, e * 7), Math.max(e * 6.4, e * 7), 0.5, DARK_STEEL);       // hanger
+    s.box(xs - 0.3, xs + 0.3, Math.min(e * 4.5, e * 7.3), Math.max(e * 4.5, e * 7.3), wh.r - 2.8, wh.r - 2.2, DARK_STEEL);   // brake beam
+  }
+  if (driven.length > 1) for (const e of SIDES) s.beam(driven[0].x + driven[0].r, driven[0].r - 2.8, driven[driven.length - 1].x + driven[driven.length - 1].r, driven[0].r - 2.8, Math.min(e * 4.5, e * 5), Math.max(e * 4.5, e * 5), 0.5, DARK_STEEL);   // pull rods
+  for (const e of SIDES) {
+    const d0 = driven[0], y = e * 8.4;
+    s.beam(d0.x + d0.r + 4, pl.z - 1.5, d0.x + d0.r * 0.7, 1.2, Math.min(y, y + e * 0.4), Math.max(y, y + e * 0.4), 0.35, DARK_STEEL);   // sand pipe to the rail
+    if (cy.outside) {
+      const yc = e * (cy.y ?? 12.6);
+      for (const x of [cy.x0 + 1.5, cy.x1 - 1.5]) s.beam(x, cy.z - cy.r, x + 2.5, 1.8, Math.min(yc, yc + e * 0.3), Math.max(yc, yc + e * 0.3), 0.3, STEEL);   // drain cocks
+      s.beam(C.x1, pl.z + 2.2, driven[0].x + 4, pl.z + 2.2, Math.min(e * (pl.half - 2), e * (pl.half - 1.4)), Math.max(e * (pl.half - 2), e * (pl.half - 1.4)), 0.5, STEEL);   // reversing rod
+    }
   }
 
-  // ---------- lamp irons, front steps ----------
+  // ---------- lamp irons, a lamp, front steps ----------
+  // a white headlamp on the middle iron, its lens towards the line
+  s.box(face, face + 2.2, -1.4, 1.4, pl.z + 0.3, pl.z + 3.3, [0.9, 0.9, 0.87]);
+  s.cyl("x", face + 2.2, face + 2.45, 0, pl.z + 1.9, 0.95, 0.95, [1, 0.95, 0.72]);
+  s.beam(face + 0.6, pl.z + 3.3, face + 1.6, pl.z + 4.2, -0.2, 0.2, 0.3, DARK_STEEL);
   for (const y of [-7, 0, 7]) s.box(face - 0.6, face, y - 0.4, y + 0.4, pl.z, pl.z + 2.2, DARK_STEEL);
   s.box(SB.x1 + 0.2, SB.x1 + 0.8, -0.4, 0.4, B.z + SB.r * 0.75, B.z + SB.r * 0.75 + 2, DARK_STEEL);
   for (const e of SIDES) step(s, face - 4, e * (pl.half - 0.2), pl.z - 0.6);
@@ -336,7 +362,12 @@ export function drawTender(s: Shapes, p: TenderSpec) {
     step(s, b.x1 - 3, e * (w - 1), b.z0 - 0.4);
     step(s, b.x0 + 3, e * (w - 1), b.z0 - 0.4);
   }
-  for (const x of p.wheels) discWheels(s, x, p.r, darker(L.frames, 1.4));
+  for (const x of p.wheels) {
+    discWheels(s, x, p.r, darker(L.frames, 1.4));
+    for (const e of SIDES) { const lo = Math.min(e * WHEEL_BACK, e * (WHEEL_FACE - 0.4)), hi = Math.max(e * WHEEL_BACK, e * (WHEEL_FACE - 0.4)); s.box(x + p.r + 0.1, x + p.r + 1.1, lo, hi, p.r - 2.6, p.r + 2.6, DARK_STEEL); }   // brake shoes
+  }
+  // tool boxes on the tender top at the front
+  for (const e of SIDES) { const a = e * (w - 2.4), c = e * (w - 7); s.box(b.x1 - 5, b.x1 - 1.5, Math.min(a, c), Math.max(a, c), b.top - 0.2, b.top + 1.4, darker(L.body, 0.9)); }
   // the tank, the coal space at the front, and the fender round it
   const t = b.top;
   if (b.flare) {

@@ -91,10 +91,7 @@ export function drawClass08(s: Shapes) {
   s.roof(cx0 - 0.6, cx1 + 0.6, w + 0.2, ct, 2.4, ROOF_GREY);
   wasp(s, -face, -1, -15.5, 15.5, 9.4, plate);
   // the BR emblem on the bonnet side, and a number on the cab
-  for (const e of SIDES) {
-    s.cyl("y", Math.min(e * bw, e * (bw + 0.3)), Math.max(e * bw, e * (bw + 0.3)), 18, plate + 12, 3, 3, [0.85, 0.75, 0.45]);
-    for (let i = 0; i < 5; i++) { const x = cx0 + 5 + i * 3.4; s.box(x, x + 2.4, e > 0 ? w : -w - 0.25, e > 0 ? w + 0.25 : -w, plate + 4, plate + 7, [0.92, 0.92, 0.9]); }
-  }
+
 }
 
 /** BR Class 37 Co-Co diesel-electric, BR blue with full yellow ends: two noses, two cabs, the engine room between. */
@@ -106,7 +103,7 @@ export function drawClass37(s: Shapes) {
   s.box(-34, 34, -12, 12, 6.5, plate - 2, darker(BLACK, 1.3));
   for (const x of [-28, 0, 28]) s.box(x - 0.3, x + 0.3, -12.2, 12.2, 6.5, plate - 2, BLACK);
   for (const c of [66, -66]) {
-    bogie(s, c, 27, 7.1, plate - 2, BLACK);
+    bogie(s, c, 27, 7.1, plate - 2, BLACK, true);
     discWheels(s, c, 7.1);
   }
   // body: engine room between the cabs, cabs, noses
@@ -119,9 +116,7 @@ export function drawClass37(s: Shapes) {
     // engine room grilles and doors, the BR arrow, the number
     for (const x of [-60, -30, 25, 55]) { s.box(x - 9, x + 9, Math.min(f, f + e * 0.15), Math.max(f, f + e * 0.15), top - 12, top - 4, darker(BR_BLUE, 0.6)); for (let z = top - 11.5; z < top - 4; z += 1.1) strip(s, f, x - 8.5, z, x + 8.5, z, 0.4, BLACK, 0.22); }
     for (const x of [-45, 40]) { strip(s, f, x, plate + 2, x, top - 3, 0.3, darker(BR_BLUE, 0.5), 0.1); strip(s, f, x + 9, plate + 2, x + 9, top - 3, 0.3, darker(BR_BLUE, 0.5), 0.1); }
-    s.beam(-8, plate + 18, 8, plate + 18, Math.min(f, f + e * 0.25), Math.max(f, f + e * 0.25), 0.9, [0.92, 0.92, 0.9]);
-    s.beam(-4, plate + 20.5, 4, plate + 15.5, Math.min(f, f + e * 0.25), Math.max(f, f + e * 0.25), 0.9, [0.92, 0.92, 0.9]);
-    for (let i = 0; i < 5; i++) { const x = 66 + i * 3.4; s.box(x, x + 2.4, e > 0 ? w : -w - 0.25, e > 0 ? w + 0.25 : -w, plate + 4, plate + 7.5, [0.92, 0.92, 0.9]); }
+
     barX(s, -room + 2, room - 2, e * (w - 0.1), plate + 3, 0.3, STEEL);
   }
   for (const d of [1, -1]) {

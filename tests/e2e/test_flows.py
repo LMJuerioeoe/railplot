@@ -429,7 +429,9 @@ with sync_playwright() as p:
       const pts = new Set(railplot.p.control.points.map(q => q.item));
       for (const a of w.graph.samples(40)) {{
         const f = w.fit('{rake}', a), good = !('error' in f);
-        if ({'true' if ok else 'false'} ? !good || Math.abs(a.s - w.graph.routeLength(a.item, a.route) / 2) > 30 : !pts.has(a.item)) continue;
+        // the middle of a piece: at a joint the pointer can as well be on the piece next door
+        if (Math.abs(a.s - w.graph.routeLength(a.item, a.route) / 2) > 30) continue;
+        if ({'true' if ok else 'false'} ? !good : !pts.has(a.item)) continue;
         const p = w.graph.pose(a), s = v.toCanvas(p.x, p.y, p.z + 5);
         if (s && s.x > 40 && s.y > 40 && s.x < r.width - 40 && s.y < r.height - 140) return [r.left + s.x, r.top + s.y];
       }} return null; }})()""")

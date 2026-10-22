@@ -3,7 +3,7 @@
 // use the shared builders.
 import {
   BLACK, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER, WHITE, barX, barZ, coal, darker, discWheels,
-  headstocks, lettering, pane, step, strip,
+  headstocks, ladder, lettering, pane, step, strip,
 } from "./parts";
 import { bogie } from "./coaches";
 
@@ -72,6 +72,10 @@ export interface ElectricSpec {
   diesel?: { fans: number[]; exhausts: number[] };
   /** Side windows of the cab and grilles of the machine room. */
   cabWindow: [number, number, number, number];
+  /** A window in each cab door too: [x0, x1, z0, z1] back from the cab's back wall. */
+  doorWindow?: [number, number, number, number];
+  /** Round the roof's front edge over each cab (the roof runs on to the front rather than ending in a block). */
+  roofNose?: number;
   grilles: number[];
   /** A colour for each part of the front (a band wrapping round it, a dark windscreen surround). */
   frontColors?: RGB[];
@@ -113,6 +117,15 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
     s.prismY([[Math.min(x0, x1), z0], [Math.max(x0, x1), z0], [Math.max(x0, x1), z1], [Math.min(x0, x1), z1]], -w + 3, w - 3, p.plough.col);
     for (let y = -w + 3; y < w - 4; y += 3.2) s.box(Math.min(x0, x0 + d * 0.15), Math.max(x0, x0 + d * 0.15), y, y + 1.5, z0, z1, p.plough.stripe);
   }
+  // hoses and jumper cables on the buffer beams
+  for (const d of SIDES) for (const [y, col] of [[-4.2, [0.75, 0.12, 0.1]], [6.6, [0.85, 0.7, 0.1]], [-6.6, BLACK]] as [number, RGB][]) {
+    const x = d * (face + 0.8);
+    s.cyl("z", p.floor - 11, p.floor - 2, x, y, 0.5, 0.5, BLACK);
+    s.cyl("z", p.floor - 11.4, p.floor - 10.6, x, y, 0.7, 0.7, col);
+  }
+  for (const d of SIDES) s.beam(d * (face + 0.4), p.floor - 2.5, d * (face + 1.6), p.floor - 7, 8.6, 9.6, 0.9, BLACK);
+  // air reservoirs under the frame when there's no fuel tank there
+  if (!p.tank) for (const e of SIDES) barX(s, -18, 18, e * 7, (p.skirt?.z0 ?? p.floor - 2.4) - 3.2, 2.6, darker(L.frames, 0.9));
   if (p.tank) {
     const [t0, t1] = p.tank, tz0 = Math.max(3, (p.skirt?.z0 ?? p.floor - 2.4) - 7);
     s.prismX(section(12, tz0, (p.skirt?.z0 ?? p.floor - 2.4), 2).map(([y, z]) => [y, z] as [number, number]), t0, t1, L.frames, true);
@@ -125,7 +138,7 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
   // bogies, with the middle axle of a Co bogie
   const B = p.bogies;
   for (const c of [B.centre, -B.centre]) {
-    bogie(s, c, B.axles === 3 ? B.wheelbase : B.wheelbase, B.r, p.floor - 2.4, L.frames);
+    bogie(s, c, B.wheelbase, B.r, p.floor - 2.4, L.frames, true);
     if (B.axles === 3) discWheels(s, c, B.r);
   }
   // the machine room between the cabs: rounded shoulders, grilles, a roof with its gear
@@ -193,6 +206,11 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
     barX(s, -cb + 6, cb - 6, 3, top + p.roofRise + 0.4, 0.35, DARK_STEEL);
     s.box(-4, 4, -3, 3, top + p.roofRise - 0.3, top + p.roofRise + 1.6, DARK_STEEL);
   }
+  // horns on the cab roofs, their mouths forward
+  for (const d of SIDES) for (const y of [-2.6, 2.6]) {
+    const x = d * (cb + 4), z = top + p.roofRise * (1 - (y / (w - 1.6)) ** 2) + 0.5;
+    s.cyl("x", Math.min(x, x + d * 3.2), Math.max(x, x + d * 3.2), y, z, d > 0 ? 0.35 : 0.85, d > 0 ? 0.85 : 0.35, DARK_STEEL);
+  }
   for (const pg of p.pantographs) pantograph(s, pg.x, p.pantoZ ?? top + p.roofRise - 0.4, pg.kind, Math.sign(pg.x) || 1, p.pantoCol);
   // the two cabs
   // the front may be several stacked shapes (a bulging nose, a recessed windscreen, an overhanging brow),
@@ -255,14 +273,23 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
     const tz = p.topLampZ ?? gb[1] - 0.3, tx = frontAt(tz);
     s.cyl("x", Math.min(tx - d * 0.3, tx + d * 0.6), Math.max(tx - d * 0.3, tx + d * 0.6), 0, tz, 1.2, 1.2, L.lamps ?? [0.92, 0.92, 0.82]);
     // cab side windows and door, handrails and steps up to it
-    const [c0, c1, z0, z1] = p.cabWindow;
-    const wx0 = d > 0 ? xb + c0 : xb - c1, wx1 = d > 0 ? xb + c1 : xb - c0;
-    pane(s, w, wx0, z0, wx1, z1, 1.2, GLASS, darker(L.body, 0.6));
+    for (const win of [p.cabWindow, p.doorWindow]) {
+      if (!win) continue;
+      const [c0, c1, z0, z1] = win;
+      const wx0 = d > 0 ? xb + c0 : xb - c1, wx1 = d > 0 ? xb + c1 : xb - c0;
+      pane(s, w, wx0, z0, wx1, z1, 1.2, GLASS, [0.12, 0.12, 0.12]);
+    }
+    if (p.roofNose) {
+      // the roof's front edge rolled over: a quarter round along the top of the front
+      const R = p.roofNose, xr = roofEnd - d * R;
+      s.cyl("y", -w + cr + 0.5, w - cr - 0.5, xr, top + p.roofRise - R, R, R, L.roof, false);
+      for (const e of SIDES) s.dish("y", e * (w - cr - 0.5), e as 1 | -1, xr, top + p.roofRise - R, R, Math.min(R, cr), L.roof);
+    }
     for (const e of SIDES) {
       const dx = d > 0 ? xb + 1.5 : xb - 1.5;
       strip(s, e * w, dx, p.floor + 1.5, dx, top - 2, 0.3, darker(L.body, 0.45), 0.1);
       barZ(s, dx + d * 1.2, e * (w - 0.2), p.floor + 1, top - 10, 0.3, STEEL);
-      step(s, dx + d * 3, e * (w - 0.3), p.floor - 0.4, L.frames);
+      ladder(s, dx + d * 3.5, e * (w - 0.2), p.floor, Math.max(4.5, (p.skirt?.z0 ?? p.floor - 2.4) - 5.5), L.frames);
     }
     // wipers
     for (const e of SIDES) s.beam(gx(gz0 + 1), gz0 + 1, gx(gz0 + 4), gz0 + 4, e * 6 - 0.2, e * 6 + 0.2, 0.25, BLACK);

@@ -49,7 +49,8 @@ def free_spot(pg, consist, ok=True, mid=True):
       const pts = new Set(railplot.p.control.points.map(q => q.item));
       for (const a of w.graph.samples(40)) {{
         const f = w.fit('{consist}', a), good = !('error' in f);
-        if ({'true' if ok else 'false'} ? (!good || ({'true' if mid else 'false'} && Math.abs(a.s - w.graph.routeLength(a.item, a.route) / 2) > 30)) : !pts.has(a.item)) continue;
+        if (Math.abs(a.s - w.graph.routeLength(a.item, a.route) / 2) > 30 && ({'true' if mid else 'false'} || !{'true' if ok else 'false'})) continue;   // a piece's middle, not a joint
+        if ({'true' if ok else 'false'} ? !good : !pts.has(a.item)) continue;
         const p = w.graph.pose(a), s = v.toCanvas(p.x, p.y, p.z + 5);
         if (s && s.x > 40 && s.y > 40 && s.x < r.width - 40 && s.y < r.height - 160) return [r.left + s.x, r.top + s.y];
       }} return null; }})()""")
