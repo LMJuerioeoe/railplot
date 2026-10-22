@@ -30,6 +30,8 @@ export interface Consist {
   derailed?: Derailment;
   /** Where it last stood still on the rails, for "re-rail where it last stood". */
   lastStop?: TrackPos[];
+  /** Standing still now, with lastStop already noted for this stand. */
+  stood?: boolean;
   /** Held at the curve limit (derailments off): the HUD says so. */
   held?: boolean;
 }
@@ -59,6 +61,8 @@ const BUFFER_SPEED = 120;
 const GAP = 2;
 /** Closing speed at which buffers touching couple up, mm/s; faster, the trains bounce apart and stop. */
 export const COUPLE_SPEED = 70;
+/** How far a train the simulator stands on the track by itself can run both ways without trailing a point (mm). */
+const RUN_CLEAR = 1500;
 /** Closing speed over which a collision derails both trains, in coupling speeds (forgiving: 5). */
 const CRASH = 3;
 /** Simulation step, s. */
@@ -246,7 +250,7 @@ export class World {
     if ("error" in f) return f.error;
     const c = this.consists.find((x) => x.id === id)!;
     c.at = f.at; c.speed = 0; c.travel = 1; c.lastSign = 0;
-    c.derailed = undefined; c.lastStop = undefined;
+    c.derailed = undefined; c.lastStop = undefined; c.stood = false;
     this.saved(c);
     if (c.train) {
       // a train put down by hand stands still, and the engine finds it where its loco is
@@ -320,15 +324,20 @@ export class World {
     }));
   }
 
-  /** Stand a consist in the middle of a block's longest piece, facing along it. */
+  /**
+   * Stand a consist in the middle of one of a block's pieces, facing along it: the longest piece from
+   * which it can run a good way both ways without trailing through a point set against it (on a loop
+   * road it would come off at the first point), or the longest piece if there's no such place.
+   */
   standIn(c: Consist, block: string): boolean {
     const b = this.engine().cfg.blocks.find((x) => x.id === block);
     const items = (b?.items ?? []).map((id) => this.p.items.find((i) => i.id === id)).filter((i) => !!i);
     if (!items.length) return false;
-    const longest = items.reduce((a, i) => (geom(i!).length > geom(a!).length ? i : a))!;
-    const mid = this.graph.middleOf(longest.id);
-    if (!mid) return false;
-    return this.place(c, mid);
+    const byLength = [...items].sort((a, i) => geom(i!).length - geom(a!).length);
+    const clear = (at: TrackPos) => [RUN_CLEAR, -RUN_CLEAR].every((d) => !this.graph.advance(at, d, this.points).trailed);
+    const mids = byLength.map((i) => this.graph.middleOf(i!.id)).filter((m): m is TrackPos => !!m);
+    for (const mid of mids) if (clear(mid) && this.place(c, mid)) return true;
+    return mids.some((mid) => this.place(c, mid));
   }
 
   /** Put a consist's front vehicle at `front`, the rest following behind it along the track. */
@@ -460,13 +469,14 @@ export class World {
         if (this.mode === "off") { c.speed = Math.sign(c.speed) * limit; c.held = true; }
         else { this.derail(c, "curve", at, limit, this.graph.pose(c.at[at]).r); continue; }
       }
-      if (c.speed === 0 && !c.lastStop) {
+      if (c.speed === 0 && !c.stood) {
+        c.stood = true;
         c.lastStop = c.at.map((a) => ({ ...a }));
         // stood still: the layout remembers where
         const sc = this.engine().cfg.consists?.find((x) => x.id === c.id);
         if (sc && c.at[0]) sc.at = { ...c.at[0] };
       }
-      if (c.speed !== 0) c.lastStop = undefined;
+      if (c.speed !== 0) c.stood = false;
       const ds = c.speed * dt;
       if (ds !== 0) this.move(c, ds);
     }
@@ -563,7 +573,7 @@ export class World {
     const speed = c.speed, travel = c.travel, lastSign = c.lastSign, train = c.train ?? o.train;
     const gone = keep === c ? o : c;
     keep.vehicles = vehicles; keep.at = at; keep.train = train; keep.speed = speed; keep.travel = travel; keep.lastSign = lastSign;
-    keep.lastStop = undefined;
+    keep.lastStop = undefined; keep.stood = false;
     this.consists = this.consists.filter((x) => x !== gone);
     const cfg = this.engine().cfg;
     cfg.consists = (cfg.consists ?? []).filter((x) => x.id !== gone.id);

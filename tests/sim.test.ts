@@ -181,6 +181,47 @@ describe("derailments", () => {
   });
 });
 
+test("BUG-012: 'Try it with the simulator' on the sample oval runs round it, both ways, without derailing at a point", () => {
+  for (const way of [1, -1]) {
+    const p = buildSample();
+    const { quickStart } = require("../src/control/engine");
+    const cfg = quickStart(p, undefined, "sim");
+    p.control = cfg;
+    const e = new ControlEngine(p, cfg);
+    const w = worldFor(e);
+    const t = cfg.trains[0];
+    const c = w.consistOf(t.id)!;
+    w.advanceTo(0);
+    e.setThrottle(t.id, way * 0.5);
+    for (let k = 0; k < 400; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+    expect([way, c.derailed?.cause ?? null]).toEqual([way, null]);
+    expect(Math.abs(c.speed)).toBeGreaterThan(0);
+  }
+});
+
+test("BUG-013: after running off at a point, 're-rail where it last stood' puts the train back where it started from", () => {
+  const p = buildSample();
+  const { quickStart } = require("../src/control/engine");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  const t = cfg.trains[0];
+  const c = w.consistOf(t.id)!;
+  w.advanceTo(0);
+  w.advanceTo(100);
+  const start = c.at.map((a) => ({ ...a }));
+  for (const q of cfg.points) q.state = 1;
+  cfg.points[1].state = 0;   // one point thrown, the other not: somewhere round the oval it trails one set against it
+  e.setThrottle(t.id, 0.5);
+  let k = 0;
+  for (; k < 600 && !c.derailed; k++) { e.step(0.1); w.advanceTo(k * 100 + 200); }
+  expect(c.derailed?.cause).toBe("trailing");
+  expect(w.rerail(c.id, "last-stop")).toBe(true);
+  expect(c.at).toEqual(start);
+  expect(e.faults.size).toBe(0);
+});
+
 describe("making up trains, placing, coupling", () => {
   /** A straight line of eight Setrack straights, one block, one train, nothing in the way. */
   function line(mode: "off" | "forgiving" | "realistic" = "realistic") {

@@ -348,6 +348,8 @@ table.keys td:first-child { width: 1%; white-space: nowrap; }
 .stop-row .stop-all { flex: 1 1 auto; width: auto; }
 .stop-row .btn-sm { height: 44px; }
 .auto-status:empty { display: none; }
+.derailed-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; border-radius: var(--r); background: var(--bad-soft); color: var(--bad); font-size: 13px; }
+.derailed-note[hidden] { display: none; }
 .auto-row { display: grid; gap: 2px; }
 .dccex-setup { display: grid; gap: 6px; padding: 6px 0; }
 .dccex-setup .field { display: inline-flex; align-items: center; gap: 6px; }
