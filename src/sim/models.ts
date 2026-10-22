@@ -444,6 +444,20 @@ const EUROPE: Model[] = [
       cabWindow: [3, 11, 31, 40], grilles: [-40, -22, 14, 34],
     })),
   },
+  {
+    id: "roco-1144-078", maker: "Roco", name: "ÖBB 1144 electric (1044)", group: "electric", kind: "loco", scale: "H0",
+    length: 185, width: 34.6, height: 51.6, color: "#bf1f1c",
+    note: "Roco 7500060 (7510060 / 7520060 with sound): 1144 078-3 of the ÖBB, Epoch VI, in the traffic red and agate grey Valousek design, with Klatte roof grilles and single-arm pantographs; Bo'Bo', 1,300 mm wheels, 185 mm over buffers",
+    draw: h0((s) => drawElectric(s, {
+      length: 185, width: 34.6, height: 51.6, floor: 16.5, eave: 44.5, roofRise: 2.4, cabBack: 69,
+      front: [[0, 16.5], [0, 28], [1.2, 31], [5, 42.5], [7, 44.5]],
+      bogies: { centre: 46, wheelbase: 33.3, r: 7.47, axles: 2 },
+      pantographs: [{ x: 30, kind: "single" }, { x: -30, kind: "single" }],
+      roofGrilles: true, cornerR: 3, emblem: [0.95, 0.95, 0.94],
+      livery: { body: [0.75, 0.12, 0.11], roof: [0.5, 0.51, 0.51], frames: [0.22, 0.22, 0.23], band: { z0: 16.5, z1: 22, col: [0.55, 0.57, 0.57] } },
+      cabWindow: [3, 11, 31, 40], grilles: [-46, -22, 22, 46],
+    })),
+  },
 ];
 MODELS.push(...EUROPE);
 

@@ -53,6 +53,10 @@ export interface ElectricSpec {
   bogies: { centre: number; wheelbase: number; r: number; axles: 2 | 3 };
   pantographs: { x: number; kind: "diamond" | "single" }[];
   livery: { body: RGB; roof: RGB; frames: RGB; beams?: RGB; apron?: RGB; band?: { z0: number; z1: number; col: RGB }; lamps?: RGB; stripe?: { z: number; col: RGB } };
+  /** Continuous fan grilles along both edges of the roof (ÖBB 1044's Klatte grilles). */
+  roofGrilles?: boolean;
+  /** An emblem on each side, in the middle: a white disc standing in for the railway's logo. */
+  emblem?: RGB;
   /** Round the cab front's corners in plan, with this radius (the ČSD "Bardotka"). */
   cornerR?: number;
   /** A diesel-electric on the same kind of body: radiator fans and exhausts on the roof instead of pantographs. */
@@ -88,9 +92,17 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
       s.box(x - 7, x + 7, Math.min(f, f + e * 0.12), Math.max(f, f + e * 0.12), top - 12, top - 4, darker(L.body, 0.55));
       for (let z = top - 11.5; z < top - 4; z += 0.9) strip(s, f, x - 6.6, z, x + 6.6, z, 0.35, darker(L.body, 0.3), 0.18);
     }
-    if (L.band) s.box(-cb, cb, Math.min(f, f + e * 0.1), Math.max(f, f + e * 0.1), L.band.z0, L.band.z1, L.band.col);
+    const bandEnd = face - 0.6 - (p.cornerR ?? 0) - p.front[1][0];
+    if (L.band) s.box(-bandEnd, bandEnd, Math.min(f, f + e * 0.1), Math.max(f, f + e * 0.1), L.band.z0, L.band.z1, L.band.col);
+    if (p.emblem) s.cyl("y", Math.min(f, f + e * 0.3), Math.max(f, f + e * 0.3), 0, (p.floor + top) / 2 + 2, 3.2, 3.2, p.emblem);
     if (L.stripe) strip(s, f, -face, L.stripe.z, face, L.stripe.z, 0.7, L.stripe.col, 0.15);
     lettering(s, w, -8, 8, p.floor + 6, 2.2, WHITE, 6);
+  }
+  if (p.roofGrilles) for (const e of SIDES) {
+    // a long louvred grille along each roof shoulder
+    const rw = w - 1.6, u0 = (w - 5.2) / rw, u1 = (w - 2) / rw, z = (u: number) => top + p.roofRise * (1 - u * u);
+    s.prismX([[e * (w - 5.2), z(u0) - 0.4], [e * (w - 2), z(u1) - 0.4], [e * (w - 2), z(u1) + 0.35], [e * (w - 5.2), z(u0) + 0.35]].map(([y, zz]) => [y, zz] as [number, number]), -cb + 4, cb - 4, darker(L.roof, 0.45));
+    for (let x = -cb + 4.6; x < cb - 4.6; x += 1.3) s.box(x - 0.18, x + 0.18, Math.min(e * (w - 5), e * (w - 2.2)), Math.max(e * (w - 5), e * (w - 2.2)), (z(u0) + z(u1)) / 2 - 0.1, (z(u0) + z(u1)) / 2 + 0.55, darker(L.roof, 0.85));
   }
   if (p.diesel) {
     // radiator fans under round grilles, exhaust stacks
