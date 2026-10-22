@@ -429,6 +429,21 @@ const EUROPE: Model[] = [
     note: "A Uerdingen-type two-axle tank wagon for mineral oil: a long barrel, dome, ladders and walkway",
     draw: h0((s) => drawTankWagon(s, { length: 111, width: 34, body: [0.74, 0.75, 0.74], bodyHalf: 48, r: 12.5, wheelbase: 57.5, wheelR: 5.3 })),
   },
+  {
+    id: "roco-t478-2079", maker: "Roco", name: "ČSD T 478.2 'Bardotka' diesel", group: "diesel", kind: "loco", scale: "H0",
+    length: 190, width: 35, height: 49.5, color: "#8f1d24",
+    note: "Roco 7300090 (7310090 with sound): T 478.2079 of the ČSD, Era IV, in the standard cherry red with grey roof and underframe and yellow buffer beams; the goods version without the steam-heating boiler; Bo'Bo', 190 mm over buffers",
+    draw: h0((s) => drawElectric(s, {
+      length: 190, width: 35, height: 49.5, floor: 17, eave: 44.5, roofRise: 3.6, cabBack: 64,
+      // the curvy front the class is nicknamed for: a rounded chin under a big two-piece windscreen
+      front: [[0, 17], [0, 22], [1.4, 26], [2.6, 29.5], [3.2, 31.5], [6.2, 41.5], [8.6, 44.5]],
+      bogies: { centre: 50.5, wheelbase: 27.6, r: 5.75, axles: 2 },
+      pantographs: [], cornerR: 6,
+      diesel: { fans: [-30, -14], exhausts: [8, 18] },
+      livery: { body: [0.56, 0.1, 0.13], roof: [0.5, 0.51, 0.5], frames: [0.42, 0.43, 0.42], beams: [0.95, 0.76, 0.1] },
+      cabWindow: [3, 11, 31, 40], grilles: [-40, -22, 14, 34],
+    })),
+  },
 ];
 MODELS.push(...EUROPE);
 

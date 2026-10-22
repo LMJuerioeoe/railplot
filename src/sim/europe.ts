@@ -52,7 +52,11 @@ export interface ElectricSpec {
   front: [number, number][];
   bogies: { centre: number; wheelbase: number; r: number; axles: 2 | 3 };
   pantographs: { x: number; kind: "diamond" | "single" }[];
-  livery: { body: RGB; roof: RGB; frames: RGB; apron?: RGB; band?: { z0: number; z1: number; col: RGB }; lamps?: RGB; stripe?: { z: number; col: RGB } };
+  livery: { body: RGB; roof: RGB; frames: RGB; beams?: RGB; apron?: RGB; band?: { z0: number; z1: number; col: RGB }; lamps?: RGB; stripe?: { z: number; col: RGB } };
+  /** Round the cab front's corners in plan, with this radius (the ČSD "Bardotka"). */
+  cornerR?: number;
+  /** A diesel-electric on the same kind of body: radiator fans and exhausts on the roof instead of pantographs. */
+  diesel?: { fans: number[]; exhausts: number[] };
   /** Side windows of the cab and grilles of the machine room. */
   cabWindow: [number, number, number, number];
   grilles: number[];
@@ -61,7 +65,7 @@ export interface ElectricSpec {
 /** An electric locomotive: a cab at each end with a sloping or upright front, the machine room between. */
 export function drawElectric(s: Shapes, p: ElectricSpec) {
   const half = p.length / 2, w = p.width / 2, L = p.livery;
-  const face = headstocks(s, half, L.frames, { z0: p.floor - 8, z1: p.floor - 1, width: w - 2.5 });
+  const face = headstocks(s, half, L.beams ?? L.frames, { z0: p.floor - 8, z1: p.floor - 1, width: w - 2.5 });
   // frame and skirt along the sides, a cowcatcher-like apron under each end
   s.box(-face, face, -w + 0.6, w - 0.6, p.floor - 2.4, p.floor, L.frames);
   for (const e of SIDES) {
@@ -88,16 +92,34 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
     if (L.stripe) strip(s, f, -face, L.stripe.z, face, L.stripe.z, 0.7, L.stripe.col, 0.15);
     lettering(s, w, -8, 8, p.floor + 6, 2.2, WHITE, 6);
   }
-  // roof gear: a main switch, cables along the roof, the pantographs
-  barX(s, -cb + 6, cb - 6, 3, top + p.roofRise + 0.4, 0.35, DARK_STEEL);
-  s.box(-4, 4, -3, 3, top + p.roofRise - 0.3, top + p.roofRise + 1.6, DARK_STEEL);
+  if (p.diesel) {
+    // radiator fans under round grilles, exhaust stacks
+    const rz = top + p.roofRise - 0.5;
+    for (const x of p.diesel.fans) { s.cyl("z", rz, rz + 0.9, x, 0, 5.2, 5.2, darker(L.roof, 0.8)); for (let k = -4; k <= 4; k += 1.3) s.box(x + k - 0.2, x + k + 0.2, -4.6, 4.6, rz + 0.9, rz + 1.1, darker(L.roof, 0.5)); }
+    for (const x of p.diesel.exhausts) { s.cyl("z", rz, rz + 1.4, x, 0, 2, 1.7, DARK_STEEL); s.cyl("z", rz + 1.3, rz + 1.5, x, 0, 1.5, 1.5, BLACK); }
+  } else {
+    // roof gear: a main switch, cables along the roof
+    barX(s, -cb + 6, cb - 6, 3, top + p.roofRise + 0.4, 0.35, DARK_STEEL);
+    s.box(-4, 4, -3, 3, top + p.roofRise - 0.3, top + p.roofRise + 1.6, DARK_STEEL);
+  }
   for (const pg of p.pantographs) pantograph(s, pg.x, top + p.roofRise - 0.4, pg.kind, Math.sign(pg.x) || 1);
   // the two cabs
   for (const d of [1, -1]) {
     const xf = d * (face - 0.6), xb = d * cb;
     const prof = p.front.map(([back, z]) => [xf - d * back, z] as [number, number]);
     const shape: [number, number][] = [[xb, p.floor], ...prof, [xb, top]];
-    s.prismY(shape, -w + 0.3, w - 0.3, L.body);
+    const cr = p.cornerR ?? 0;
+    if (cr > 0) {
+      // the front across the middle, the sides stopping short of it, and a vertical curve joining them
+      s.prismY(shape, -w + cr, w - cr, L.body);
+      s.prismY([[xb, p.floor], ...prof.map(([x, z]) => [x - d * cr, z] as [number, number]), [xb, top]], -w + 0.3, w - 0.3, L.body);
+      const xAt = (z: number) => { for (let i = 0; i + 1 < prof.length; i++) { const [x0, z0] = prof[i], [x1, z1] = prof[i + 1]; if (z >= z0 && z <= z1) return x0 + ((x1 - x0) * (z - z0)) / (z1 - z0 || 1); } return prof[prof.length - 1][0]; };
+      const zTop = prof[prof.length - 1][1];
+      for (let z = p.floor; z < zTop - 0.01; z += 0.4) {
+        const z1 = Math.min(zTop, z + 0.4), xm = xAt((z + z1) / 2) - d * cr;
+        for (const e of SIDES) s.cyl("z", z, z1, xm, e * (w - cr), cr, cr, L.body, false);
+      }
+    } else s.prismY(shape, -w + 0.3, w - 0.3, L.body);
     // the cab's roof, carried over to where the front leans back
     const roofEnd = xf - d * Math.max(...p.front.filter(([, z]) => z >= top - 0.5).map(([b]) => b), 0);
     s.roof(Math.min(xb, roofEnd), Math.max(xb, roofEnd), w - 1.6, top, p.roofRise, L.roof);
@@ -113,7 +135,7 @@ export function drawElectric(s: Shapes, p: ElectricSpec) {
     const [ga, gb] = [p.front[best], p.front[best + 1]].map(([back, z]) => [xf - d * back, z] as [number, number]), gz0 = ga[1] + 0.8, gz1 = gb[1] - 1.2;
     const gx = (z: number) => ga[0] + ((gb[0] - ga[0]) * (z - ga[1])) / (gb[1] - ga[1] || 1);
     for (const e of SIDES) {
-      const ya = e * 1, yb = e * (w - 2.5);
+      const ya = e * 1, yb = e * (w - Math.max(2.5, (p.cornerR ?? 0) + 0.8));
       s.beam(gx(gz0) + d * 0.25, gz0, gx(gz1) + d * 0.25, gz1, Math.min(ya, yb), Math.max(ya, yb), 0.3, GLASS);
     }
     // headlights: two low, one high; tail lights beside them
