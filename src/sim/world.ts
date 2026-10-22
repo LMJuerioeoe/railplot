@@ -90,6 +90,8 @@ export class World {
   private latched = new Map<string, Set<number>>();   // controller -> sensor inputs seen since its last reading
   private covered = new Set<string>();                // sensors with a vehicle over them now
   private nextId = 1;
+  /** Each train's block as the engine had it at the last sync, to tell the engine moving a train from the world moving it. */
+  private engineBlock = new Map<string, string>();
 
   constructor(private engine: () => ControlEngine) { this.sync(); }
 
@@ -110,6 +112,9 @@ export class World {
     }
     const saved = cfg.consists ?? [];
     const trainOk = (id?: string) => !id || cfg.trains.some((t) => t.id === id);
+    // a train that was deleted leaves its rolling stock standing, as vehicles on their own
+    for (const sc of saved) if (!trainOk(sc.train)) delete sc.train;
+    for (const c of this.consists) if (!c.auto && !trainOk(c.train)) c.train = undefined;
     // consists that went from the layout (deleted, undone), or whose train went
     this.consists = this.consists.filter((c) => (c.auto ? trainOk(c.train) && !saved.some((s) => s.train === c.train) : saved.some((s) => s.id === c.id)) && trainOk(c.train));
     for (const sc of saved) {
@@ -134,9 +139,24 @@ export class World {
         c = { id: `auto-${t.id}`, auto: true, train: t.id, vehicles: [this.loco(t.color)], at: [], speed: 0, travel: 1, lastSign: 0 };
         this.consists.push(c);
       }
-      // the engine put the train somewhere none of its vehicles are (placed by hand): stand it there
-      if (!c.at.length || !this.blocksOf(c).has(t.block)) this.standIn(c, t.block);
+      if (!c.at.length) this.standIn(c, t.block);
+      else if (!this.blocksOf(c).has(t.block)) {
+        if (this.engineBlock.get(t.id) !== t.block) this.standIn(c, t.block);   // the engine moved it (placed by hand in 2D): stand it there
+        else this.tellEngine(c);                                                 // the world moved it (uncoupled, coupled): the engine follows
+      }
+      this.engineBlock.set(t.id, t.block);
     }
+  }
+
+  /** Put a train's block in the engine where its loco stands. */
+  private tellEngine(c: Consist) {
+    const t = c.train ? this.engine().cfg.trains.find((x) => x.id === c.train) : undefined;
+    const loco = Math.max(0, c.vehicles.findIndex((v) => v.kind === "loco"));
+    const block = c.at[loco] && this.engine().topo.blockOfItem.get(c.at[loco].item);
+    if (!t || !block || t.block === block) return;
+    t.block = block;
+    this.engineBlock.set(t.id, block);
+    this.engine().assign();
   }
 
   private loco(color: string): Vehicle {
@@ -203,9 +223,14 @@ export class World {
     if (!c) return { error: "That train isn't in the simulator." };
     if (this.engine().cfg.points.some((q) => q.item === front.item)) return { error: "That's a point: pick plain track." };
     const at = this.layout(c.vehicles, front, true);
-    if (!at) {
-      const need = c.vehicles.reduce((a, v) => a + v.length + GAP, -GAP);
-      return { error: `It won't fit there: the track ends (the train is ${Math.round(need)} mm long).` };
+    const need = c.vehicles.reduce((a, v) => a + v.length + GAP, -GAP);
+    if (!at) return { error: `It won't fit there: the track ends (the train is ${Math.round(need)} mm long).` };
+    // longer than a loop it's put on, it would run round onto its own back
+    const poses = at.map((a) => this.graph.pose(a));
+    for (let i = 0; i < at.length; i++) for (let j = i + 2; j < at.length; j++) {
+      const reach = (c.vehicles[i].length + c.vehicles[j].length) / 2;
+      if (Math.hypot(poses[i].x - poses[j].x, poses[i].y - poses[j].y) < reach - 1 && Math.abs(poses[i].z - poses[j].z) < 30)
+        return { error: `It won't fit there: the train is ${Math.round(need)} mm long, longer than the loop it's on.` };
     }
     if (this.overlaps(c, at)) return { error: "Another train is in the way there." };
     return { at };
@@ -224,10 +249,9 @@ export class World {
     c.derailed = undefined; c.lastStop = undefined;
     this.saved(c);
     if (c.train) {
-      const t = this.engine().cfg.trains.find((x) => x.id === c.train);
-      const loco = Math.max(0, c.vehicles.findIndex((v) => v.kind === "loco"));
-      const block = this.engine().topo.blockOfItem.get(c.at[loco].item);
-      if (t && block) { t.block = block; this.engine().assign(); }
+      // a train put down by hand stands still, and the engine finds it where its loco is
+      this.engine().emergencyStop(c.train);
+      this.tellEngine(c);
     }
     return null;
   }
@@ -318,6 +342,7 @@ export class World {
 
   /** Each vehicle's centre with the front one's at `front`, the rest behind it; null if the track ends under them. */
   private layout(vehicles: Vehicle[], front: TrackPos, ends = false): TrackPos[] | null {
+    if (!vehicles.length) return null;   // nothing to stand anywhere
     const at: TrackPos[] = [front];
     for (let i = 1; i < vehicles.length; i++) {
       const back = (vehicles[i - 1].length + vehicles[i].length) / 2 + GAP;
@@ -567,6 +592,7 @@ export class World {
     c.speed = 0;
     const t = e.cfg.trains.find((x) => x.id === c.train);
     e.events.push(`${t?.name ?? "A train"} derailed: ${this.describe(c.derailed)}.`);
+    if (t) e.haltAutos(t.id, `${t.name} derailed`);
   }
 
   /** Which way the track turns under a position, for a train facing along it: +1 left, -1 right, 0 straight. */

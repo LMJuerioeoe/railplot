@@ -1545,7 +1545,14 @@ export class App {
       ["Esc", "Cancel, then back to Select"], ["Home", "Zoom to fit"], ["Wheel / right-drag", "Zoom / pan"],
       ["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+C, X, V, D", "Copy, cut, paste, duplicate"], ["Ctrl+S / Ctrl+Shift+S", "Save / save as"],
     ];
-    dialog("Keyboard shortcuts", h("table", { class: "keys" }, h("tbody", {}, ...rows.map(([k, d]) => h("tr", {}, h("td", {}, h("kbd", {}, k)), h("td", {}, d))))), [{ label: "Close", primary: true }], { wide: true });
+    const drive: [string, string][] = [
+      ["D", "Drive in 3D (from Control)"], ["1–9", "Pick a train"], ["E / Q, → / ←", "Throttle up / down (Shift: bigger steps)"],
+      ["Space / Shift+Space", "Stop this train / stop all"], ["C", "Change the camera"], ["P", "Throw the next point ahead"],
+      ["T", "Make up trains"], ["U", "Uncouple the loco from its wagons"], ["R", "Re-rail (placing: turn the train round)"],
+      ["Arrows, Enter", "Placing: move the train along the track, put it there"], ["K", "km/h or mph"], ["Esc", "Back to the plan"],
+    ];
+    const table = (r: [string, string][]) => h("table", { class: "keys" }, h("tbody", {}, ...r.map(([k, d]) => h("tr", {}, h("td", {}, h("kbd", {}, k)), h("td", {}, d)))));
+    dialog("Keyboard shortcuts", h("div", {}, h("h3", {}, "Planning"), table(rows), h("h3", {}, "Drive in 3D"), table(drive)), [{ label: "Close", primary: true }], { wide: true });
   }
 
   /** Once a day at most, quietly: say so when a newer version is out. */

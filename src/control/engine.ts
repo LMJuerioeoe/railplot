@@ -298,6 +298,16 @@ export class ControlEngine {
     return null;
   }
 
+  /** Stop every automation driving a train, saying why (the train derailed, say). */
+  haltAutos(trainId: string, why: string) {
+    for (const a of this.automations()) {
+      const r = this.autoRuns.get(a.id);
+      if (a.train !== trainId || !r?.running) continue;
+      r.running = false; r.status = `Stopped: ${why}`;
+      this.events.push(`${a.name} stopped: ${why}.`);
+    }
+  }
+
   stopAuto(id: string) {
     const a = this.automations().find((x) => x.id === id);
     const r = this.autoRuns.get(id);

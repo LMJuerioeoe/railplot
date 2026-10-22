@@ -283,3 +283,80 @@ describe("making up trains, placing, coupling", () => {
     }
   });
 });
+
+describe("bugs found testing the drive view", () => {
+  function demo() {
+    const p = buildControlDemo(); const cfg = p.control!; cfg.derailments = "off";
+    const e = new ControlEngine(p, cfg); const w = worldFor(e);
+    return { p, cfg, e, w, ex: cfg.trains[1] };
+  }
+
+  test("BUG-001 a train with every vehicle taken out is off the track, and nothing breaks", () => {
+    const { cfg, e, w, ex } = demo();
+    w.stockOf(ex.id).vehicles = [];
+    w.sync(); w.advanceTo(0);
+    e.setThrottle(ex.id, 0.5); e.step(0.1);
+    expect(() => { w.advanceTo(500); w.readings(cfg.controllers[0].id); w.vehiclePoses(); w.itemsUnder(); w.couplers(); w.curveMargin(ex.id); w.pointAhead(ex.id); }).not.toThrow();
+    expect(w.consistOf(ex.id)!.at).toHaveLength(0);
+    expect(w.poseOf(ex.id)).toBeNull();
+  });
+
+  test("BUG-002 uncoupling across a block joint leaves the loco where it stands", () => {
+    const { w, ex } = demo();
+    const sc = w.stockOf(ex.id);
+    // eight coaches in front of the loco reach into the next block
+    sc.vehicles = [...Array(8)].map((_, i) => newVehicle("coach", w.libId(), "c" + i)).concat(sc.vehicles);
+    w.sync();
+    const c = w.consistOf(ex.id)!;
+    const loco = w.graph.pose(c.at[8]);
+    expect(w.uncouple(c.id, 7)).toBeNull();
+    w.sync();
+    const now = w.poseOf(ex.id)!;
+    expect(Math.hypot(now.x - loco.x, now.y - loco.y)).toBeLessThan(0.5);
+    expect(w.blocksOf(w.consistOf(ex.id)!).has(ex.block!)).toBe(true);
+  });
+
+  test("BUG-003 a train put on the track stands still, whatever its throttle was", () => {
+    const { cfg, e, w, ex } = demo();
+    ex.momentum = 0;
+    const sc = w.stockOf(ex.id);
+    w.advanceTo(0); e.setThrottle(ex.id, 0.3); e.step(0.1); w.advanceTo(100);
+    const spot = w.graph.middleOf(cfg.blocks.find((b) => b.name === "West")!.items[0])!;
+    expect(w.placeConsist(sc.id, spot)).toBeNull();
+    e.step(0.1); w.advanceTo(1100);
+    expect(e.run(ex.id)!.target).toBe(0);
+    expect(w.consistOf(ex.id)!.speed).toBe(0);
+  });
+
+  test("BUG-004 an automation stops, and says why, when its train derails", () => {
+    const { e, w } = demo();
+    const a = e.automations()[0];
+    e.startAuto(a.id);
+    for (let k = 0; k < 20; k++) { e.step(0.1); w.advanceTo(k * 100); }
+    (w as unknown as { derail: (c: unknown, cause: string, v: number, l: number) => void }).derail(w.consistOf(a.train!)!, "curve", 0, 100);
+    const r = e.autoRuns.get(a.id)!;
+    expect(r.running).toBe(false);
+    expect(r.status).toContain("derailed");
+  });
+
+  test("BUG-006 a deleted train's rolling stock stays on the layout as vehicles on their own", () => {
+    const { cfg, w, ex } = demo();
+    const sc = w.stockOf(ex.id);
+    cfg.trains = cfg.trains.filter((t) => t !== ex);
+    w.sync();
+    expect(cfg.consists!.find((x) => x.id === sc.id)!.train).toBeUndefined();
+    expect(w.consists.find((x) => x.id === sc.id)!.train).toBeUndefined();
+  });
+
+  test("a train longer than the loop it's put on is refused, not wrapped round onto itself", () => {
+    const { cfg, w } = demo();
+    for (const t of cfg.trains) w.remove(w.stockOf(t.id).id);
+    cfg.trains = [];
+    w.sync();
+    const r = w.newRake([...Array(40)].map((_, i) => newVehicle("coach", w.libId(), "c" + i)));
+    w.sync();
+    const plain = cfg.blocks[0].items.find((i) => !cfg.points.some((q) => q.item === i))!;
+    const err = w.placeConsist(r.id, w.graph.middleOf(plain)!);
+    expect(err).toContain("longer than the loop");
+  });
+});

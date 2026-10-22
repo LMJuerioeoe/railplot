@@ -28,5 +28,6 @@ jobs:
           python -m playwright install --with-deps chromium
           python tests/e2e/test_flows.py
           python tests/e2e/test_hub.py
+          python tests/e2e/test_drive.py
       - name: Docs site
         run: bun scripts/build-docs.ts

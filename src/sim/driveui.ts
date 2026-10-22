@@ -205,6 +205,10 @@ export class DriveView {
       if (k === "Escape") { this.stopPlacing(); return true; }
       if (k === "r" || k === "R") { this.placing.dir = this.placing.dir === 1 ? -1 : 1; this.refit(); return true; }
       if (k === "Enter" && this.placing.ghost) { this.placeHere(); return true; }
+      // keyboard only: ←/→ slide the ghost along the track (Shift: further), ↑/↓ jump to the next piece
+      if (k === "ArrowLeft" || k === "ArrowRight") { e.preventDefault(); this.nudgePlacing((k === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 200 : 40)); return true; }
+      if (k === "ArrowUp" || k === "ArrowDown") { e.preventDefault(); this.jumpPlacing(k === "ArrowUp" ? 1 : -1); return true; }
+      if (k === "Enter") { toast(this.placing.error ?? "Move the ghost onto the track first: arrows, or point at it."); return true; }
     }
     const target = this.train ? this.ctl.engine.run(this.train)?.target ?? 0 : 0;
     const step = e.shiftKey ? 0.2 : 0.05;
@@ -379,7 +383,7 @@ export class DriveView {
       if ("error" in f) pl.error = f.error; else pl.ghost = f.at;
     }
     if (this.refs.placeNote) {
-      this.refs.placeNote.textContent = pl.error ?? (pl.ghost ? "Click to put it here." : "Point at the track where the front should go.");
+      this.refs.placeNote.textContent = pl.error ?? (pl.ghost ? "Click, or press Enter, to put it here." : "Point at the track where the front should go, or use the arrow keys.");
       this.refs.placeNote.classList.toggle("bad", !!pl.error);
     }
   }
@@ -396,7 +400,7 @@ export class DriveView {
     if (this.camera !== "tabletop") { this.camera = "tabletop"; this.app.view3d?.resetCamera(); this.syncHud(); }
     if (this.app.view3d) this.app.view3d.follow = null;
     this.refs.placeCard?.remove();
-    const note = h("p", { "aria-live": "polite", id: "drive-place-note" }, "Point at the track where the front should go.");
+    const note = h("p", { "aria-live": "polite", id: "drive-place-note" }, "Point at the track where the front should go, or use the arrow keys.");
     const card = h("div", { class: "hud-card neutral", role: "group", "aria-label": "Place a train", id: "drive-place" },
       h("h3", {}, `Place ${this.consistName(id)}`), note,
       h("div", { class: "row" },
@@ -404,6 +408,40 @@ export class DriveView {
         h("button", { class: "hud-btn", type: "button", id: "drive-place-cancel", onclick: () => this.stopPlacing() }, "Cancel (Esc)")));
     this.app.el.view3d.append(card);
     this.refs.placeCard = card; this.refs.placeNote = note;
+  }
+
+  /** Where the keyboard starts the ghost: where the consist stands, else the selected train, else the first plain track. */
+  private placingStart(w: World): TrackPos | null {
+    const pl = this.placing!;
+    const c = w.consists.find((x) => x.id === pl.id);
+    if (c?.at.length) return { ...c.at[0] };
+    const t = this.train ? w.consistOf(this.train) : undefined;
+    if (t?.at.length) return { ...t.at[0] };
+    const pts = new Set(this.ctl.cfg.points.map((q) => q.item));
+    const item = this.app.p.items.find((i) => !pts.has(i.id));
+    return item ? w.graph.middleOf(item.id) : null;
+  }
+
+  /** Slide the ghost `d` mm along the track (through the points as they're set). */
+  private nudgePlacing(d: number) {
+    const pl = this.placing, w = this.world();
+    if (!pl || !w) return;
+    if (!pl.front) pl.front = this.placingStart(w);
+    else pl.front = w.graph.advance({ ...pl.front, dir: 1 }, d, (id) => this.ctl.cfg.points.find((q) => q.item === id)?.state).pos;
+    if (pl.front) pl.front = { ...pl.front, dir: 1 };
+    this.refit();
+  }
+
+  /** Jump the ghost to the middle of the next (or previous) piece of track: the way to reach a siding. */
+  private jumpPlacing(by: 1 | -1) {
+    const pl = this.placing, w = this.world();
+    if (!pl || !w) return;
+    const items = this.app.p.items;
+    if (!items.length) return;
+    const at = pl.front ? items.findIndex((i) => i.id === pl.front!.item) : -1;
+    const next = items[(Math.max(-1, at) + by + items.length) % items.length];
+    pl.front = w.graph.middleOf(next.id);
+    this.refit();
   }
 
   private stopPlacing() {
