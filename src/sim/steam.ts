@@ -34,11 +34,13 @@ export interface SteamLivery {
 export interface SteamSpec {
   length: number; width: number; height: number;
   /** Top of the running plate, its half width, and how far it runs. */
-  plate: { z: number; half: number; x0: number; x1: number; drop?: { x: number; z: number } };
+  /** `beam`: top of the buffer beams when it is below the plate; `drop.run`: how long the drop to the front plate is. */
+  plate: { z: number; half: number; x0: number; x1: number; drop?: { x: number; z: number; run?: number }; beam?: number };
   /** Axles front to back: radius, and whether it's coupled (a driving wheel). */
   wheels: { x: number; r: number; driven?: boolean; spokes?: number }[];
   /** Cylinders: outside ones show with slidebars, crosshead and Walschaerts gear; inside ones are hidden. */
-  cylinders: { x0: number; x1: number; z: number; r: number; outside: boolean; y?: number };
+  /** `block`: the cylinder and its valve chest cast as one, square-topped up under the running plate (GWR). */
+  cylinders: { x0: number; x1: number; z: number; r: number; outside: boolean; y?: number; block?: boolean };
   /** Which coupled axle the connecting rods drive (index into the driven wheels). */
   mainDriver?: number;
   boiler: { x0: number; x1: number; z: number; rBack: number; rFront: number };
@@ -46,10 +48,12 @@ export interface SteamSpec {
   firebox: { x0: number; x1: number; top: number; half: number; belpaire: boolean };
   chimney: { x: number; top: number; r: number; tall?: boolean };
   dome?: { x: number; r: number; top: number; brass?: boolean };
-  safety: { x: number; kind: "bonnet" | "pop" | "ramsbottom" };
+  safety: { x: number; kind: "bonnet" | "pop" | "ramsbottom"; top?: number };
   topFeed?: { x: number };
-  cab: { x0: number; x1: number; eave: number; rise: number; half: number; window: "round" | "square" | "big"; back: "bunker" | "open" };
-  tanks?: { kind: "side" | "pannier"; x0: number; x1: number; top: number; inner: number; bottom?: number };
+  /** `sill` and `opening`: the side cut-out's bottom and its fore-and-aft extent, when not the default. */
+  cab: { x0: number; x1: number; eave: number; rise: number; half: number; window: "round" | "square" | "big"; back: "bunker" | "open"; sill?: number; opening?: [number, number] };
+  /** `topFront`: side tanks whose top falls towards the front. */
+  tanks?: { kind: "side" | "pannier"; x0: number; x1: number; top: number; inner: number; bottom?: number; topFront?: number };
   bunker?: { x0: number; top: number };
   /** Splashers over the driving wheels when they rise above the running plate. */
   splashers?: boolean;
@@ -67,13 +71,19 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
 
   // ---------- underneath: frames, beams, buffers ----------
   // the buffer beam sits at buffer height; a high running plate stands above it on the frames
-  const beamTop = Math.min(pl.z, 20.5);
+  const beamTop = pl.beam ?? Math.min(pl.z, 20.5);
   const face = headstocks(s, half, L.beams, { z0: Math.min(beamTop - 7.5, 9.5), z1: beamTop, width: Math.min(w - 1, 15) });
   for (const e of SIDES) {
     const y0 = e * 5.2, y1 = e * 6.4;
-    s.box(-face + 2, face - 2, Math.min(y0, y1), Math.max(y0, y1), 5.5, pl.z - 0.8, L.frames);
-    // lightening holes and hornguides as dark marks on the frames
-    for (const wh of p.wheels) s.box(wh.x - 1.8, wh.x + 1.8, Math.min(e * 6.4, e * 6.6), Math.max(e * 6.4, e * 6.6), wh.r - 2.4, wh.r + 2.4, darker(L.frames, 0.6));
+    // the frames' lower edge sits about axle high, with hornblocks down round each axlebox;
+    // ahead of a drop in the plate they step down with it
+    const fy = [Math.min(y0, y1), Math.max(y0, y1)] as const, fx = pl.drop ? pl.drop.x : face - 2;
+    s.box(-face + 2, fx, fy[0], fy[1], 8.5, pl.z - 0.8, L.frames);
+    if (pl.drop) s.box(fx, face - 2, fy[0], fy[1], 8.5, pl.drop.z - 0.8, L.frames);
+    for (const wh of p.wheels) {
+      s.box(wh.x - 2.6, wh.x + 2.6, fy[0], fy[1], Math.min(4.5, wh.r - 2.5), 8.6, L.frames);
+      s.box(wh.x - 1.8, wh.x + 1.8, Math.min(e * 6.4, e * 6.6), Math.max(e * 6.4, e * 6.6), wh.r - 2.4, wh.r + 2.4, darker(L.frames, 0.6));
+    }
   }
   // running plate, with a valance along its edge; on some engines it curves down to the buffer beam in front
   const plEnd = pl.drop ? pl.drop.x : pl.x1;
@@ -84,13 +94,15 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
     s.box(pl.x0, plEnd, Math.min(a, b), Math.max(a, b), pl.z - 2.4, pl.z - 0.6, plateCol);
   }
   if (pl.drop) {
-    const d = pl.drop, run = 7, zAt = (t: number) => pl.z - (pl.z - d.z) * (0.5 - 0.5 * Math.cos(Math.PI * t));
+    const d = pl.drop, run = d.run ?? 7, zAt = (t: number) => pl.z - (pl.z - d.z) * (0.5 - 0.5 * Math.cos(Math.PI * t));
     for (let k = 0; k < 8; k++) {
       const t0 = k / 8, t1 = (k + 1) / 8;
       s.beam(d.x + run * t0, zAt(t0) - 0.3, d.x + run * t1, zAt(t1) - 0.3, -pl.half, pl.half, 0.6, plateCol);
     }
     s.box(d.x + run, pl.x1, -pl.half, pl.half, d.z - 0.6, d.z, plateCol);
   }
+  // a beam below the plate: the frames come down to it at the back in a deep valance
+  if (pl.beam !== undefined && pl.beam < pl.z - 1) s.box(-face, -face + 20, -pl.half, pl.half, pl.beam, pl.z - 0.6, plateCol);
 
   // ---------- wheels and motion ----------
   for (const wh of p.wheels) {
@@ -115,10 +127,16 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
     const [px, pz] = [main.x + Math.cos(CRANK) * main.r * 0.42, main.r + Math.sin(CRANK) * main.r * 0.42];
     for (const e of SIDES) {
       const y = e * yc;
-      s.cyl("x", cy.x0, cy.x1, y, cy.z, cy.r, cy.r, L.body === BLACK ? BLACK : darker(body, 0.95));           // cylinder, lagged in body colour
+      const cyCol = L.body === BLACK || cy.block ? BLACK : darker(body, 0.95);
+      s.cyl("x", cy.x0, cy.x1, y, cy.z, cy.r, cy.r, cyCol);                                    // cylinder, lagged in body colour
       s.ring("x", cy.x0 - 0.6, cy.x0, y, cy.z, cy.r + 0.4, cy.r - 1, BLACK);                   // covers
       s.ring("x", cy.x1, cy.x1 + 0.6, y, cy.z, cy.r + 0.4, cy.r - 1, BLACK);
-      barX(s, cy.x0 + 2, cy.x1 - 2, y, cy.z + cy.r + 1.3, 1.6, BLACK);                         // valve chest
+      if (cy.block) {
+        // the valve chest cast on top, square-sided, up to the running plate, with its cover plates
+        const ya = y - cy.r, yb = y + cy.r, zt = (pl.drop && cy.x1 > pl.drop.x ? pl.drop.z : pl.z) - 2.4;
+        s.box(cy.x0, cy.x1, ya, yb, cy.z, zt, cyCol);
+        s.box(cy.x0 + 1.5, cy.x1 - 1.5, Math.min(e * (Math.abs(y) + cy.r), e * (Math.abs(y) + cy.r + 0.3)), Math.max(e * (Math.abs(y) + cy.r), e * (Math.abs(y) + cy.r + 0.3)), cy.z + 1, zt - 1, darker(cyCol, 1.4));
+      } else barX(s, cy.x0 + 2, cy.x1 - 2, y, cy.z + cy.r + 1.3, 1.6, BLACK);                  // valve chest
       // slidebars and crosshead, then the connecting rod to the main crankpin
       const xh = cy.x0 - 6.5, yo = e * (yc - 1.2), yi = e * (yc - 0.4);
       s.beam(cy.x0, cy.z + 1.4, cy.x0 - 12, cy.z + 1.4, Math.min(yo, yi), Math.max(yo, yi), 0.6, STEEL);
@@ -187,8 +205,11 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
   }
   const sv = p.safety, zs = sv.x < FB.x1 && sv.x > FB.x0 ? FB.top - 0.3 : zTop(sv.x) - 0.5;
   if (sv.kind === "bonnet") {
-    s.cyl("z", zs, zs + 3.6, sv.x, 0, 3.1, 2.2, L.bonnet ?? BRASS);
-    s.cyl("z", zs + 3.6, zs + 4.3, sv.x, 0, 1.0, 0.8, L.bonnet ?? BRASS);
+    // the GWR's tall tapered casing, flared at its foot, a small cap on top
+    const top = sv.top ?? zs + 4.3, col = L.bonnet ?? BRASS;
+    s.cyl("z", zs, zs + 0.8, sv.x, 0, 3.4, 3.0, col);
+    s.cyl("z", zs + 0.8, top - 0.7, sv.x, 0, 3.0, 2.0, col);
+    s.cyl("z", top - 0.7, top, sv.x, 0, 1.0, 0.8, col);
   } else if (sv.kind === "pop") {
     for (const y of [-1.4, 1.4]) { barZ(s, sv.x, y, zs, zs + 2.6, 0.9, BRASS); s.cyl("z", zs + 2.6, zs + 3.0, sv.x, y, 1.1, 1.1, BRASS); }
   } else {
@@ -205,7 +226,20 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
 
   // ---------- tanks or splashers ----------
   const T = p.tanks;
-  if (T?.kind === "side") {
+  if (T?.kind === "side" && T.topFront !== undefined) {
+    // drawn side-on: the top falls towards the front, which is rounded over
+    const R = 2.5, tf = T.topFront, slope = Math.atan2(T.top - tf, T.x1 - R - T.x0);
+    const outline: [number, number][] = [[T.x0, pl.z], [T.x1, pl.z], ...arc(T.x1 - R, tf - R, R, 0, Math.PI / 2 - slope, 6), [T.x0, T.top]];
+    for (const e of SIDES) {
+      const a = e * T.inner, b = e * (w - 0.1);
+      s.prismY(outline, Math.min(a, b), Math.max(a, b), body);
+      // the rolled top edge, and a filler
+      const c = e * (w - 0.6), d = e * (w + 0.05);
+      s.beam(T.x0, T.top - 0.3, T.x1 - R, tf - 0.3, Math.min(c, d), Math.max(c, d), 0.6, darker(body, 0.92));
+      barZ(s, T.x0 + 6, e * (T.inner + 3), T.top - 0.6, T.top + 0.8, 1.6, darker(body, 0.85));
+    }
+    if (line) lining(s, w - 0.1, T.x0 + 2.2, pl.z + 2.4, T.x1 - 2.2, tf - 2.4, line[0], 0.45, line[1]);
+  } else if (T?.kind === "side") {
     for (const e of SIDES) {
       const a = e * T.inner, b = e * (w - 0.1);
       // rolled over at the top outer edge, as the tank plates were
@@ -257,21 +291,27 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
 
   // ---------- cab ----------
   const C = p.cab, roofCol = L.roof ?? (body === BLACK ? BLACK : darker(body, 0.9));
-  const wz0 = Math.max(pl.z + 9, C.eave - 13), wz1 = C.eave - 3;   // the side opening
+  const shade = darker(body === BLACK ? [0.2, 0.2, 0.2] : body, 0.42);   // the inside faces of the cab, in shadow
+  const wz0 = C.sill ?? Math.max(pl.z + 9, C.eave - 13), wz1 = C.eave - 3;   // the side opening
+  const [ox0, ox1] = C.opening ?? [C.x0 + (C.back === "open" ? 2.2 : 3), C.x1 - 3.5];
   for (const e of SIDES) {
     const out = e * C.half, inn = e * (C.half - 0.7), lo = Math.min(out, inn), hi = Math.max(out, inn);
     s.box(C.x0, C.x1, lo, hi, pl.z, wz0, body);                                                   // below the opening
     s.box(C.x0, C.x1, lo, hi, wz1, C.eave, body);                                                 // above it
-    s.box(C.x1 - 3.5, C.x1, lo, hi, wz0, wz1, body);                                              // front pillar
-    s.box(C.x0, C.x0 + (C.back === "open" ? 2.2 : 3), lo, hi, wz0, wz1, body);                    // back pillar
-    if (L.beading) { strip(s, out, C.x0 + 3, wz0, C.x1 - 3.5, wz0, 0.4, L.beading); strip(s, out, C.x1 - 3.5, wz0, C.x1 - 3.5, wz1, 0.4, L.beading); }
+    s.box(ox1, C.x1, lo, hi, wz0, wz1, body);                                                     // front pillar
+    s.box(C.x0, ox0, lo, hi, wz0, wz1, body);                                                     // back pillar
+    const si = e * (C.half - 0.72), sj = e * (C.half - 0.8), slo = Math.min(si, sj), shi = Math.max(si, sj);
+    for (const [x0, x1, z0, z1] of [[C.x0, C.x1, pl.z, wz0], [C.x0, C.x1, wz1, C.eave], [ox1, C.x1, wz0, wz1], [C.x0, ox0, wz0, wz1]]) s.box(x0 + 0.1, x1 - 0.1, slo, shi, z0, z1, shade);
+    if (L.beading) { strip(s, out, ox0, wz0, ox1, wz0, 0.4, L.beading); strip(s, out, ox1, wz0, ox1, wz1, 0.4, L.beading); }
     if (C.window !== "big") s.box(C.x1 - 3.4, C.x1 - 0.5, Math.min(out, out + e * 0.05), Math.max(out, out + e * 0.05), wz1 - 0.1, C.eave - 0.8, GLASS);   // small side window
 
     // grab handles beside the opening, steps below
     barZ(s, C.x0 + 0.8, e * (C.half + 0.5), pl.z + 1, wz1, 0.28, STEEL);
     step(s, C.x0 + 3.5, e * (pl.half - 0.2), pl.z - 0.6);
   }
-  // inside the cab: the floor, the boiler's backhead with the firehole glowing, gauges and the regulator
+  // inside the cab: the floor, the boiler's backhead with the firehole glowing, gauges and the regulator;
+  // the inner faces of the sheets and the roof are in shadow
+  s.box(C.x0 + 0.1, C.x1 - 0.1, -C.half + 0.8, C.half - 0.8, C.eave - 0.1, C.eave, shade);
   s.box(C.x0 + 0.5, C.x1 - 0.5, -C.half + 0.7, C.half - 0.7, pl.z, pl.z + 0.5, CAB_INSIDE);
   s.box(C.x1 - 4, C.x1 - 0.8, -Math.min(FB.half, C.half - 1.5), Math.min(FB.half, C.half - 1.5), pl.z, C.eave - 2, [0.16, 0.15, 0.14]);
   s.cyl("x", C.x1 - 4.15, C.x1 - 4, 0, pl.z + 6, 1.8, 1.8, [1, 0.55, 0.16]);                          // the firehole
@@ -325,12 +365,13 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
 
   // ---------- lamp irons, a lamp, front steps ----------
   // a white headlamp on the middle iron, its lens towards the line
-  s.box(face, face + 2.2, -1.4, 1.4, pl.z + 0.3, pl.z + 3.3, [0.9, 0.9, 0.87]);
-  s.cyl("x", face + 2.2, face + 2.45, 0, pl.z + 1.9, 0.95, 0.95, [1, 0.95, 0.72]);
-  s.beam(face + 0.6, pl.z + 3.3, face + 1.6, pl.z + 4.2, -0.2, 0.2, 0.3, DARK_STEEL);
-  for (const y of [-7, 0, 7]) s.box(face - 0.6, face, y - 0.4, y + 0.4, pl.z, pl.z + 2.2, DARK_STEEL);
+  const fz = pl.drop?.z ?? pl.z;
+  s.box(face, face + 2.2, -1.4, 1.4, fz + 0.3, fz + 3.3, [0.9, 0.9, 0.87]);
+  s.cyl("x", face + 2.2, face + 2.45, 0, fz + 1.9, 0.95, 0.95, [1, 0.95, 0.72]);
+  s.beam(face + 0.6, fz + 3.3, face + 1.6, fz + 4.2, -0.2, 0.2, 0.3, DARK_STEEL);
+  for (const y of [-7, 0, 7]) s.box(face - 0.6, face, y - 0.4, y + 0.4, fz, fz + 2.2, DARK_STEEL);
   s.box(SB.x1 + 0.2, SB.x1 + 0.8, -0.4, 0.4, B.z + SB.r * 0.75, B.z + SB.r * 0.75 + 2, DARK_STEEL);
-  for (const e of SIDES) step(s, face - 4, e * (pl.half - 0.2), pl.z - 0.6);
+  for (const e of SIDES) step(s, face - 4, e * (pl.half - 0.2), fz - 0.6);
 }
 
 // ---------- tenders ----------

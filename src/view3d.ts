@@ -240,7 +240,7 @@ export interface DynamicVehicle { kind: string; length: number; width: number; h
  */
 const SIDES_ = [1, -1] as const;
 
-function modelMesh(md: Model): MeshBuilder {
+export function modelMesh(md: Model): MeshBuilder {
   const m = new MeshBuilder();
   const L = md.length, Wd = md.width, H = md.height;
   type P3 = [number, number, number];

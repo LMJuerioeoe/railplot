@@ -42,7 +42,7 @@ export interface Model {
 }
 
 // ---------- liveries ----------
-const GWR_GREEN: RGB = [0.1, 0.25, 0.14], GWR_LINING: [RGB, RGB] = [[0.86, 0.5, 0.14], BLACK];
+const GWR_GREEN: RGB = [0.14, 0.29, 0.18], GWR_LINING: [RGB, RGB] = [[0.86, 0.5, 0.14], BLACK];
 const LNER_GREEN: RGB = [0.25, 0.45, 0.19];
 const GOLD: RGB = [0.86, 0.71, 0.36];
 const MAROON: RGB = [0.36, 0.08, 0.1], CARMINE: RGB = [0.55, 0.12, 0.14], CREAM: RGB = [0.87, 0.79, 0.6];
@@ -78,26 +78,26 @@ export const MODELS: Model[] = [
   // ---------- steam ----------
   {
     id: "dapol-51xx", maker: "Dapol", name: "GWR 51xx Large Prairie 2-6-2T", group: "steam", kind: "loco",
-    length: 164, width: 34, height: 48, color: "#1a4024",
-    note: "Dapol 4S-041-010: 5134 in GWR green, lined, with the shirt-button roundel; 164 × 34 × 48 mm",
+    length: 164, width: 34, height: 51, color: "#1a4024",
+    note: "Dapol 4S-041-010: 5134 in GWR green with the shirt-button roundel; traced from Dapol's side view, 164 mm over buffers",
     marks: [
-      side(16.65, -27, -19, 22.5, 25.3, gwrPlate("5134")), side(16.95, 25.5, 32.5, 22.5, 29.5, { logo: "gwr-roundel" }),
-      ...ends(76.5, -6.5, 6.5, 15.1, 16.9, { text: "5134", color: "#e3bd5c", font: "serif" }),
+      side(16.65, -67.7, -59.7, 29.1, 32.3, gwrPlate("5134")), side(16.95, -23.8, -19.8, 29.5, 33.5, { logo: "gwr-roundel" }),
+      ...ends(76.5, -6.5, 6.5, 11.6, 13.4, { text: "5134", color: "#e3bd5c", font: "serif" }),
     ],
     draw: steam({
-      length: 164, width: 34, height: 48,
-      plate: { z: 17, half: 16.8, x0: -76, x1: 76 },
-      wheels: [{ x: 57, r: 6.3 }, { x: 30, r: 11.3, driven: true }, { x: 4, r: 11.3, driven: true }, { x: -22, r: 11.3, driven: true }, { x: -49, r: 6.3 }],
-      cylinders: { x0: 52, x1: 67, z: 13.5, r: 4.5, outside: true, y: 12.3 }, mainDriver: 1,
-      boiler: { x0: 20, x1: 52, z: 30, rBack: 10.4, rFront: 9.2 },
-      smokebox: { x0: 52, x1: 67, r: 10 },
-      firebox: { x0: 3, x1: 20, top: 41.5, half: 11.5, belpaire: true },
-      chimney: { x: 61, top: 47.6, r: 3 },
-      safety: { x: 27, kind: "bonnet" },
-      cab: { x0: -32, x1: 3, eave: 44.5, rise: 2.8, half: 16.6, window: "round", back: "bunker" },
-      tanks: { kind: "side", x0: 8, x1: 50, top: 35, inner: 11 },
-      bunker: { x0: -76, top: 35 },
-      livery: { ...GWR_LIVERY, numberPlate: BRASS },
+      length: 164, width: 34, height: 51,
+      plate: { z: 20.8, half: 16.8, x0: -76, x1: 76, drop: { x: 57.8, z: 15.6, run: 1.5 }, beam: 16.3 },
+      wheels: [{ x: 63.3, r: 6.5 }, { x: 30.5, r: 10.7, driven: true }, { x: 1.5, r: 10.7, driven: true }, { x: -28.9, r: 10.7, driven: true }, { x: -61.3, r: 7 }],
+      cylinders: { x0: 42.5, x1: 57.8, z: 10.9, r: 4.4, outside: true, y: 12.3, block: true }, mainDriver: 1,
+      boiler: { x0: -4.6, x1: 41.2, z: 32.2, rBack: 8.6, rFront: 8 },
+      smokebox: { x0: 41.2, x1: 62, r: 8.2 },
+      firebox: { x0: -29, x1: -4.6, top: 43.3, half: 9, belpaire: true },
+      chimney: { x: 49, top: 48.3, r: 2.45 },
+      safety: { x: 4, kind: "bonnet", top: 48.7 },
+      cab: { x0: -62.2, x1: -29.1, eave: 46.9, rise: 3.9, half: 16.6, window: "round", back: "bunker", sill: 35.3, opening: [-57.9, -40.1] },
+      tanks: { kind: "side", x0: -29.1, x1: 27.5, top: 39.8, topFront: 38.3, inner: 9.5 },
+      bunker: { x0: -78, top: 40.1 },
+      livery: { ...GWR_LIVERY, lining: undefined, bonnet: GWR_GREEN, wheels: BLACK, roof: [0.2, 0.2, 0.21], numberPlate: BRASS },
     }),
   },
   {
