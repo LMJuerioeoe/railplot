@@ -4,6 +4,14 @@ import { bogie } from "./coaches";
 
 const BR_GREEN: RGB = [0.11, 0.3, 0.19], BR_BLUE: RGB = [0.17, 0.3, 0.47], ROOF_GREY: RGB = [0.42, 0.43, 0.44];
 
+/** A body cross-section: straight sides, rounded shoulders of radius r, a flat top. */
+function shoulders(half: number, z0: number, top: number, r: number): [number, number][] {
+  const out: [number, number][] = [[-half, z0], [half, z0]];
+  for (let k = 0; k <= 5; k++) { const t = (k / 5) * (Math.PI / 2); out.push([half - r + Math.cos(t) * r, top - r + Math.sin(t) * r]); }
+  for (let k = 0; k <= 5; k++) { const t = Math.PI / 2 + (k / 5) * (Math.PI / 2); out.push([-half + r + Math.cos(t) * r, top - r + Math.sin(t) * r]); }
+  return out;
+}
+
 /** Diagonal black and yellow stripes across a face (x = face, looking along x), between y and z limits. */
 function wasp(s: Shapes, x: number, dir: number, y0: number, y1: number, z0: number, z1: number) {
   const a = Math.min(x, x + dir * 0.15), b = Math.max(x, x + dir * 0.15);
@@ -50,7 +58,7 @@ export function drawClass08(s: Shapes) {
   }
   // the long bonnet: doors, louvres, radiator, exhaust
   const bx0 = -21.5, bx1 = face - 2, bt = 38.5, bw = 12.6;
-  s.prismX([[-bw, plate], [bw, plate], [bw, bt - 2], [bw - 2, bt], [-bw + 2, bt], [-bw, bt - 2]], bx0, bx1, BR_GREEN);
+  s.prismX(shoulders(bw, plate, bt, 2.4), bx0, bx1, BR_GREEN, true);
   for (const e of SIDES) {
     const f = e * bw;
     for (let x = bx0 + 9; x < bx1 - 2; x += 9.5) strip(s, f, x, plate + 1.5, x, bt - 3, 0.3, darker(BR_GREEN, 0.5), 0.08);   // door edges
@@ -103,8 +111,8 @@ export function drawClass37(s: Shapes) {
   }
   // body: engine room between the cabs, cabs, noses
   const cab = 102, room = 82, top = 47.5, noseTop = 37;
-  const profile = (t: number): [number, number][] => [[-w, plate], [w, plate], [w, t - 3], [w - 1.5, t - 0.8], [w - 3, t], [-w + 3, t], [-w + 1.5, t - 0.8], [-w, t - 3]];
-  s.prismX(profile(top), -room, room, BR_BLUE);
+  const profile = (t: number): [number, number][] => shoulders(w, plate, t, 3.5);
+  s.prismX(profile(top), -room, room, BR_BLUE, true);
   s.roof(-room, room, w - 1.5, top, 4, ROOF_GREY);
   for (const e of SIDES) {
     const f = e * w;
@@ -119,7 +127,7 @@ export function drawClass37(s: Shapes) {
   for (const d of [1, -1]) {
     const c0 = Math.min(d * room, d * cab), c1 = Math.max(d * room, d * cab);
     // the cab: full height, side windows and a door, yellow front with two windscreens
-    s.prismX(profile(top), c0, c1, BR_BLUE);
+    s.prismX(profile(top), c0, c1, BR_BLUE, true);
     s.roof(c0, c1, w - 1.5, top, 4, ROOF_GREY);
     for (const e of SIDES) {
       const f = e * w;
@@ -143,7 +151,9 @@ export function drawClass37(s: Shapes) {
     s.box(Math.min(fx, fx - d * 6), Math.max(fx, fx - d * 6), -w + 0.2, w - 0.2, plate, noseTop, YELLOW);
     // the nose: lower, narrower, rounded, all yellow, split headcode boxes on its front
     const n0 = Math.min(d * cab, d * (face - 1)), n1 = Math.max(d * cab, d * (face - 1));
-    s.prismX([[-14, plate], [14, plate], [14, noseTop - 4], [12, noseTop - 1], [9, noseTop], [-9, noseTop], [-12, noseTop - 1], [-14, noseTop - 4]], n0, n1, YELLOW);
+    s.prismX(shoulders(14, plate, noseTop, 5), n0, n1, YELLOW, true);
+    // the nose's front edge is rounded too: a curved fairing round its top
+    s.cyl("y", -9, 9, d > 0 ? n1 - 2.5 : n0 + 2.5, noseTop - 2.5, 2.5, 2.5, YELLOW);
     const nf = d * (face - 1);
     for (const e of SIDES) {
       const ya = e * 2.5, yb = e * 11;

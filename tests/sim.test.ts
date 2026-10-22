@@ -370,7 +370,7 @@ describe("the model catalogue", () => {
       expect([at, b.x0 >= -m.length / 2 - 0.05 && b.x1 <= m.length / 2 + 0.05]).toEqual([at, true]);
       expect([at, b.x1 - b.x0 > m.length - 1]).toEqual([at, true]);           // buffer to buffer
       expect([at, b.y <= m.width / 2 + 0.6]).toEqual([at, true]);
-      expect([at, b.z0 >= -0.01 && b.z1 <= m.height + 0.05]).toEqual([at, true]);
+      expect([at, b.z0 >= -1 && b.z1 <= m.height + 0.05]).toEqual([at, true]);          // flanges dip below the rail head
     }
   });
 

@@ -189,14 +189,16 @@ function mul(a: M4, b: M4): M4 {
 const VS = `#version 300 es
 in vec3 aPos; in vec3 aNrm; in vec3 aCol;
 uniform mat4 uMvp; uniform mat4 uModel; uniform vec3 uEye; uniform vec3 uTint;
-out vec3 vN; out vec3 vC; out float vD; out vec3 vW;
-void main(){ vec4 w=uModel*vec4(aPos,1.0); vN=mat3(uModel)*aNrm; vC=aCol*uTint; vD=distance(w.xyz,uEye); vW=w.xyz; gl_Position=uMvp*w; }`;
+out vec3 vN; out vec3 vC; out float vD; out vec3 vW; out float vH;
+void main(){ vec4 w=uModel*vec4(aPos,1.0); vN=mat3(uModel)*aNrm; vC=aCol*uTint; vD=distance(w.xyz,uEye); vW=w.xyz; vH=aPos.y; gl_Position=uMvp*w; }`;
 const FS = `#version 300 es
 precision highp float;
-in vec3 vN; in vec3 vC; in float vD; in vec3 vW;
-uniform vec3 uBg; uniform float uFog; uniform vec3 uEye; uniform float uSpec;
+in vec3 vN; in vec3 vC; in float vD; in vec3 vW; in float vH;
+uniform vec3 uBg; uniform float uFog; uniform vec3 uEye; uniform float uSpec; uniform float uAO; uniform float uShadow;
 out vec4 o;
 void main(){
+  // a contact shadow: dark, as see-through as its colour says
+  if(uShadow>0.0){ o=vec4(0.0,0.0,0.0,vC.r*uShadow); return; }
   vec3 n=normalize(vN);
   vec3 V=normalize(uEye-vW);
   if(dot(n,V)<0.0) n=-n;   // lit from whichever side is seen
@@ -208,6 +210,8 @@ void main(){
   float sp=pow(max(dot(n,normalize(L+V)),0.0),28.0)*uSpec;
   float rim=pow(1.0-max(dot(n,V),0.0),3.0)*uSpec*0.35;
   c+=vec3(sp)+uBg*rim;
+  // vehicles: the closer to the rails, the less sky reaches (wheels and underframes sit in shade)
+  c*=mix(1.0,0.5+0.5*smoothstep(0.0,0.42,vH),uAO);
   float f=clamp((vD-uFog)/(uFog*3.0),0.0,0.6);
   o=vec4(mix(c,uBg,f),1.0);
 }`;
@@ -244,6 +248,19 @@ function modelMesh(md: Model): MeshBuilder {
   const unit = (axis: "x" | "y" | "z", sgn: number): P3 => (axis === "x" ? [sgn, 0, 0] : axis === "y" ? [0, sgn, 0] : [0, 0, sgn]);
   // round things get more sides the bigger they are
   const segs = (r: number) => Math.max(10, Math.min(32, Math.round(r * 2.4)));
+  /** Outward normals of a convex outline's edges (in its own 2D plane), whichever way round it's given. */
+  const edgeNormals = (pts: [number, number][]): [number, number][] => {
+    let area = 0;
+    pts.forEach(([a, b], i) => { const [c, d] = pts[(i + 1) % pts.length]; area += a * d - c * b; });
+    const sg = area >= 0 ? 1 : -1;
+    return pts.map(([a, b], i) => { const [c, d] = pts[(i + 1) % pts.length]; const l = Math.hypot(c - a, d - b) || 1; return [sg * (d - b) / l, -sg * (c - a) / l]; });
+  };
+  const vertexNormal = (en: [number, number][], i: number): [number, number] => {
+    const a = en[(i - 1 + en.length) % en.length], b = en[i];
+    // keep sharp corners sharp: only blend edges that turn by less than about 50°
+    if (a[0] * b[0] + a[1] * b[1] < 0.64) return b;
+    return [a[0] + b[0], a[1] + b[1]];
+  };
   /** A polygon (convex) as a fan, with one normal. */
   const fan = (pts: P3[], n: P3, col: RGB) => { for (let i = 1; i + 1 < pts.length; i++) quad(pts[0], pts[i], pts[i + 1], pts[i + 1], n, col); };
   const s: Shapes = {
@@ -287,23 +304,39 @@ function modelMesh(md: Model): MeshBuilder {
       const side = (p: number[], q: number[], n: P3) => quad(c(p[0], p[1], y0), c(q[0], q[1], y0), c(q[0], q[1], y1), c(p[0], p[1], y1), n, col);
       side(a, b, [-oz, 0, -ox]); side(d, cc, [oz, 0, ox]); side(a, d, [-dx, 0, -dz]); side(b, cc, [dx, 0, dz]);
     },
-    prismX(profile, x0, x1, col) {
+    prismX(profile, x0, x1, col, smooth = false) {
       // a convex outline across the vehicle (y, z), run along it from x0 to x1
       fan(profile.map(([y, z]) => [x0, y, z] as P3), [-1, 0, 0], col);
       fan(profile.map(([y, z]) => [x1, y, z] as P3), [1, 0, 0], col);
+      const en = edgeNormals(profile);
       profile.forEach(([y, z], i) => {
-        const [y2, z2] = profile[(i + 1) % profile.length];
-        quad([x0, y, z], [x1, y, z], [x1, y2, z2], [x0, y2, z2], [0, z2 - z, -(y2 - y)], col);
+        const j = (i + 1) % profile.length, [y2, z2] = profile[j];
+        const [na, nb] = smooth ? [vertexNormal(en, i), vertexNormal(en, j)] : [en[i], en[i]];
+        quadN([x0, y, z], [x1, y, z], [x1, y2, z2], [x0, y2, z2], [0, na[0], na[1]], [0, na[0], na[1]], [0, nb[0], nb[1]], [0, nb[0], nb[1]], col);
       });
     },
-    prismY(profile, y0, y1, col) {
+    prismY(profile, y0, y1, col, smooth = false) {
       // a convex outline seen from the side (x, z), between y0 and y1
       fan(profile.map(([x, z]) => [x, y0, z] as P3), [0, -1, 0], col);
       fan(profile.map(([x, z]) => [x, y1, z] as P3), [0, 1, 0], col);
+      const en = edgeNormals(profile);
       profile.forEach(([x, z], i) => {
-        const [x2, z2] = profile[(i + 1) % profile.length];
-        quad([x, y0, z], [x2, y0, z2], [x2, y1, z2], [x, y1, z], [z2 - z, 0, -(x2 - x)], col);
+        const j = (i + 1) % profile.length, [x2, z2] = profile[j];
+        const [na, nb] = smooth ? [vertexNormal(en, i), vertexNormal(en, j)] : [en[i], en[i]];
+        quadN([x, y0, z], [x2, y0, z2], [x2, y1, z2], [x, y1, z], [na[0], 0, na[1]], [nb[0], 0, nb[1]], [nb[0], 0, nb[1]], [na[0], 0, na[1]], col);
       });
+    },
+    dish(axis, a, dir, u, v, r, depth, col) {
+      const n = segs(r), rings = 5;
+      for (let i = 0; i < rings; i++) {
+        const p0 = (i / rings) * Math.PI / 2, p1 = ((i + 1) / rings) * Math.PI / 2;
+        for (let k = 0; k < n; k++) {
+          const t0 = (k / n) * Math.PI * 2, t1 = ((k + 1) / n) * Math.PI * 2;
+          const pt = (p: number, t: number) => around(axis, a + dir * Math.sin(p) * depth, u, v, t, Math.cos(p) * r);
+          const nn = (p: number, t: number): P3 => { const d = dirOf(axis, t), ax = unit(axis, dir); const c = Math.cos(p) * depth / Math.max(r, 1e-6), sn = Math.sin(p); return [d[0] * c + ax[0] * sn * 1, d[1] * c + ax[1] * sn, d[2] * c + ax[2] * sn]; };
+          quadN(pt(p0, t0), pt(p0, t1), pt(p1, t1), pt(p1, t0), nn(p0, t0), nn(p0, t1), nn(p1, t1), nn(p1, t0), col);
+        }
+      }
     },
     roof(x0, x1, half, zEave, rise, col) {
       const n = 16, zAt = (u: number) => zEave + rise * (1 - u * u);
@@ -463,6 +496,30 @@ export class View3D {
   /** The vehicles to draw from now on (the layout's mesh stays as it is). */
   setDynamic(v: DynamicVehicle[]) { this.dynamic = v; this.draw(); }
 
+  private shadowMesh: { vao: WebGLVertexArrayObject; count: number } | null = null;
+  /** A flat patch, dark in the middle and fading to nothing at its edges, one unit long and wide. */
+  private shadowVao() {
+    if (!this.shadowMesh) {
+      const m = new MeshBuilder();
+      // rings from the middle outwards, each fainter: x along, y across
+      const rings: [number, number, number][] = [[0.36, 0.2, 1], [0.44, 0.34, 0.75], [0.5, 0.5, 0]];
+      const up: V3 = [0, 1, 0];
+      m.quad(W(-rings[0][0], -rings[0][1], 0), W(rings[0][0], -rings[0][1], 0), W(rings[0][0], rings[0][1], 0), W(-rings[0][0], rings[0][1], 0), up, [1, 1, 1]);
+      for (let i = 0; i + 1 < rings.length; i++) {
+        const [a, b, ca] = rings[i], [c, d, cb] = rings[i + 1];
+        const corner = (x: number, y: number, k: number): V3 => W(x * (k ? c : a), y * (k ? d : b), 0);
+        const ring = (x0: number, y0: number, x1: number, y1: number) => {
+          const i0 = m.vert(corner(x0, y0, 0), up, [ca, ca, ca]), i1 = m.vert(corner(x1, y1, 0), up, [ca, ca, ca]);
+          const i2 = m.vert(corner(x1, y1, 1), up, [cb, cb, cb]), i3 = m.vert(corner(x0, y0, 1), up, [cb, cb, cb]);
+          m.idx.push(i0, i1, i2, i0, i2, i3);
+        };
+        ring(-1, -1, 1, -1); ring(1, -1, 1, 1); ring(1, 1, -1, 1); ring(-1, 1, -1, -1);
+      }
+      this.shadowMesh = { vao: this.upload(m, this.vehicleBufs), count: m.idx.length };
+    }
+    return this.shadowMesh;
+  }
+
   private vehicleVao(kind: string) {
     let x = this.vehicleVaos.get(kind);
     if (!x) { const m = vehicleMesh(kind); x = { vao: this.upload(m, this.vehicleBufs), count: m.idx.length }; this.vehicleVaos.set(kind, x); }
@@ -522,13 +579,31 @@ export class View3D {
     gl.uniform3fv(loc("uBg"), this.bg);
     gl.uniform1f(loc("uFog"), f ? this.extent * 1.2 : this.distance * 1.4);
     gl.uniform1f(loc("uSpec"), 0);
+    gl.uniform1f(loc("uAO"), 0);
+    gl.uniform1f(loc("uShadow"), 0);
     gl.bindVertexArray(this.vao);
     gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_INT, 0);
+    // contact shadows under the vehicles, softly blended onto the track
+    const shadow = this.shadowVao();
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -2);
+    gl.uniform1f(loc("uShadow"), 0.68);
+    gl.uniform3fv(loc("uTint"), [1, 1, 1]);
+    gl.bindVertexArray(shadow.vao);
+    for (const v of this.dynamic) {
+      if (v.kind === "box") continue;
+      gl.uniformMatrix4fv(loc("uModel"), false, vehicleMatrix({ ...v, z: v.z - 3.1, tilt: 0, height: 1, width: v.width * 1.25, length: v.length * 1.04 }));
+      gl.drawElements(gl.TRIANGLES, shadow.count, gl.UNSIGNED_INT, 0);
+    }
+    gl.disable(gl.BLEND); gl.depthMask(true); gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.uniform1f(loc("uShadow"), 0);
     gl.uniform1f(loc("uSpec"), 0.32);
+    gl.uniform1f(loc("uAO"), 1);
     for (const v of this.dynamic) {
       const mesh = this.vehicleVao(v.kind);
       gl.uniformMatrix4fv(loc("uModel"), false, vehicleMatrix(v));
       gl.uniform3fv(loc("uTint"), v.color);
+      gl.uniform1f(loc("uAO"), v.kind === "box" ? 0 : 1);
       gl.bindVertexArray(mesh.vao);
       gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
     }
@@ -620,6 +695,7 @@ export class View3D {
     for (const b of [...this.bufs, ...this.vehicleBufs]) gl.deleteBuffer(b);
     if (this.vao) gl.deleteVertexArray(this.vao);
     for (const x of this.vehicleVaos.values()) gl.deleteVertexArray(x.vao);
+    if (this.shadowMesh) gl.deleteVertexArray(this.shadowMesh.vao);
     gl.deleteProgram(this.prog);
   }
 }

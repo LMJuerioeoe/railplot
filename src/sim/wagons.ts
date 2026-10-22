@@ -1,6 +1,6 @@
 // Wagons: vans, opens, minerals, tanks and brake vans, on the shared four-wheeled running gear.
 import {
-  BLACK, BRASS, COAL, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER, WHITE, barX, barZ, darker,
+  BLACK, BRASS, COAL, DARK_STEEL, coal, GLASS, RGB, SIDES, STEEL, Shapes, UNDER, WHITE, barX, barZ, darker,
   headstocks, lettering, planking, step, strip, wagonGear,
 } from "./parts";
 
@@ -97,7 +97,7 @@ export function drawPlankOpen(s: Shapes, p: { length: number; width: number; bod
     lettering(s, w - 0.2, -bh + 5, bh - 5, z0 + 8.3, 2.4, WHITE, 9);
   }
   for (const e of SIDES) { const a = e * (bh - 1), b = e * bh; s.box(Math.min(a, b), Math.max(a, b), -w + 0.4, w - 0.4, z0, t, p.body); }
-  if (p.load) s.roof(-bh + 1, bh - 1, w - 1.6, t - 2.5, 4, COAL);
+  if (p.load) coal(s, -bh + 1, bh - 1, w - 1.6, t - 2.5, 3.4, 3);
   else s.box(-bh + 1, bh - 1, -w + 1.5, w - 1.5, z0 + 0.6, z0 + 0.8, darker(p.body, 0.5));
 }
 
@@ -118,7 +118,7 @@ export function drawMineral(s: Shapes, p: { length: number; width: number; body:
   }
   for (const e of SIDES) { const a = e * (bh - 0.9), b = e * bh; s.box(Math.min(a, b), Math.max(a, b), -w + 0.4, w - 0.4, z0, t, p.body); }
   s.box(-bh + 1, bh - 1, -w + 1.2, w - 1.2, z0, z0 + 0.6, darker(p.body, 0.45));
-  if (p.load) s.roof(-bh + 1, bh - 1, w - 1.6, t - 2.2, 3.6, COAL);
+  if (p.load) coal(s, -bh + 1, bh - 1, w - 1.6, t - 2.2, 3, 5);
 }
 
 /** A 14 ton tank wagon: barrel on cradles, dome with its lid, ladders and tie bars. */
@@ -129,7 +129,7 @@ export function drawTankWagon(s: Shapes, p: { length: number; width: number; bod
   for (const x of [-22, 22]) s.prismX([[-10, z0], [10, z0], [9, z0 + 4], [-9, z0 + 4]], x - 1.5, x + 1.5, UNDER);   // cradles
   s.cyl("x", -bh + 2.5, bh - 2.5, 0, zc, r, r, p.body, false);
   // the barrel ends, as squashed domes turned outward: drawn as discs with a rounded rim
-  for (const e of SIDES) { const a = e * (bh - 2.5), b = e * (bh - 0.8); s.cyl("x", Math.min(a, b), Math.max(a, b), 0, zc, e > 0 ? r : r * 0.7, e > 0 ? r * 0.7 : r, p.body); }
+  for (const e of SIDES) s.dish("x", e * (bh - 2.5), e, 0, zc, r, 2.6, p.body);                    // dished barrel ends
   for (const x of [-bh + 6, -12, 12, bh - 6]) s.ring("x", x - 0.4, x + 0.4, 0, zc, r + 0.3, r - 0.2, p.bands ?? darker(p.body, 0.7));
   s.cyl("z", zc + r - 1, zc + r + 3.6, 0, 0, 4.6, 4.2, p.body);                                     // dome
   s.cyl("z", zc + r + 3.6, zc + r + 4.4, 0, 0, 4.9, 4.9, darker(p.body, 0.8));

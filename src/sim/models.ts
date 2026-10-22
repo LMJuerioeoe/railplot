@@ -148,7 +148,7 @@ export const MODELS: Model[] = [
     note: "Gresley's express Pacific in LNER apple green, lined black and white, as 4472 in the 1930s: three cylinders, 6 ft 8 in drivers",
     draw: steam({
       length: 172, width: 36, height: 52,
-      plate: { z: 20.5, half: 17.8, x0: -80, x1: 80 },
+      plate: { z: 20.5, half: 17.8, x0: -80, x1: 80, drop: { x: 72, z: 18 } },
       wheels: [{ x: 71, r: 6.3 }, { x: 45, r: 6.3 }, { x: 16, r: 13.2, driven: true }, { x: -14, r: 13.2, driven: true }, { x: -44, r: 13.2, driven: true }, { x: -69, r: 7.3 }],
       cylinders: { x0: 52, x1: 64, z: 15.5, r: 5, outside: true, y: 12.6 }, mainDriver: 1,
       boiler: { x0: 6, x1: 60, z: 37.5, rBack: 12.3, rFront: 11.6 },
@@ -178,7 +178,7 @@ export const MODELS: Model[] = [
     note: "Stanier's mixed-traffic engine in BR lined black: high running plate, taper boiler, 6 ft drivers, Walschaerts gear",
     draw: steam({
       length: 152, width: 35, height: 52,
-      plate: { z: 25, half: 17.2, x0: -68, x1: 70 },
+      plate: { z: 25, half: 17.2, x0: -68, x1: 70, drop: { x: 59, z: 20.5 } },
       wheels: [{ x: 61, r: 6.4 }, { x: 36, r: 6.4 }, { x: 7, r: 12, driven: true }, { x: -21, r: 12, driven: true }, { x: -51, r: 12, driven: true }],
       cylinders: { x0: 43, x1: 54, z: 17, r: 5, outside: true, y: 12.2 }, mainDriver: 1,
       boiler: { x0: 12, x1: 46, z: 38, rBack: 11.6, rFront: 10.2 },
@@ -243,7 +243,7 @@ export const MODELS: Model[] = [
     note: "A 1930s Great Western corridor coach: a door to every compartment, chocolate below and cream above, lined in gold",
     draw: coach({
       length: 240, width: 36, height: 49, bodyHalf: 112, floor: 15, waist: 29, eave: 42.5, rise: 5.4, tumblehome: 1.2,
-      bogieCentre: 80, bogieWheelbase: 28, wheelR: 6.8, layout: "T D W D W D W D W D W D W D W D T", vents: 7,
+      bogieCentre: 80, bogieWheelbase: 28, wheelR: 6.8, layout: "T D W D W D W D W D W D W D W D T", vents: 7, windowRadius: 0.4,
       livery: { lower: CHOCOLATE, upper: GWR_CREAM, roof: [0.7, 0.7, 0.68], lining: GOLD, ends: CHOCOLATE },
     }),
   },
@@ -253,7 +253,7 @@ export const MODELS: Model[] = [
     note: "Stanier's flush-sided corridor coach in LMS crimson lake, lined in gold and black",
     draw: coach({
       length: 242, width: 37, height: 50, bodyHalf: 113, floor: 15.5, waist: 29.5, eave: 44, rise: 5, tumblehome: 1.4,
-      bogieCentre: 80, bogieWheelbase: 36, wheelR: 6.8, layout: "D T W W W W W W W T D", vents: 8,
+      bogieCentre: 80, bogieWheelbase: 36, wheelR: 6.8, layout: "D T W W W W W W W T D", vents: 8, windowRadius: 1.8,
       livery: { lower: CRIMSON, roof: [0.36, 0.36, 0.36], lining: GOLD, ends: BLACK, frames: [0.62, 0.52, 0.32] },
     }),
   },

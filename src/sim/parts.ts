@@ -19,10 +19,12 @@ export interface Shapes {
   ring(axis: Axis, a0: number, a1: number, u: number, v: number, rOut: number, rIn: number, col: RGB): void;
   /** A straight bar in a side view, from (x0, z0) to (x1, z1), t thick, between y0 and y1: rods, spokes, braces, handrails. */
   beam(x0: number, z0: number, x1: number, z1: number, y0: number, y1: number, t: number, col: RGB): void;
-  /** A convex outline across the vehicle, as (y, z) points, run along it from x0 to x1: coach bodies, tank tops. */
-  prismX(profile: [number, number][], x0: number, x1: number, col: RGB): void;
+  /** A convex outline across the vehicle, as (y, z) points, run along it from x0 to x1: coach bodies, tank tops. Smooth: shaded as one curved surface. */
+  prismX(profile: [number, number][], x0: number, x1: number, col: RGB, smooth?: boolean): void;
   /** A convex outline seen from the side, as (x, z) points, between y0 and y1: splashers, cab fronts, noses. */
-  prismY(profile: [number, number][], y0: number, y1: number, col: RGB): void;
+  prismY(profile: [number, number][], y0: number, y1: number, col: RGB, smooth?: boolean): void;
+  /** A shallow curved cap facing along an axis (dir ±1) from a: a smokebox door, a buffer head, a tank end. */
+  dish(axis: Axis, a: number, dir: 1 | -1, u: number, v: number, r: number, depth: number, col: RGB): void;
   /** An arched roof from x0 to x1, its eaves at ±half wide and zEave high, rising `rise` in the middle. */
   roof(x0: number, x1: number, half: number, zEave: number, rise: number, col: RGB): void;
   /** Half a ball, sitting on z: a dome, a whistle bell (squash flattens it). */
@@ -46,6 +48,7 @@ export function boundsOf(draw: (s: Shapes) => void) {
     prismY: (p, y0, y1) => see(Math.min(...p.map(([x]) => x)), Math.max(...p.map(([x]) => x)), Math.max(Math.abs(y0), Math.abs(y1)), Math.min(...p.map(([, z]) => z)), Math.max(...p.map(([, z]) => z))),
     roof: (x0, x1, half, ze, rise) => see(x0, x1, half, ze, ze + rise),
     dome: (x, y, z, r, _c, sq = 1) => see(x - r, x + r, Math.abs(y) + r, z, z + r * sq),
+    dish: (axis, a, dir, u, v, r, depth) => round(axis, Math.min(a, a + dir * depth), Math.max(a, a + dir * depth), u, v, r),
   });
   return b;
 }
@@ -112,6 +115,47 @@ export function lettering(s: Shapes, half: number, x0: number, x1: number, z: nu
   }
 }
 
+/** A rectangle with rounded corners, as a convex outline: windows, cab cut-outs, panels. */
+export function roundedRect(x0: number, z0: number, x1: number, z1: number, r: number, n = 4): [number, number][] {
+  const out: [number, number][] = [];
+  r = Math.min(r, (x1 - x0) / 2, (z1 - z0) / 2);
+  const corner = (cx: number, cz: number, t0: number) => { for (let k = 0; k <= n; k++) { const t = t0 + (k / n) * (Math.PI / 2); out.push([cx + Math.cos(t) * r, cz + Math.sin(t) * r]); } };
+  corner(x1 - r, z0 + r, -Math.PI / 2); corner(x1 - r, z1 - r, 0); corner(x0 + r, z1 - r, Math.PI / 2); corner(x0 + r, z0 + r, Math.PI);
+  return out;
+}
+
+/** Points round an arc: centre (cx, cz), radius r, from angle t0 to t1. */
+export function arc(cx: number, cz: number, r: number, t0: number, t1: number, n = 10): [number, number][] {
+  const out: [number, number][] = [];
+  for (let k = 0; k <= n; k++) { const t = t0 + ((t1 - t0) * k) / n; out.push([cx + Math.cos(t) * r, cz + Math.sin(t) * r]); }
+  return out;
+}
+
+/** A window pane with rounded corners on both sides of a body (y = ±face), set just proud, with a frame round it. */
+export function pane(s: Shapes, face: number, x0: number, z0: number, x1: number, z1: number, r: number, glass: RGB, frame?: RGB) {
+  for (const e of SIDES) {
+    const f = e * face;
+    if (frame) s.prismY(roundedRect(x0 - 0.5, z0 - 0.5, x1 + 0.5, z1 + 0.5, r + 0.5), Math.min(f, f + e * 0.12), Math.max(f, f + e * 0.12), frame);
+    s.prismY(roundedRect(x0, z0, x1, z1, r), Math.min(f, f + e * 0.18), Math.max(f, f + e * 0.18), glass);
+  }
+}
+
+/**
+ * Coal heaped up between x0 and x1: a mound, then lumps scattered over it so it catches the light
+ * unevenly, the same every time for a given seed.
+ */
+export function coal(s: Shapes, x0: number, x1: number, half: number, z: number, rise: number, seed: number) {
+  s.roof(x0, x1, half, z, rise * 0.85, COAL);
+  let r = seed * 9301 + 49297;
+  const rnd = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
+  const n = Math.round(((x1 - x0) * half) / 9);
+  for (let i = 0; i < n; i++) {
+    const u = rnd() * 2 - 1, x = x0 + 1.2 + rnd() * (x1 - x0 - 2.4), size = 0.7 + rnd() * 0.9;
+    const y = u * (half - size - 0.3), top = z + rise * 0.85 * (1 - u * u);
+    s.dome(x, y, top - size * 0.55, size, rnd() > 0.5 ? COAL : [0.09, 0.09, 0.1], 0.8);
+  }
+}
+
 // ---------- wheels ----------
 
 // OO wheels: the tread rides on the rail head at y = ±8.25; the wheel runs from ±7.3 (back) to ±9.6 (face)
@@ -126,6 +170,8 @@ export function spokedWheels(s: Shapes, x: number, r: number, spokes: number, co
   for (const e of SIDES) {
     const yb = e * WHEEL_BACK, yf = e * WHEEL_FACE, yfIn = e * (WHEEL_FACE - 0.5);
     s.ring("y", Math.min(yb, yf), Math.max(yb, yf), x, r, r, r - 1.1, tyre);
+    const yfl = e * (WHEEL_BACK + 0.45);
+    s.ring("y", Math.min(yb, yfl), Math.max(yb, yfl), x, r, r + 0.75, r - 0.4, tyre);               // the flange, inside the tread
     s.ring("y", Math.min(yb, yfIn), Math.max(yb, yfIn), x, r, r - 1.05, r - 1.9, col);
     for (let i = 0; i < spokes; i++) {
       const t = (i / spokes) * Math.PI * 2 + 0.2;
@@ -133,6 +179,7 @@ export function spokedWheels(s: Shapes, x: number, r: number, spokes: number, co
       s.beam(x + Math.cos(t) * a, r + Math.sin(t) * a, x + Math.cos(t) * b, r + Math.sin(t) * b, Math.min(e * (WHEEL_FACE - 1.3), yfIn), Math.max(e * (WHEEL_FACE - 1.3), yfIn), Math.max(0.6, r * 0.075), col);
     }
     s.cyl("y", Math.min(yb, yf), Math.max(yb, yf), x, r, 2.2, 2.2, col);                         // boss
+    s.dish("y", yf, e, x, r, 1.5, 0.5, col);                                                      // axle end
     if (opts.balance !== undefined) {
       // a crescent of solid metal on the far side of the crank
       const c = opts.balance, pts: [number, number][] = [];
@@ -152,9 +199,12 @@ export function discWheels(s: Shapes, x: number, r: number, col: RGB = DARK_STEE
   for (const e of SIDES) {
     const yb = e * WHEEL_BACK, yf = e * WHEEL_FACE;
     s.ring("y", Math.min(yb, yf), Math.max(yb, yf), x, r, r, r - 1.0, DARK_STEEL);
+    const yfl = e * (WHEEL_BACK + 0.45);
+    s.ring("y", Math.min(yb, yfl), Math.max(yb, yfl), x, r, r + 0.7, r - 0.4, DARK_STEEL);             // flange
     const yd = e * (WHEEL_FACE - 0.6);
     s.cyl("y", Math.min(yb, yd), Math.max(yb, yd), x, r, r - 1.0, r - 1.0, col);
     s.cyl("y", Math.min(yd, yf), Math.max(yd, yf), x, r, 1.6, 1.6, col);                         // hub
+    s.dish("y", yf, e, x, r, 1.6, 0.45, col);
   }
   barY(s, x, -WHEEL_BACK, WHEEL_BACK, r, 0.9, DARK_STEEL);
 }
@@ -193,7 +243,10 @@ export function buffer(s: Shapes, x: number, dir: number, y: number, z: number) 
   const [h0, h1] = [p(0), p(2.6)], [k0, k1] = [p(2.6), p(4.6)], [d0, d1] = [p(4.6), p(BUFFER_REACH)];
   s.cyl("x", Math.min(h0, h1), Math.max(h0, h1), y, z, dir > 0 ? 1.9 : 1.35, dir > 0 ? 1.35 : 1.9, BLACK);
   s.cyl("x", Math.min(k0, k1), Math.max(k0, k1), y, z, 0.85, 0.85, STEEL);
-  s.cyl("x", Math.min(d0, d1), Math.max(d0, d1), y, z, 2.3, 2.3, STEEL);
+  // the head: a flat-sided disc with a gently curved face
+  const hf = p(5.15);
+  s.cyl("x", Math.min(d0, hf), Math.max(d0, hf), y, z, 2.3, 2.3, STEEL);
+  s.dish("x", hf, dir > 0 ? 1 : -1, y, z, 2.3, BUFFER_REACH - 5.15, STEEL);
 }
 
 // ---------- wagon running gear ----------

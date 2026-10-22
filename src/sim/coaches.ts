@@ -1,6 +1,6 @@
 // Coaches: a body drawn from its cross-section (with tumblehome), windows and doors laid out along it,
 // a two-tone livery with lining, gangways, roof ventilators, bogies and the gear under the floor.
-import { BLACK, BRASS, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER, barX, barY, barZ, darker, discWheels, headstocks, strip } from "./parts";
+import { BLACK, BRASS, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER, barX, barY, barZ, darker, discWheels, headstocks, roundedRect, strip } from "./parts";
 
 export interface CoachSpec {
   length: number; width: number; height: number;
@@ -27,6 +27,8 @@ export interface CoachSpec {
   truss?: boolean;
   /** Torpedo ventilators on the roof. */
   vents?: number;
+  /** Window corner radius: Stanier and Mk1 windows are rounded, older ones nearly square. */
+  windowRadius?: number;
 }
 
 const WIDTH: Record<string, number> = { D: 9, W: 18, w: 11, T: 6, L: 15, "-": 3 };
@@ -34,10 +36,15 @@ const WIDTH: Record<string, number> = { D: 9, W: 18, w: 11, T: 6, L: 15, "-": 3 
 export function drawCoach(s: Shapes, p: CoachSpec) {
   const L = p.livery, half = p.length / 2, w = p.width / 2, bh = p.bodyHalf;
   const upper = L.upper ?? L.lower, frames = L.frames ?? darker(L.lower, 0.75);
-  const tb = p.tumblehome, low = p.floor + (p.waist - p.floor) * 0.45;
-  // the body: below the waist (curving in to the solebar), the window band, and the roof
-  s.prismX([[-w + tb, p.floor], [w - tb, p.floor], [w - tb * 0.35, low - 3], [w, low], [w, p.waist], [-w, p.waist], [-w, low], [-w + tb * 0.35, low - 3]], -bh, bh, L.lower);
-  s.prismX([[-w, p.waist], [w, p.waist], [w - 0.15, p.eave], [-w + 0.15, p.eave]], -bh, bh, upper);
+  const tb = p.tumblehome, low = p.floor + (p.waist - p.floor) * 0.6;
+  // the body: below the waist it curves in to the solebar (the tumblehome), then the window band rises
+  // straight to a rounded cantrail under the roof; both shaded as one smooth surface
+  const curve: [number, number][] = [];
+  for (let k = 0; k <= 6; k++) { const t = k / 6; curve.push([w - tb * (1 - t) * (1 - t), p.floor + (low - p.floor) * t]); }
+  s.prismX([...curve, [w, p.waist], [-w, p.waist], ...curve.map(([y, z]) => [-y, z] as [number, number]).reverse()], -bh, bh, L.lower, true);
+  const cant: [number, number][] = [];
+  for (let k = 0; k <= 4; k++) { const t = (k / 4) * (Math.PI / 2); cant.push([w - 1.2 + Math.cos(t) * 1.2, p.eave - 1.2 + Math.sin(t) * 1.2]); }
+  s.prismX([[-w, p.waist], [w, p.waist], ...cant, ...cant.map(([y, z]) => [-y, z] as [number, number]).reverse()], -bh, bh, upper, true);
   s.roof(-bh - 0.3, bh + 0.3, w - 0.1, p.eave, p.rise, L.roof);
   for (const e of SIDES) barX(s, -bh, bh, e * (w - 0.6), p.eave + p.rise * 0.25, 0.25, darker(L.roof, 0.75));   // rain strips
   // ends, a little darker, with the gangway bellows and a footstep
@@ -54,10 +61,12 @@ export function drawCoach(s: Shapes, p: CoachSpec) {
   const widths = toks.map((t) => p.widths?.[t] ?? WIDTH[t] ?? 6);
   const total = widths.reduce((a, b) => a + b, 0), k = (2 * bh - 4) / total;
   for (const e of SIDES) {
-    const f = e * w, glass = (x0: number, x1: number, z0: number, z1: number, col: RGB = GLASS) => {
-      s.box(x0, x1, Math.min(f, f + e * 0.12), Math.max(f, f + e * 0.12), z0, z1, col);
-      strip(s, f, x0, z0, x1, z0, 0.45, frames, 0.18); strip(s, f, x0, z1, x1, z1, 0.45, frames, 0.18);
-      strip(s, f, x0, z0, x0, z1, 0.45, frames, 0.18); strip(s, f, x1, z0, x1, z1, 0.45, frames, 0.18);
+    const rr = p.windowRadius ?? 1, f = e * w, glass = (x0: number, x1: number, z0: number, z1: number, col: RGB = GLASS) => {
+      // a pane with rounded corners in a frame standing just proud of the side
+      s.prismY(roundedRect(x0 - 0.45, z0 - 0.45, x1 + 0.45, z1 + 0.45, rr + 0.45), Math.min(f, f + e * 0.14), Math.max(f, f + e * 0.14), frames);
+      s.prismY(roundedRect(x0, z0, x1, z1, rr), Math.min(f, f + e * 0.2), Math.max(f, f + e * 0.2), col);
+      // the top light: a narrow ventilator across the top of big windows
+      if (x1 - x0 > 12) s.box(x0 + 0.5, x1 - 0.5, Math.min(f, f + e * 0.24), Math.max(f, f + e * 0.24), z1 - 3.2, z1 - 2.8, frames);
     };
     let x = bh - 2;
     toks.forEach((t, i) => {
