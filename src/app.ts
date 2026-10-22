@@ -23,6 +23,7 @@ import { clear, h, icon } from "./ui/dom";
 import { closeDialog, confirmDialog, dialog, field, isDialogOpen, numInput, toast } from "./ui/dialogs";
 import { View3D } from "./view3d";
 import { trainFit } from "./trainfit";
+import { RELEASES_URL, desktopCanUpdate, desktopCheck, desktopInstall, installKind, latestRelease, newer } from "./update";
 import { wiringParts } from "./control/wiringplan";
 import { DEFAULT_WAGONS, INGLENOOK, Siding, deal, planSidings } from "./shunting";
 import { ControlUI } from "./control/ui";
@@ -56,6 +57,7 @@ const AUTOSAVE_KEY = "railplot.autosave.v1";
 const PREFS_KEY = "railplot.prefs.v1";
 const PRICES_KEY = "railplot.prices.v1";
 const CURRENCY_KEY = "railplot.currency.v1";
+const UPDATE_CHECK_KEY = "railplot.update-check.v1";
 
 const CURRENCIES = [
   { symbol: "£", name: "pound" }, { symbol: "$", name: "dollar" }, { symbol: "€", name: "euro" },
@@ -114,6 +116,8 @@ export class App {
   view3d: View3D | null = null;
   mode3d = false;
   theme: "system" | "light" | "dark" = "system";
+  /** Look for a newer version once a day when Railplot starts (desktop app and offline file). */
+  checkUpdates = true;
   mode: "design" | "control" = "design";
   ctl!: ControlUI;
 
@@ -142,6 +146,7 @@ export class App {
     this.boot();
     this.bindEvents();
     hostedNotice = () => this.showHostedNotice();
+    setTimeout(() => this.quietUpdateCheck(), 4000);
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => this.onThemeChange());
   }
 
@@ -223,10 +228,11 @@ export class App {
       const d = JSON.parse(store.get(PREFS_KEY) ?? "{}");
       if (d.theme) this.theme = d.theme;
       if (typeof d.showGrid === "boolean") this.showGrid = d.showGrid;
+      if (typeof d.checkUpdates === "boolean") this.checkUpdates = d.checkUpdates;
     } catch { /* defaults */ }
     this.applyTheme();
   }
-  private savePrefs() { store.set(PREFS_KEY, JSON.stringify({ theme: this.theme, showGrid: this.showGrid })); }
+  private savePrefs() { store.set(PREFS_KEY, JSON.stringify({ theme: this.theme, showGrid: this.showGrid, checkUpdates: this.checkUpdates })); }
 
   private applyTheme() {
     if (this.theme === "system") document.documentElement.removeAttribute("data-theme");
@@ -1498,12 +1504,14 @@ export class App {
     theme.value = this.theme;
     const showGrid = h("input", { id: "pref-showgrid", type: "checkbox" }) as HTMLInputElement;
     showGrid.checked = this.showGrid;
+    const upd = h("input", { id: "pref-updates", type: "checkbox", checked: this.checkUpdates }) as HTMLInputElement;
     dialog("Layout and app settings", h("div", { class: "form-grid" },
       h("h3", {}, "This layout"),
       field("Layout name", name),
       h("div", { class: "row2" }, field("Show lengths in", units), field("Grid step (mm)", grid)),
       h("h3", {}, "Railplot"),
-      h("div", { class: "row2" }, field("Theme", theme), h("label", { class: "check" }, showGrid, "Show grid"))), [
+      h("div", { class: "row2" }, field("Theme", theme), h("label", { class: "check" }, showGrid, "Show grid")),
+      h("label", { class: "check" }, upd, "Look for a new version once a day")), [
       { label: "Cancel" },
       { label: "Save settings", primary: true, onClick: () => {
         this.p.name = name.value.trim() || this.p.name;
@@ -1511,6 +1519,7 @@ export class App {
         this.p.gridStep = Math.max(1, +grid.value || 50);
         this.theme = theme.value as typeof this.theme;
         this.showGrid = showGrid.checked;
+        this.checkUpdates = upd.checked;
         this.applyTheme(); this.savePrefs();
         requestAnimationFrame(() => this.onThemeChange());
         this.commit();
@@ -1530,13 +1539,72 @@ export class App {
     dialog("Keyboard shortcuts", h("table", { class: "keys" }, h("tbody", {}, ...rows.map(([k, d]) => h("tr", {}, h("td", {}, h("kbd", {}, k)), h("td", {}, d))))), [{ label: "Close", primary: true }], { wide: true });
   }
 
+  /** Once a day at most, quietly: say so when a newer version is out. */
+  private async quietUpdateCheck() {
+    const kind = installKind();
+    if (!this.checkUpdates || (kind !== "desktop" && kind !== "offline")) return;
+    const last = +(store.get(UPDATE_CHECK_KEY) ?? 0);
+    if (Date.now() - last < 20 * 3600_000) return;
+    store.set(UPDATE_CHECK_KEY, String(Date.now()));
+    try {
+      const v = kind === "desktop" && (await desktopCanUpdate()) ? (await desktopCheck())?.version : (await latestRelease()).version;
+      if (v && newer(v, VERSION)) toast(`Railplot ${v} is out. Help > Check for updates gets it.`);
+    } catch { /* offline, or GitHub unreachable: try again tomorrow */ }
+  }
+
+  /** Help > Check for updates: find the newest version and, where this copy can, install it. */
+  async showUpdates() {
+    const kind = installKind();
+    const body = h("div", { class: "about", id: "update-box" }, h("p", {}, `This is Railplot ${VERSION}. Looking for a newer version…`));
+    const status = (...kids: (Node | string | null)[]) => { clear(body); append(body, ...kids); };
+    const link = (text: string, href: string) => h("a", { href, target: "_blank", rel: "noopener" }, text);
+    dialog("Check for updates", body, [{ label: "Close", primary: true }]);
+    try {
+      if (kind === "desktop" && (await desktopCanUpdate())) {
+        const u = await desktopCheck();
+        if (!u) { status(h("p", {}, `Railplot ${VERSION} is the newest version.`)); return; }
+        const bar = h("progress", { id: "update-progress", max: "1" }) as HTMLProgressElement;
+        bar.removeAttribute("value");
+        const go = h("button", { class: "btn btn-primary", type: "button", id: "update-install", onclick: async () => {
+          if (this.dirty && this.p.items.length && !this.filePath) await this.save();
+          go.disabled = true;
+          status(h("p", {}, `Downloading Railplot ${u.version}…`), bar, h("p", { class: "muted small" }, "Railplot restarts by itself when it's installed. Your layout is kept."));
+          store.set(AUTOSAVE_KEY, JSON.stringify({ project: this.p, fileName: this.fileName, filePath: this.filePath, dirty: this.dirty, at: Date.now() }));
+          try { await desktopInstall((f) => { if (f === null) bar.removeAttribute("value"); else bar.value = f; }); }
+          catch (e) { status(h("p", { class: "warn-note" }, `The update didn't install: ${(e as Error).message}`), h("p", {}, "You can download it from ", link("the release page", RELEASES_URL), " instead.")); }
+        } }, `Update to ${u.version} and restart`);
+        status(h("p", {}, h("strong", {}, `Railplot ${u.version} is available.`), ` You have ${VERSION}.`),
+          u.notes ? h("p", { class: "muted small update-notes" }, u.notes) : null,
+          h("div", { class: "btn-row" }, go));
+        return;
+      }
+      const r = await latestRelease();
+      if (!newer(r.version, VERSION)) { status(h("p", {}, `Railplot ${VERSION} is the newest version.`)); return; }
+      const head = h("p", {}, h("strong", {}, `Railplot ${r.version} is available.`), ` You have ${VERSION}.`);
+      const notes = r.notes ? h("p", { class: "muted small update-notes" }, r.notes.slice(0, 1200)) : null;
+      if (kind === "web") status(head, notes, h("p", {}, "This page is the web version: reload it to get the new one."),
+        h("div", { class: "btn-row" }, h("button", { class: "btn btn-primary", type: "button", onclick: () => location.reload() }, "Reload")));
+      else if (kind === "offline") status(head, notes,
+        h("p", {}, "Download the new file and open it instead of this one. Your current layout stays in this browser, but save it to a file first to be safe."),
+        h("div", { class: "btn-row" },
+          h("button", { class: "btn", type: "button", onclick: () => this.save() }, "Save my layout"),
+          r.offlineUrl ? h("a", { class: "btn btn-primary", id: "update-download", href: r.offlineUrl, download: "railplot-offline.html" }, "Download railplot-offline.html") : link("Open the release page", r.url)));
+      else if (kind === "desktop") status(head, notes,
+        h("p", {}, "This copy of Railplot can't install updates by itself (it was built without the update signing key). Download the installer from ", link("the release page", r.url), ", run it, and it replaces this version."),
+        h("p", { class: "muted small mono" }, r.url));
+      else status(head, notes, h("p", {}, "This copy comes from your hub or controller. Update the hub (and reinstall Railplot on the controller from the desktop app) to get the new version: ", link("the release page", r.url), "."));
+    } catch (e) {
+      status(h("p", { class: "warn-note" }, `Couldn't check for updates: ${(e as Error).message}`), h("p", {}, "Check your internet connection, or look at ", link("the release page", RELEASES_URL), "."));
+    }
+  }
+
   showAbout() {
     dialog("About Railplot", h("div", { class: "about" },
       h("p", {}, h("strong", {}, `Railplot ${VERSION}`), " is a free, open-source track planner for OO and H0 model railways."),
       h("p", {}, "Track geometry comes from manufacturers' published dimensions. Each library lists its sources, and you can add your own track system as a JSON file."),
       h("p", { class: "muted" }, "Libraries in this version: ", LIBRARIES.map((l) => l.name).join(", "), "."),
       h("p", { class: "muted" }, isDesktop() ? "Running as the desktop app." : "Running in a browser. Your layout is kept in this browser until you save it to a file.")),
-      [{ label: "Close", primary: true }]);
+      [{ label: "Check for updates", onClick: () => { this.showUpdates(); return true; } }, { label: "Close", primary: true }]);
   }
 
   showClaudeHelp() {
@@ -1701,6 +1769,7 @@ export class App {
     { label: "Help", items: [
       { label: "Keyboard shortcuts", run: () => this.showShortcuts() },
       { label: "Connect Claude…", run: () => this.showClaudeHelp() },
+      { label: "Check for updates…", run: () => this.showUpdates() },
       { label: "About Railplot", run: () => this.showAbout() },
     ] },
   ];

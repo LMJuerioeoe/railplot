@@ -415,3 +415,6 @@ table.keys td:first-child { width: 1%; white-space: nowrap; }
 /* Wiring diagram */
 .wiring-svg { overflow: auto; max-height: 65vh; border: 1px solid var(--line); border-radius: var(--r); background: #fff; }
 .wiring-svg svg { display: block; max-width: 100%; height: auto; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.update-notes { white-space: pre-wrap; max-height: 12em; overflow-y: auto; }
+#update-progress { width: 100%; }

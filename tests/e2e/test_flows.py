@@ -28,6 +28,8 @@ with sync_playwright() as p:
     b = p.chromium.launch(args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
     ctx = b.new_context(viewport={"width": 1400, "height": 860}, accept_downloads=True)
     ctx.add_init_script("delete window.showSaveFilePicker;")
+    # never ask the real GitHub for updates: an old release, so nothing is offered
+    ctx.route("https://api.github.com/**", lambda r: r.fulfill(json={"tag_name": "v0.0.1", "body": "", "html_url": "https://github.com/LMJuerioeoe/railplot/releases", "assets": []}))
     pg = ctx.new_page()
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
@@ -321,6 +323,43 @@ with sync_playwright() as p:
     check("the clock runs and moves are counted", pg.locator("#sh-clock").inner_text() != "0:00" and pg.locator("#sh-moves").inner_text() == "2")
     shot(pg, "08g-shunting")
     pg.click(".dialog button:has-text('Done')")
+
+    # F16f check for updates (the offline file; GitHub's answer faked)
+    release = {"tag_name": "v99.0.0", "body": "Lots of new things.", "html_url": "https://github.com/LMJuerioeoe/railplot/releases/tag/v99.0.0",
+               "assets": [{"name": "railplot-offline.html", "browser_download_url": "https://github.com/LMJuerioeoe/railplot/releases/download/v99.0.0/railplot-offline.html"}]}
+    pg.route("https://api.github.com/repos/LMJuerioeoe/railplot/releases/latest", lambda r: r.fulfill(json=release))
+    pg.click("text=Help"); pg.click("text=Check for updates…"); pg.wait_for_timeout(400)
+    check("a newer release is offered as a new offline file", pg.locator("#update-box >> text=Railplot 99.0.0 is available").count() == 1 and pg.locator("#update-download").get_attribute("href") == release["assets"][0]["browser_download_url"])
+    shot(pg, "08h-update")
+    pg.click(".dialog button:has-text('Close')")
+    release["tag_name"] = "v0.0.1"
+    pg.click("text=Help"); pg.click("text=Check for updates…"); pg.wait_for_timeout(400)
+    check("an older release isn't offered", pg.locator("#update-box >> text=is the newest version").count() == 1)
+    pg.click(".dialog button:has-text('Close')")
+    pg.unroute("https://api.github.com/repos/LMJuerioeoe/railplot/releases/latest")
+
+    # F16g the desktop app updating itself (Tauri's side faked: check, download with progress, restart)
+    ctx3 = b.new_context(viewport={"width": 1200, "height": 800})
+    ctx3.route("https://api.github.com/**", lambda r: r.fulfill(json={"tag_name": "v0.0.1", "assets": []}))
+    ctx3.add_init_script("""(() => { const calls = []; window.__updCalls = calls; let listener = null;
+      window.__TAURI__ = {
+        core: { invoke: async (cmd, args) => { calls.push(cmd);
+          if (cmd === 'can_update') return true;
+          if (cmd === 'check_update') return { version: '99.1.0', notes: 'Faster 3D.' };
+          if (cmd === 'install_update') { listener && listener({ payload: [50, 100] }); listener && listener({ payload: [100, 100] }); return null; }
+          if (cmd === 'startup_file') return null;
+          return null; } },
+        event: { listen: async (n, f) => { listener = f; return () => { listener = null; }; } },
+        dialog: { save: async () => null, open: async () => null } }; })();""")
+    pg3 = ctx3.new_page()
+    pg3.on("pageerror", lambda e: errors.append(str(e)))
+    pg3.goto(URL); pg3.wait_for_timeout(500)
+    pg3.click("text=Help"); pg3.click("text=Check for updates…"); pg3.wait_for_timeout(300)
+    check("the desktop app offers to update itself", pg3.locator("#update-install").inner_text() == "Update to 99.1.0 and restart")
+    pg3.click("#update-install"); pg3.wait_for_timeout(300)
+    calls = pg3.evaluate("window.__updCalls")
+    check("updating downloads and installs through the desktop app", "install_update" in calls and pg3.evaluate("document.getElementById('update-progress')?.value") == 1, calls)
+    ctx3.close()
 
     # F17 control: the two-train demo on the simulator
     pg.click("text=File"); pg.click("text=Open the two-train control demo")

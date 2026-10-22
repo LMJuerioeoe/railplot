@@ -42,6 +42,12 @@ The [Railplot hub](docs/control/hub.md) for Windows, Linux, Raspberry Pi and Mac
 
 The guides are also published as a website with the browser version of Railplot (GitHub Pages, built by `.github/workflows/pages.yml`).
 
+### Updating
+
+**Help > Check for updates** looks at the newest release on GitHub. The desktop app downloads it, checks its signature, installs it and restarts, with your layout kept. The offline file offers the new `railplot-offline.html` to download in its place, and the web version only needs reloading. Railplot also looks once a day when it starts and says when a new version is out; turn that off in File > Settings.
+
+On Linux, the AppImage updates itself; if you installed the `.deb`, install the new `.deb` from the release page.
+
 ## Using Railplot
 
 1. **Start.** File > New layout gives you a baseboard of the size you choose. Press <kbd>S</kbd> and click to put down a start point. Drag while clicking to aim it.
@@ -88,6 +94,7 @@ python tests/e2e/test_hub.py
 | `src/render2d.ts`, `src/view3d.ts` | The 2D plan renderer and a small WebGL 2 3D viewer |
 | `src/app.ts`, `src/ui/` | The editor: tools, panels, menus, dialogs |
 | `src/platform.ts` | File access through Tauri on the desktop or the browser otherwise |
+| `src/update.ts`, `src-tauri/src/lib.rs` | Checking GitHub for a newer release, and the desktop app's signed self-update |
 | `src/control/` | Layout control: the engine (blocks, trains, signals, automations), trip planning, controller links (ESP32, DCC-EX, simulator), the hub client and the Control panel |
 | `src/hub/` | The Railplot hub: web and WebSocket server, WiThrottle server, mDNS, DCC-EX over TCP and serial |
 | `src/mcp/`, `src/proposals.ts` | The Claude connector (an MCP server over stdio: tools, plan operations, file and hub access) and proposals |
@@ -95,6 +102,19 @@ python tests/e2e/test_hub.py
 | `firmware/` | ESP32 controller firmware (Arduino/PlatformIO) |
 | `src-tauri/` | The Tauri desktop shell (file dialogs and file access only) |
 | `tests/` | Unit tests (`bun test`) and end-to-end tests (Playwright) |
+
+## Releasing
+
+Push a tag like `v0.12.0` and the Release workflow builds everything into a draft release. Check it, then **publish** it: the update check only sees published releases.
+
+For the desktop app to update itself, its installers must be signed with an update key. Set this up once:
+
+1. `bunx tauri signer generate -w ~/.tauri/railplot.key` and choose a password. Keep the key and the password safe: without them you can't sign updates, and installed copies only accept updates signed with this key.
+2. In the repository's **Settings > Secrets and variables > Actions**:
+   - secrets `TAURI_SIGNING_PRIVATE_KEY` (the contents of `railplot.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
+   - a variable `TAURI_UPDATER_PUBKEY` (the contents of `railplot.key.pub`).
+
+With those set, the workflow turns the updater on (`scripts/updater-config.ts`), signs the installers and attaches `latest.json`, which the desktop app reads. Without them it builds as before, and the desktop app sends people to the release page instead. Copies installed before the first signed release need installing by hand once.
 
 ## Adding a baseboard module
 
