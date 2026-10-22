@@ -105,25 +105,27 @@ export function drawClass08(s: Shapes) {
 
 /** BR Class 37 Co-Co diesel-electric, BR blue with full yellow ends: two noses, two cabs, the engine room between. */
 export function drawClass37(s: Shapes) {
-  const half = 122.5, w = 17.5, plate = 18;
-  const face = headstocks(s, half, BLACK, { z0: 9.4, z1: plate, width: 16 });
+  // traced from Bachmann's side view of 37305: the body comes down to 12 mm, bogie centres 145 mm apart,
+  // cab fronts at ±94.4 mm with the noses ahead of them
+  const half = 122.5, w = 17.5, plate = 12;
+  const face = headstocks(s, half, BLACK, { z0: 9.4, z1: 17, width: 16 });
   // underframe, fuel tank, battery boxes
   s.box(-face + 1, face - 1, -w + 0.6, w - 0.6, plate - 2, plate, BLACK);
-  s.box(-34, 34, -12, 12, 6.5, plate - 2, darker(BLACK, 1.3));
-  for (const x of [-28, 0, 28]) s.box(x - 0.3, x + 0.3, -12.2, 12.2, 6.5, plate - 2, BLACK);
-  for (const c of [66, -66]) {
+  s.box(-33.6, 38.2, -12, 12, 3, plate - 0.5, darker(BLACK, 1.3));
+  for (const x of [-20, 2, 24]) s.box(x - 0.3, x + 0.3, -12.2, 12.2, 3, plate - 0.5, BLACK);
+  for (const c of [72.6, -72.6]) {
     bogie(s, c, 27, 7.1, plate - 2, BLACK, true);
     discWheels(s, c, 7.1);
   }
   // body: engine room between the cabs, cabs, noses
-  const cab = 102, room = 82, top = 47.5, noseTop = 37;
+  const cab = 94.4, room = 73.6, top = 42.7, noseTop = 38.5, rise = 7.7;
   const profile = (t: number): [number, number][] => shoulders(w, plate, t, 3.5);
   s.prismX(profile(top), -room, room, BR_BLUE, true);
-  s.roof(-room, room, w - 1.5, top, 4, ROOF_GREY);
+  s.roof(-room, room, w - 0.3, top, rise, BR_BLUE);
   for (const e of SIDES) {
     const f = e * w;
     // engine room grilles and doors, the BR arrow, the number
-    for (const x of [-60, -30, 25, 55]) { s.box(x - 9, x + 9, Math.min(f, f + e * 0.15), Math.max(f, f + e * 0.15), top - 12, top - 4, darker(BR_BLUE, 0.6)); for (let z = top - 11.5; z < top - 4; z += 1.1) strip(s, f, x - 8.5, z, x + 8.5, z, 0.4, BLACK, 0.22); }
+    for (const x of [-59.6, -20, 20, 59.6]) { s.box(x - 9.6, x + 9.6, Math.min(f, f + e * 0.15), Math.max(f, f + e * 0.15), 22, 37, darker(BR_BLUE, 0.75)); for (let x2 = x - 9; x2 < x + 9.6; x2 += 1.2) strip(s, f, x2, 22.5, x2, 36.5, 0.35, darker(BR_BLUE, 0.45), 0.22); }
     for (const x of [-45, 40]) { strip(s, f, x, plate + 2, x, top - 3, 0.3, darker(BR_BLUE, 0.5), 0.1); strip(s, f, x + 9, plate + 2, x + 9, top - 3, 0.3, darker(BR_BLUE, 0.5), 0.1); }
 
     barX(s, -room + 2, room - 2, e * (w - 0.1), plate + 3, 0.3, STEEL);
@@ -132,10 +134,10 @@ export function drawClass37(s: Shapes) {
     const c0 = Math.min(d * room, d * cab), c1 = Math.max(d * room, d * cab);
     // the cab: full height, side windows and a door, yellow front with two windscreens
     s.prismX(profile(top), c0, c1, BR_BLUE, true);
-    s.roof(c0, c1, w - 1.5, top, 4, ROOF_GREY);
+    s.roof(c0, c1, w - 0.3, top, rise, BR_BLUE);
     for (const e of SIDES) {
       const f = e * w;
-      s.box(d > 0 ? c0 + 3 : c0 + 9, d > 0 ? c1 - 9 : c1 - 3, Math.min(f, f + e * 0.15), Math.max(f, f + e * 0.15), top - 11, top - 3.5, GLASS);
+      s.box(d > 0 ? c0 + 9 : c0 + 1.5, d > 0 ? c1 - 1.5 : c1 - 9, Math.min(f, f + e * 0.15), Math.max(f, f + e * 0.15), 33, 41.5, GLASS);
       strip(s, f, d > 0 ? c1 - 7 : c0 + 7, plate + 2, d > 0 ? c1 - 7 : c0 + 7, top - 3, 0.35, darker(BR_BLUE, 0.4), 0.1);
       barZ(s, d > 0 ? c1 - 8 : c0 + 8, e * (w - 0.1), plate + 3, top - 12, 0.28, STEEL);
       step(s, d > 0 ? c1 - 6 : c0 + 6, e * (w - 0.2), plate);
@@ -143,14 +145,14 @@ export function drawClass37(s: Shapes) {
     const fx = d * cab;
     // the cab front above the nose: a yellow face with two windscreens and a centre pillar
     const f0 = Math.min(fx, fx + d * 0.4), f1 = Math.max(fx, fx + d * 0.4);
-    s.box(f0, f1, -w + 1.2, w - 1.2, noseTop - 0.5, top - 0.6, YELLOW);
+    s.box(f0, f1, -w + 1.2, w - 1.2, noseTop - 0.5, top + rise - 1.5, YELLOW);
     for (const e of SIDES) {
       const ya = e * 2, yb = e * 14;
       const g0 = Math.min(fx + d * 0.4, fx + d * 0.55), g1 = Math.max(fx + d * 0.4, fx + d * 0.55);
-      s.box(g0, g1, Math.min(ya, yb), Math.max(ya, yb), noseTop + 2, top - 3, GLASS);
+      s.box(g0, g1, Math.min(ya, yb), Math.max(ya, yb), noseTop + 2, top + 2, GLASS);
       // the yellow wraps round onto the cab side corner
       const c = e * w;
-      s.box(Math.min(fx, fx - d * 3), Math.max(fx, fx - d * 3), Math.min(c, c + e * 0.12), Math.max(c, c + e * 0.12), noseTop - 0.5, top - 0.6, YELLOW);
+      s.box(Math.min(fx, fx - d * 1.5), Math.max(fx, fx - d * 1.5), Math.min(c, c + e * 0.12), Math.max(c, c + e * 0.12), noseTop - 0.5, top - 0.6, BR_BLUE);
     }
     s.box(Math.min(fx, fx - d * 6), Math.max(fx, fx - d * 6), -w + 0.2, w - 0.2, plate, noseTop, YELLOW);
     // the nose: lower, narrower, rounded, all yellow, split headcode boxes on its front

@@ -268,10 +268,10 @@ export const MODELS: Model[] = [
   {
     id: "br-class37", maker: "", name: "BR Class 37 Co-Co diesel", group: "diesel", kind: "loco",
     length: 245, width: 35, height: 52, color: "#2b4d78",
-    note: "The English Electric Type 3 in BR blue with full yellow ends and split headcode boxes: 61 ft 6 in over buffers",
+    note: "The English Electric Type 3 in BR blue with full yellow ends and split headcode boxes: 61 ft 6 in over buffers; traced from Bachmann's side view",
     marks: [
-      side(17.55, 84, 100, 21, 24.5, WHITE_T("37 025")), side(17.55, -100, -84, 21, 24.5, WHITE_T("37 025")),
-      side(17.55, -13, 13, 31, 38.5, { logo: "br-arrow", color: "#f4f4f0" }),
+      side(17.55, 80, 92, 25.4, 28.8, WHITE_T("37 025")), side(17.55, -92, -80, 25.4, 28.8, WHITE_T("37 025")),
+      side(17.55, 44, 56, 22.5, 28.5, { logo: "br-arrow", color: "#f4f4f0" }),
     ],
     draw: drawClass37,
   },
