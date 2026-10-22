@@ -2,8 +2,7 @@
 // prototypes' dimensions at OO scale (1:76.2) and, where the owner has the model, from the maker's
 // published sizes. The drawing is in steam.ts, diesels.ts, coaches.ts and wagons.ts.
 import { VehicleCfg, VehicleKind } from "../control/types";
-import { BLACK, BRASS, BUFFER_Z_H0, COPPER, Label, RED_BEAM, RGB, Shapes, WHITE, boundsOf, withBufferHeight } from "./parts";
-import { drawBogieOpen, drawElectric, ElectricSpec } from "./europe";
+import { BLACK, BRASS, COPPER, Label, RED_BEAM, RGB, Shapes, WHITE, boundsOf } from "./parts";
 import { drawSteam, drawTender, SteamSpec, TenderSpec } from "./steam";
 import { drawClass08, drawClass37 } from "./diesels";
 import { CoachSpec, drawCoach } from "./coaches";
@@ -15,7 +14,7 @@ export { boundsOf };
 /** A decal on a model: along a side (axis "y", at y = ±face) or on an end (axis "x", at x = face). */
 export interface Mark { axis: "x" | "y"; face: number; u: [number, number]; z: [number, number]; label: Label; side?: 1 | -1 }
 
-export type ModelGroup = "steam" | "diesel" | "electric" | "tender" | "coach" | "wagon";
+export type ModelGroup = "steam" | "diesel" | "tender" | "coach" | "wagon";
 
 export interface Model {
   id: string;
@@ -36,8 +35,6 @@ export interface Model {
   marks?: Mark[];
   /** A tender engine's tender: added behind it. */
   tender?: string;
-  /** British stock is OO (1:76.2); European stock H0 (1:87), on the same 16.5 mm track. */
-  scale?: "OO" | "H0";
   draw(s: Shapes): void;
 }
 
@@ -66,11 +63,6 @@ const WHITE_T = (text: string, font: Label["font"] = "sans"): Label => ({ text, 
 const DATA = (text: string, color = "#f2f2ee"): Label => ({ text, color, font: "condensed", bold: false });
 
 const steam = (spec: SteamSpec) => (s: Shapes) => drawSteam(s, spec);
-/** European stock: buffers at 1,060 mm, 12.2 mm in H0. */
-const h0 = (draw: (s: Shapes) => void) => (s: Shapes) => withBufferHeight(BUFFER_Z_H0, () => draw(s));
-const DB_RED: RGB = [0.62, 0.11, 0.08], TEE_RED: RGB = [0.58, 0.07, 0.11], TEE_BEIGE: RGB = [0.88, 0.8, 0.6];
-const DB_WINE: RGB = [0.5, 0.08, 0.12], SBB_GREEN: RGB = [0.13, 0.36, 0.22], DB_GREEN: RGB = [0.13, 0.3, 0.21];
-const STAINLESS: RGB = [0.72, 0.74, 0.76], CORAIL_GREY: RGB = [0.62, 0.63, 0.62], DB_BROWN: RGB = [0.45, 0.2, 0.13];
 const tender = (spec: TenderSpec) => (s: Shapes) => drawTender(s, spec);
 const coach = (spec: CoachSpec) => (s: Shapes) => drawCoach(s, spec);
 
@@ -414,258 +406,6 @@ export const MODELS: Model[] = [
     draw: (s) => drawBRBrakeVan(s, { length: 107, width: 32, body: BAUXITE }),
   },
 ];
-
-// ---------- European stock, H0 ----------
-const EUROPE: Model[] = [
-  {
-    id: "db-br01", maker: "", name: "DB class 01 Pacific 2'C1'", group: "steam", kind: "loco", tender: "db-t32-tender", scale: "H0",
-    length: 179, width: 36, height: 55, color: "#141414",
-    note: "The German express Pacific in black and red, with big Wagner smoke deflectors: 2,000 mm drivers, 23.9 m over buffers with its tender; traced from Märklin's side view",
-    marks: [
-      side(17.55, -86, -75, 28, 31, { text: "01 220", bg: "#121212", color: "#e6e6e2", border: "#cfcfca", font: "plate", radius: 0.4 }),
-      front(82.6, -4, 4, 42.4, 44.6, { text: "01 220", bg: "#121212", color: "#e6e6e2", border: "#cfcfca", font: "plate", radius: 0.3 }),
-    ],
-    draw: h0(steam({
-      length: 179, width: 36, height: 55,
-      plate: { z: 27, half: 17.4, x0: -89.5, x1: 84, drop: { x: 58, z: 16, run: 12 }, beam: 16 },
-      wheels: [{ x: 62.7, r: 5.75 }, { x: 37.7, r: 5.75 }, { x: 17.9, r: 11.1, driven: true }, { x: -7, r: 11.1, driven: true }, { x: -32.5, r: 11.1, driven: true }, { x: -74.7, r: 7.2 }],
-      cylinders: { x0: 41.8, x1: 53, z: 16.4, r: 5, outside: true, y: 12.4 }, mainDriver: 1,
-      boiler: { x0: -40.6, x1: 30, z: 37.8, rBack: 11.2, rFront: 11 },
-      smokebox: { x0: 30, x1: 82, r: 11.2 },
-      firebox: { x0: -68, x1: -40.6, top: 49, half: 12.5, belpaire: false },
-      chimney: { x: 53, top: 54.8, r: 3 },
-      dome: { x: 18.4, r: 4.6, top: 52 },
-      safety: { x: -13, kind: "pop" },
-      cab: { x0: -89.5, x1: -68, eave: 50.6, rise: 1.4, half: 17.5, window: "square", back: "open", sill: 34.3, opening: [-87, -71], openTop: 42.9, z0: 20.5 },
-      deflectors: { x0: 31.6, x1: 73.3, top: 45.3 },
-      livery: { body: BLACK, smokebox: BLACK, frames: DB_RED, wheels: DB_RED, beams: DB_RED, roof: BLACK, plate: BLACK, numbers: { col: WHITE, x0: -54, x1: -40, z: 34 } },
-    })),
-  },
-  {
-    id: "db-t32-tender", maker: "", name: "DB 2'2' T32 tender", group: "tender", kind: "tender", scale: "H0",
-    length: 94, width: 35, height: 50, color: "#141414",
-    note: "The 01's tender, on two bogies; traced from Märklin's side view",
-    marks: [side(17.55, -30, 30, 24, 27.5, WHITE_T("Deutsche Bundesbahn", "serif"))],
-    draw: h0(tender({
-      length: 94, width: 35, height: 50, wheels: [34.1, 13.2, -7.6, -29], r: 5.75,
-      body: { x0: -38.1, x1: 41.2, z0: 12.7, top: 47.8, step: { x: -21.4, top: 36.6 }, coal: 48 }, outsideFrames: false,
-      livery: { body: BLACK, frames: DB_RED, beams: DB_RED },
-    })),
-  },
-  {
-    id: "db-br103", maker: "", name: "DB class 103 TEE electric", group: "electric", kind: "loco", scale: "H0",
-    length: 224, width: 35.5, height: 53.5, color: "#941220",
-    note: "The DB's flagship express electric in TEE red and beige: Co'Co', 200 km/h, 19.5 m over buffers; traced from Märklin's side view",
-    marks: [
-      side(17.8, -14, -4, 11.4, 13.6, WHITE_T("103 113-7", "plate")), side(17.8, -12, -6, 16.2, 21, { logo: "db", color: "#f2f2ee" }),
-      ...ends(103.5, -3.6, 3.6, 25, 29, { logo: "db", color: "#e6e6e2" }),
-    ],
-    draw: h0((s) => drawElectric(s, {
-      // traced from Märklin's side view of 103 152: beige over a red band, the nose leaning back gently
-      length: 224, width: 35.5, height: 53.5, floor: 14.4, eave: 45.6, roofRise: 3.2, cabBack: 73,
-      front: [[1.5, 14.4], [1.5, 23.8], [2.4, 28], [3.6, 32], [8.4, 41], [11.5, 44], [14.9, 45.6]],
-      frontParts: [[[1.5, 14.4], [1.5, 23.8]], [[1.5, 23.8], [2.4, 28], [3.6, 32], [8.4, 41], [11.5, 44], [14.9, 45.6]]],
-      frontColors: [TEE_RED, TEE_BEIGE], screen: { part: 1, seg: 2 }, lampZ: 19, topLampZ: 43,
-      bogies: { centre: 51, wheelbase: 49, r: 7.2, axles: 3 },
-      pantographs: [{ x: 70, kind: "diamond" }, { x: -70, kind: "diamond" }], pantoCol: [0.75, 0.12, 0.1],
-      livery: { body: TEE_BEIGE, roof: [0.42, 0.43, 0.43], frames: [0.36, 0.37, 0.38], band: { z0: 14.4, z1: 23.8, col: TEE_RED } },
-      skirt: { z0: 10.6, col: [0.36, 0.37, 0.38] },
-      cabWindow: [15.8, 23.9, 34.4, 40.6], grilles: [],
-      louvres: [-47.6, -23.8, 0, 23.8, 47.6].flatMap((x): [number, number, number, number][] => [[x - 10.5, x + 10.5, 35, 40.6], [x - 10.5, x + 10.5, 25.6, 31.9]]),
-      roofPanels: { spans: [[-36, 34]], top: 50, col: [0.36, 0.37, 0.38] }, louvreCol: [0.68, 0.69, 0.7],
-      plates: [],
-    })),
-  },
-  {
-    id: "sbb-re44ii", maker: "", name: "SBB Re 4/4 II electric", group: "electric", kind: "loco", scale: "H0",
-    length: 177, width: 34, height: 50.5, color: "#215c38",
-    note: "The Swiss all-rounder in SBB green: Bo'Bo', single-arm pantographs, 15.4 m over buffers; traced from Trix's side view",
-    marks: [
-      side(17.05, -4, 4, 21, 23.6, WHITE_T("11130", "plate")), side(17.05, -48, 32, 13.4, 17.4, { text: "S B B          C F F          F F S", color: "#e8e8e4", font: "sans" }),
-      ...ends(82.45, -5, 5, 22.5, 25.5, WHITE_T("11130", "plate")),
-    ],
-    draw: h0((s) => drawElectric(s, {
-      // traced from Trix's side view of 11141: the body skirted down over the bogies, three big
-      // machine-room windows, grilles along the roof shoulders
-      length: 177, width: 34, height: 50.5, floor: 16.5, eave: 41.5, roofRise: 2.2, cabBack: 48,
-      front: [[6.5, 16.5], [6.5, 27], [8.3, 38.6], [9.6, 41.5]],
-      screen: { part: 0, seg: 1 }, lampZ: 20, topLampZ: 40,
-      bogies: { centre: 43, wheelbase: 31, r: 7.2, axles: 2 },
-      pantographs: [{ x: 44, kind: "single" }, { x: -44, kind: "single" }],
-      livery: { body: SBB_GREEN, roof: [0.45, 0.46, 0.46], frames: [0.18, 0.18, 0.19], stripe: { z: 24, col: [0.8, 0.82, 0.83] } },
-      skirt: { z0: 10.1, col: SBB_GREEN, half: 75.9 },
-      cabWindow: [13.5, 20.4, 27.7, 37.3], doorWindow: [2.4, 8.8, 29, 37.3], grilles: [], roofGrilles: true,
-      bigWindows: [[-46.1, -31.7, 28.8, 37.3], [-9.2, 5.2, 28.8, 37.3], [24.8, 39.2, 28.8, 37.3]],
-    })),
-  },
-  {
-    id: "db-br218", maker: "", name: "DB class 218 diesel-hydraulic", group: "diesel", kind: "loco", scale: "H0",
-    length: 188.5, width: 35.6, height: 48.9, color: "#80141f",
-    note: "The DB's standard main-line diesel in wine red: a cab at each end, the engine room between with its band of grilles, B'B', 16.4 m over buffers; traced from Trix's side view",
-    marks: [
-      side(17.85, -4, 10, 23.5, 26.5, WHITE_T("218 128-8", "plate")), side(17.85, 9, 15, 27.5, 31.5, { logo: "db", color: "#f2f2ee" }),
-    ],
-    draw: h0((s) => drawElectric(s, {
-      length: 188.5, width: 35.6, height: 48.9, floor: 16.5, eave: 42, roofRise: 4.5, cabBack: 56,
-      front: [[0, 16.5], [0, 24], [4, 31], [6.4, 33.5], [9.4, 40], [12.5, 44.7]],
-      frontParts: [[[0, 16.5], [0, 24], [4, 31], [6.4, 33.5]], [[6.4, 33.5], [9.4, 40], [12.5, 44.7]]],
-      screen: { part: 1, seg: 0 }, lampZ: 24.5, topLampZ: 42.6,
-      bogies: { centre: 47.5, wheelbase: 29, r: 5.5, axles: 2 },
-      pantographs: [], diesel: { fans: [-30, 30], exhausts: [0] },
-      livery: { body: DB_WINE, roof: [0.42, 0.43, 0.43], frames: [0.2, 0.2, 0.21] },
-      skirt: { z0: 10.3, col: [0.62, 0.62, 0.6] }, tank: [-23.2, 19.7],
-      cabWindow: [2.3, 19.9, 33.5, 40.5], grilles: [],
-      plates: [{ x0: -54, x1: 54, z0: 33.5, z1: 40.5, col: [0.3, 0.3, 0.32] }],
-      louvres: [[-60, -52, 20.1, 28.5], [-44, -36, 20.1, 28.5], [-28, -16, 20.1, 28.5], [-12, 0.6, 20.1, 28.5], [24, 32, 20.1, 28.5]],
-      doors: [[-60, 8], [52, 8]],
-    })),
-  },
-  {
-    id: "db-silberling", maker: "", name: "DB n-Wagen 'Silberling', 2nd class", group: "coach", kind: "coach", scale: "H0",
-    length: 303, width: 32.5, height: 46.6, color: "#b8bdc2",
-    note: "The DB's local train coach: fluted stainless steel sides, two doors a side, Minden-Deutz bogies, 26.4 m over buffers; windows laid out from Piko's side view",
-    marks: [
-      side(16.3, -4, 4, 16.5, 20.5, { logo: "db", color: "#1a1a1a" }), side(16.3, 108, 136, 14.4, 15.9, DATA("50 80 22-34 123-4", "#1a1a1a")),
-    ],
-    draw: h0(coach({
-      length: 303, width: 32.5, height: 46.6, bodyHalf: 143, floor: 13.5, waist: 21.5, eave: 40, rise: 5.6, tumblehome: 0.6,
-      bogieCentre: 106, bogieWheelbase: 28.9, wheelR: 5.5, layout: "T _ W - W - W _ D _ W - W - W - W - W - W _ D _ W - W - W _ T", vents: 6, windowRadius: 1.4, fluted: true,
-      widths: { T: 8, W: 14.6, "-": 4.9, _: 4, D: 10.6 },
-      livery: { lower: STAINLESS, roof: [0.42, 0.42, 0.43], frames: [0.12, 0.12, 0.12], ends: [0.22, 0.32, 0.27] },
-    })),
-  },
-  {
-    id: "db-uicx-green", maker: "", name: "DB UIC-X compartment coach, bottle green", group: "coach", kind: "coach", scale: "H0",
-    length: 303, width: 32.5, height: 46.6, color: "#214d36",
-    note: "The 26.4 m UIC-X express coach of the 1950s and 60s in DB bottle green: compartments, aluminium window frames; windows laid out from Piko's side view",
-    marks: [
-      side(16.3, -42, 42, 37.2, 39.1, WHITE_T("DEUTSCHE BUNDESBAHN")), side(16.3, 108, 136, 15, 16.6, DATA("51 80 22-40 123-4")),
-    ],
-    draw: h0(coach({
-      length: 303, width: 32.5, height: 46.6, bodyHalf: 143, floor: 14, waist: 25.5, eave: 39.5, rise: 6, tumblehome: 1.2,
-      bogieCentre: 104.8, bogieWheelbase: 30, wheelR: 5.5, layout: "D _ W - W - W - W - W - W - W - W - W - W - W - W - W - W _ D", vents: 10, windowRadius: 1,
-      widths: { D: 10, _: 3.8, W: 11.7, "-": 7.6 },
-      livery: { lower: DB_GREEN, roof: [0.4, 0.4, 0.41], frames: [0.75, 0.76, 0.77], ends: [0.15, 0.17, 0.16] },
-    })),
-  },
-  {
-    id: "sncf-corail", maker: "", name: "SNCF Corail coach", group: "coach", kind: "coach", scale: "H0",
-    length: 303, width: 33, height: 46, color: "#9fa1a0",
-    note: "The French intercity coach of 1975 onwards: light grey with a dark window band and orange doors, 26.4 m over buffers; windows laid out from Piko's side view",
-    marks: [
-      side(16.55, 80, 96, 17, 21.5, { logo: "sncf", color: "#ef7d1a" }),
-    ],
-    draw: h0(coach({
-      length: 303, width: 33, height: 46, bodyHalf: 143, floor: 14, waist: 24, eave: 39, rise: 5.8, tumblehome: 1.4,
-      bogieCentre: 100.5, bogieWheelbase: 30, wheelR: 5.5, layout: "= D + W - W - W - W - W - W - W - W - W - W + D T =", vents: 0, windowRadius: 1.6,
-      widths: { "=": 6, D: 9, "+": 12, W: 15.5, "-": 6.3, T: 7 },
-      livery: { lower: [0.84, 0.85, 0.84], upper: [0.33, 0.35, 0.37], roof: [0.74, 0.75, 0.75], frames: [0.12, 0.12, 0.12], ends: CORAIL_GREY, doors: [0.92, 0.45, 0.12] },
-    })),
-  },
-  {
-    id: "db-eaos", maker: "", name: "DB Eaos bogie open wagon, with coal", group: "wagon", kind: "wagon", scale: "H0",
-    length: 161, width: 34, height: 37, color: "#733321",
-    note: "The European standard high-sided bogie open: steel sides on stanchions, Y25 bogies, 14 m over buffers",
-    marks: [
-      side(16.75, -60, -52, 18, 24, { logo: "db", color: "#f2f2ee" }), side(16.75, -46, -24, 17, 19.6, WHITE_T("Eaos 106", "condensed")),
-      side(16.75, 30, 62, 16.6, 18.2, DATA("31 80 537 1 234-5")),
-    ],
-    draw: h0((s) => drawBogieOpen(s, { length: 161, width: 34, height: 37, body: DB_BROWN, load: true })),
-  },
-  {
-    id: "db-gbs", maker: "", name: "DB Gbs covered wagon", group: "wagon", kind: "van", scale: "H0",
-    length: 162, width: 33, height: 48, color: "#733823",
-    note: "The two-axle covered wagon of the DB, with big sliding doors, cross-braced loading hatches and an 8 m wheelbase: 14 m over buffers; traced from Märklin's side view",
-    marks: [
-      side(15.95, -50, -44, 31.5, 35.5, { logo: "db", color: "#f2f2ee" }), side(15.95, -52, -42, 20, 22.6, WHITE_T("Gbs 254", "condensed")),
-      side(15.95, -52, -38, 23.6, 25, DATA("21 80 151 1 234-5")),
-    ],
-    draw: h0((s) => drawVan(s, { length: 162, width: 33, height: 48, bodyHalf: 74, wheelbase: 93, top: 40.5, rise: 7, wheelR: 5.3, body: [0.45, 0.22, 0.14], roof: [0.62, 0.63, 0.63], doors: [0], doorWidth: 30, hatches: { xs: [-58.8, -25.5, 25.8, 59], half: 6, z0: 30, z1: 37 }, marks: [{ x0: -80, x1: -55, z: 18, chars: 10 }] })),
-  },
-  {
-    id: "eu-tank-2axle", maker: "", name: "Two-axle tank wagon, silver", group: "wagon", kind: "tank", scale: "H0",
-    length: 111, width: 34, height: 49, color: "#bdbfbd",
-    note: "A two-axle tank wagon for mineral oil: the barrel on cradles, a dome with its ladder, a brake platform at one end; traced from Märklin's side view",
-    marks: [
-      side(10.65, -26, -4, 31.5, 34.1, { text: "MINERALÖL", color: "#1a1a1a", font: "condensed" }),
-      side(10.65, 30, 40, 30.5, 35.5, { text: "33 / 1203", bg: "#f08a1c", color: "#111", border: "#111", font: "plate" }),
-    ],
-    draw: h0((s) => drawTankWagon(s, { length: 111, width: 34, body: [0.74, 0.75, 0.74], bodyHalf: 40.8, r: 10.6, barrelX: 4.9, barrelZ: 32.8, domeX: 10.3, wheelbase: 50.8, wheelR: 5.3, brakePlatform: -36.5 })),
-  },
-  {
-    id: "roco-t478-2079", maker: "Roco", name: "ČSD T 478.2 'Bardotka' diesel", group: "diesel", kind: "loco", scale: "H0",
-    length: 190, width: 35.3, height: 47.2, color: "#991f1f",
-    note: "Roco 7300090 (7310090 with sound): T 478.2079 of the ČSD, Era IV: dark red above a broad yellow band that wraps round the front, light grey skirt, roof and bogies, a striped plough; the goods version without the steam-heating boiler; Bo'Bo', 16.5 m (190 mm) over buffers, 3,074 mm wide, 4,103 mm high",
-    marks: [
-      side(17.7, -8.5, 4, 23.3, 26.3, { text: "T478 2079", bg: "#b5161b", color: "#f6f2ea", border: "#f6f2ea", font: "plate", radius: 0.4 }),
-      side(17.7, 38.8, 43.8, 22.1, 27.1, { logo: "csd", color: "#b5161b", bg: "#f4f1e8" }),
-      side(17.7, 50, 62, 19.2, 21.2, DATA("ČSD", "#2a1a10")),
-      ...ends(89.35, -6.2, 6.2, 13.6, 16.2, { text: "T478 2079", bg: "#b5161b", color: "#f6f2ea", border: "#f6f2ea", font: "plate", radius: 0.3 }),
-      front(90.75, -12.5, -6.5, 20, 25.5, { logo: "red-star" }), front(-90.75, 6.5, 12.5, 20, 25.5, { logo: "red-star" }),
-    ],
-    draw: h0((s) => drawElectric(s, {
-      length: 190, width: 35.3, height: 47.2, floor: 18.6, eave: 41.6, roofRise: 4.4, cabBack: 54,
-      front: [[-1.8, 18.6], [-1.8, 26.5]],
-      // as Roco's photo shows it: the yellow band stands out at the front, the red below the windscreens
-      // slopes back up to them, the windscreens lean back, and the grey roof rounds over the top
-      frontParts: [
-        [[-1.8, 18.6], [-1.8, 26.5]],
-        [[-1.8, 26.5], [-1.2, 29.2], [-0.3, 32]],
-        [[-0.3, 32], [3.4, 41.6]],
-      ],
-      frontColors: [[0.96, 0.72, 0.14], [0.6, 0.12, 0.12], [0.6, 0.12, 0.12]], roofNose: 3.2,
-      screen: { part: 2, seg: 0 }, lampZ: 15, topLampZ: 44,
-      bogies: { centre: 51.7, wheelbase: 27.6, r: 5.75, axles: 2 },
-      pantographs: [], cornerR: 5,
-      diesel: { fans: [-26, -8], exhausts: [6, 14] },
-      skirt: { z0: 11.4, col: [0.68, 0.69, 0.68] },
-      plough: { col: [0.92, 0.92, 0.9], stripe: [0.8, 0.12, 0.12] },
-      tank: [-13.8, 14.8],
-      sideWindows: [22.7, 7.6, -14.6, -28.9],
-      louvres: [[-36, 20.3, 38.4, 40.8], [-60.6, -43.2, 21.6, 36.8]],
-      ribs: [[-50, 50, 18.6, 26.5], [-50, 50, 27, 30.8]],
-      plates: [],
-      livery: { body: [0.6, 0.12, 0.12], roof: [0.68, 0.69, 0.68], frames: [0.6, 0.61, 0.6], beams: [0.32, 0.33, 0.33], band: { z0: 18.6, z1: 26.5, col: [0.96, 0.72, 0.14] } },
-      cabWindow: [7, 12, 33, 38.5], doorWindow: [2.3, 5.5, 33, 38.5], grilles: [],
-    })),
-  },
-  {
-    id: "roco-1144-078", maker: "Roco", name: "ÖBB 1144 electric (1044)", group: "electric", kind: "loco", scale: "H0",
-    length: 185, width: 34.6, height: 56.5, color: "#db231f",
-    note: "Roco 7500060 (7510060 / 7520060 with sound): 1144 078-3 of the ÖBB, Epoch VI: traffic red with a light grey band and dark grey cab tops, four porthole windows a side, the raised Klatte roof grilles, red single-arm pantographs; Bo'Bo', 1,300 mm wheels, 185 mm over buffers",
-    marks: [
-      side(17.35, 57, 71, 23.8, 29, { logo: "obb", color: "#f6f6f4" }), side(17.35, -81, -67, 23.8, 29, { logo: "obb", color: "#f6f6f4" }),
-      side(17.35, -32, -6, 19.2, 21.9, { text: "1144 078-3", color: "#222", font: "plate" }),
-      side(17.35, 36.2, 39.6, 37.5, 40.5, { logo: "lightning" }), side(17.35, -62.8, -59.4, 37.5, 40.5, { logo: "lightning" }),
-      ...ends(86.5, -6, 6, 23.4, 27.4, { logo: "obb", color: "#f6f6f4" }),
-      ...ends(86.5, 3, 11, 28.6, 30.2, WHITE_T("1144 078", "plate")),
-    ],
-    draw: h0((s) => drawElectric(s, {
-      length: 185, width: 34.6, height: 56.5, floor: 18.4, eave: 43.4, roofRise: 2, cabBack: 50,
-      front: [[0, 18.4], [0, 22.8]],
-      frontParts: [
-        [[0, 18.4], [0, 22.8]],
-        [[0, 22.8], [0.8, 31]],
-        [[0.8, 31], [5.5, 42.6], [7.5, 44.4], [10, 45.2]],
-      ],
-      frontColors: [[0.82, 0.82, 0.8], [0.86, 0.14, 0.12], [0.3, 0.31, 0.32]],
-      screen: { part: 2, seg: 0 }, lampZ: 20.6, topLampZ: 43.5,
-      bogies: { centre: 46, wheelbase: 33.3, r: 7.47, axles: 2 },
-      pantographs: [{ x: 47, kind: "single" }, { x: -47, kind: "single" }], pantoZ: 51, pantoCol: [0.75, 0.1, 0.1],
-      roofPanels: { spans: [[13.8, 43], [-28.5, 13.8], [-41.6, -28.5], [-75, -50]], top: 51.2, col: [0.84, 0.85, 0.85] },
-      cornerR: 3,
-      skirt: { z0: 12, col: [0.27, 0.28, 0.29] },
-      cabTop: { z0: 31, col: [0.3, 0.31, 0.32], len: 9 },
-      portholes: [[24.6, 38, 2.8], [-2.5, 38, 2.8], [-28.6, 38, 2.8], [-54.2, 38, 2.8]],
-      ribs: [[-60, 30, 22.8, 29.5]],
-      doors: [[35, 7], [-64, 7]],
-      plates: [],
-      livery: { body: [0.86, 0.14, 0.12], roof: [0.3, 0.31, 0.32], frames: [0.25, 0.26, 0.27], band: { z0: 18.4, z1: 22.8, col: [0.82, 0.82, 0.8] } },
-      cabWindow: [2, 7, 33, 39.5], grilles: [],
-    })),
-  },
-];
-MODELS.push(...EUROPE);
 
 // each model draws its markings after its body
 for (const m of MODELS) {

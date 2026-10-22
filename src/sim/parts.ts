@@ -225,14 +225,6 @@ export function discWheels(s: Shapes, x: number, r: number, col: RGB = DARK_STEE
 
 /** Centre height of buffers above the rail: 3 ft 5½ in. */
 export const BUFFER_Z = 13.6;
-/** European buffers: 1,060 mm, which is 12.2 mm in H0. */
-export const BUFFER_Z_H0 = 12.2;
-let bufferZ = BUFFER_Z;
-/** Draw with buffers at another height (H0 stock), then put it back. */
-export function withBufferHeight(z: number, draw: () => void) {
-  const was = bufferZ; bufferZ = z;
-  try { draw(); } finally { bufferZ = was; }
-}
 /** How far buffers stand out from the headstock (housing, shank and head). */
 export const BUFFER_REACH = 5.5;
 
@@ -242,7 +234,7 @@ export const BUFFER_REACH = 5.5;
  */
 export function headstocks(s: Shapes, half: number, col: RGB, opts: { width?: number; depth?: number; z0?: number; z1?: number; oval?: boolean; spread?: number } = {}) {
   const face = half - BUFFER_REACH, depth = opts.depth ?? 2.6, w = opts.width ?? 14.5;
-  const BZ = bufferZ, z0 = opts.z0 ?? BZ - 3.6, z1 = opts.z1 ?? BZ + 3.4, spread = opts.spread ?? 9.6;
+  const BZ = BUFFER_Z, z0 = opts.z0 ?? BZ - 3.6, z1 = opts.z1 ?? BZ + 3.4, spread = opts.spread ?? 9.6;
   for (const e of SIDES) {
     const a = e * face, b = e * (face - depth);
     s.box(Math.min(a, b), Math.max(a, b), -w, w, z0, z1, col);

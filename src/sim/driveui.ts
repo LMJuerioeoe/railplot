@@ -60,8 +60,6 @@ export class DriveView {
   private editing: string | null = null;
   private picked: number | null = null;
   private trainsBody: HTMLElement | null = null;
-  /** Which models the Trains dialog shows: British OO, European H0, or all. */
-  private catScale: "OO" | "H0" | "all" | undefined;
   private zCache = new Map<string, number>();
   private zGraph: unknown = null;
 
@@ -619,15 +617,10 @@ export class DriveView {
     }
     body.append(tiles);
     // detailed models, at their real lengths, by type
-    // British stock is OO, European H0: the layout's own scale first, the other a choice away
-    this.catScale ??= scaleOf(w.libId()) === 87 ? "H0" : "OO";
-    const scaleSel = h("select", { id: "trains-scale", "aria-label": "Which models", onchange: () => { this.catScale = scaleSel.value as typeof this.catScale; this.renderTrains(); } },
-      h("option", { value: "OO" }, "British (OO, 1:76)"), h("option", { value: "H0" }, "European (H0, 1:87)"), h("option", { value: "all" }, "All")) as HTMLSelectElement;
-    scaleSel.value = this.catScale!;
-    body.append(h("div", { class: "trains-head" }, h("h3", {}, "Models"), h("label", { class: "field" }, h("span", { class: "field-label" }, "Show"), scaleSel)));
-    const GROUPS: [ModelGroup, string][] = [["steam", "Steam locomotives"], ["diesel", "Diesel locomotives"], ["electric", "Electric locomotives"], ["coach", "Coaches"], ["wagon", "Wagons"]];
+    body.append(h("h3", {}, "Models"));
+    const GROUPS: [ModelGroup, string][] = [["steam", "Steam locomotives"], ["diesel", "Diesel locomotives"], ["coach", "Coaches"], ["wagon", "Wagons"]];
     for (const [g, title] of GROUPS) {
-      const inGroup = MODELS.filter((x) => x.group === g && (this.catScale === "all" || (x.scale ?? "OO") === this.catScale));
+      const inGroup = MODELS.filter((x) => x.group === g);
       if (!inGroup.length) continue;
       body.append(h("h3", {}, title));
       const models = h("div", { class: "stock-tiles", role: "group", "aria-label": title });
@@ -635,7 +628,7 @@ export class DriveView {
         const t = modelById(md.tender), len = md.length + (t ? t.length + 2 : 0);
         models.append(h("button", { type: "button", class: "part-tile stock-tile", "data-model": md.id, "aria-label": `Add a ${md.maker ? md.maker + " " : ""}${md.name}${t ? " and its tender" : ""}, ${len} mm`, title: md.note,
           onclick: () => { sc.vehicles.push(...vehiclesOfModel(md, () => `v${cfg.nextId++}`)); this.changed(); } },
-          h("span", { class: "swatch", style: `background:${md.color}`, "aria-hidden": "true" }), silhouette(md.kind), h("span", { class: "name" }, md.name), h("span", { class: "len" }, `${md.maker ? md.maker + " · " : ""}${md.scale === "H0" ? "H0 · " : ""}${len} mm${t ? " with tender" : ""}`)));
+          h("span", { class: "swatch", style: `background:${md.color}`, "aria-hidden": "true" }), silhouette(md.kind), h("span", { class: "name" }, md.name), h("span", { class: "len" }, `${md.maker ? md.maker + " · " : ""}${len} mm${t ? " with tender" : ""}`)));
       }
       body.append(models);
     }
