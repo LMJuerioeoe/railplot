@@ -117,6 +117,11 @@ For the desktop app to update itself, its installers must be signed with an upda
 
 With those set, the workflow turns the updater on (`scripts/updater-config.ts`), signs the installers and attaches `latest.json`, which the desktop app reads. Without them it builds as before, and the desktop app sends people to the release page instead. Copies installed before the first signed release need installing by hand once.
 
+The release builds Windows (`-setup.exe` and `.msi`), Linux (`.deb` and `.AppImage`) and macOS (a `.dmg` for both Apple silicon and Intel). They're unsigned unless you add code-signing certificates, which stop Windows SmartScreen and macOS Gatekeeper warning about an unknown publisher. Both cost money and need checks of who you are, so they're optional:
+
+- **Windows:** an OV or EV code-signing certificate as a `.pfx`. Add the secrets `WINDOWS_CERTIFICATE` (the `.pfx`, base64: `base64 -w0 cert.pfx`) and `WINDOWS_CERTIFICATE_PASSWORD`. The workflow imports it and signs the installers (`scripts/windows-signing.ts`). A certificate kept on a hardware key or in a cloud signing service needs that service's own signing step instead.
+- **macOS:** an Apple Developer account and a "Developer ID Application" certificate exported as a `.p12`. Add the secrets `APPLE_CERTIFICATE` (the `.p12`, base64), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` (such as `Developer ID Application: Your Name (TEAMID)`), and for notarising `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`.
+
 ## Adding a baseboard module
 
 Module presets in `src/boards/` are generated from the baseboard range's design data (`data/baseboard-range.json`) by `bun scripts/import-baseboards.ts`. [docs/baseboard-modules.md](docs/baseboard-modules.md) describes the fields and how to update them.
@@ -134,7 +139,7 @@ Next up, roughly in order:
 - Transition curves, helix and parallel-track tools
 - Scenery: platforms, buildings, roads and signals with original artwork
 - Tunnels and bridges, terrain in 3D
-- Tiled 1:1 printing and DXF export
+- DXF export
 - Synchronised PWM across controllers, reversing loops, solenoid point motors
 
 ## File format
