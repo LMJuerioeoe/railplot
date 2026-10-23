@@ -246,6 +246,30 @@ test("BUG-014: a loco on track that's in no block has no power, and the world sa
   expect(worldFor(e2).noPower(t.id)).toBe(false);
 });
 
+test("BUG-015: in the simulator a point can be thrown while a train runs elsewhere, but not under it", () => {
+  const p = buildSample();
+  const { quickStart } = require("../src/control/engine");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  const t = cfg.trains[0];
+  const c = w.consistOf(t.id)!;
+  w.advanceTo(0);
+  e.setThrottle(t.id, 0.5);
+  for (let k = 0; k < 20; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  expect(Math.abs(e.run(t.id).speed)).toBeGreaterThan(0);
+  // a point nowhere near the train throws (one block for the whole layout, so the block rule refused it)
+  const far = cfg.points.find((q: { item: string }) => !w.onPiece(q.item))!;
+  expect(e.setPoint(far.item, 1)).toBeNull();
+  expect(e.setPoint(far.item, 0)).toBeNull();
+  // with the train standing over a point, that point stays put
+  const pt = cfg.points[0].item;
+  c.at = [w.graph.middleOf(pt)!];
+  expect(w.onPiece(pt)).toBe(t.name);
+  expect(e.setPoint(pt, 1)).toContain("is on this point");
+});
+
 describe("making up trains, placing, coupling", () => {
   /** A straight line of eight Setrack straights, one block, one train, nothing in the way. */
   function line(mode: "off" | "forgiving" | "realistic" = "realistic") {

@@ -80,7 +80,7 @@ const worlds = new WeakMap<ControlEngine, World>();
 /** The world for an engine: one per layout, shared by every simulated controller. */
 export function worldFor(engine: ControlEngine): World {
   let w = worlds.get(engine);
-  if (!w) { w = new World(() => engine); worlds.set(engine, w); }
+  if (!w) { const nw = new World(() => engine); w = nw; worlds.set(engine, nw); engine.onPoint = (item) => nw.onPiece(item); }
   return w;
 }
 
@@ -396,6 +396,25 @@ export class World {
   }
 
   /** The power in the block under a consist's loco (-1..1), or 0 without a loco. */
+  /** What's standing on a piece of track, any part of any vehicle: a train's name, "A wagon", or null. */
+  onPiece(item: string): string | null {
+    for (const c of this.consists) {
+      if (c.derailed) continue;
+      for (let i = 0; i < c.vehicles.length; i++) {
+        if (!c.at[i]) continue;
+        const half = c.vehicles[i].length / 2;
+        // along the vehicle from buffer to buffer, closer than the shortest piece
+        for (let d = -half; d <= half + 0.01; d += Math.max(1, Math.min(20, half))) {
+          if (this.graph.advance(c.at[i], d, this.points).pos.item === item) {
+            const t = c.train ? this.engine().cfg.trains.find((x) => x.id === c.train) : undefined;
+            return t?.name ?? "A wagon";
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   /** Is a train's loco standing on track that's in no block, where it gets no power? */
   noPower(train: string): boolean {
     const c = this.consistOf(train);
