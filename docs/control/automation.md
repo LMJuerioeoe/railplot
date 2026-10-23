@@ -47,8 +47,22 @@ A trip is a ready-made automation. **New automation** lets you write your own, s
 | Set a point | Set one point. Waits if it can't move yet. |
 | Signal | Hold a signal at red, or put it back to automatic. |
 | Light | Turn a light on or off. |
+| Wait until the clock says | Wait until the layout clock (below) says a time, such as 10:05. |
 
 Tick **Start again from the first step** to make it repeat, for a shuttle or a timetable that runs all afternoon.
+
+## Timetables and the layout clock
+
+The **Clock** on the Auto tab is the layout's own time. Set the time it starts at and how fast it runs: real time, or up to 12 times faster, so a day's trains fit into an evening (at 4 times, an hour goes by in 15 minutes). **Back to the start** puts it back. The Drive tab shows it once an automation uses it, and every device connected to the hub sees the same time.
+
+**New timetable** makes an automation from a list of departures:
+
+1. Choose the train. It starts from the block it's in.
+2. For each departure, give the time and where it goes. Railplot takes the shortest way there, setting the points, and stops the train in that block.
+3. Tick **Run it again every day** for a timetable that repeats; the last departure then has to take the train back to where it started.
+4. Save, then **Start** it. The train waits for each time on the clock. If it's held up (a signal, another train) it leaves as soon as it can.
+
+The timetable is an ordinary automation: **Edit** shows its steps.
 
 An automation without a train can still work points, signals and lights: an evening sequence that turns the station lights on, say.
 

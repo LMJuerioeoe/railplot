@@ -11,7 +11,7 @@ Railplot is a free, open-source track planner for OO and H0 model railways that 
 - The laser-cut baseboard range: standard boards, corners, curves, traversers, turntables and canopy modules that join face to face, with a warning when a point motor would sit on a frame member.
 - Ready-made fiddle yards, run-round loops and the Inglenook sidings shunting puzzle, and example shunting layouts on the baseboard modules.
 - Checks that your longest train fits the loops, sidings and blocks, and that curves suit long coaches.
-- A parts list with prices to shop from, and true-scale SVG drawings for templates.
+- A parts list with prices to shop from; print the track at 1:1 on A4 pages to lay it from, with a baseboard cutting list and the wiring list.
 - Plan with Claude from the Claude app: it reads and checks your plan and proposes changes that you accept or reject.
 
 ## Run
@@ -19,7 +19,8 @@ Railplot is a free, open-source track planner for OO and H0 model railways that 
 - Drive each train with momentum, from Railplot on a laptop or a phone browser.
 - Points on servos, colour-light signals, building lights and infrared train sensors, through a small ESP32 controller.
 - Split the track into blocks to run up to ten trains: power follows each train, and signals keep them apart.
-- Routes, trips, shuttles and timetables run trains for you.
+- Routes, trips, shuttles and timetables on a fast layout clock run trains for you.
+- Try it all on screen first: simulated trains you drive in 3D, with shadows and moving valve gear, on every phone at once through the hub.
 - With the hub on a laptop or Raspberry Pi, several phones drive at once and Engine Driver and WiThrottle apps work.
 - A DCC-EX command station can drive the blocks instead of the ESP32 boards.
 
@@ -27,6 +28,7 @@ Railplot is a free, open-source track planner for OO and H0 model railways that 
 
 | Guide | What's in it |
 | --- | --- |
+| [Getting started](guide.md) | From an empty plan to trains running, on screen and for real |
 | [Controlling the layout](control/README.md) | Parts, wiring and setting up, from one train to ten |
 | [Automation](control/automation.md) | Routes, trips, shuttles and timetables |
 | [The hub](control/hub.md) | Running the layout from a laptop or Raspberry Pi |

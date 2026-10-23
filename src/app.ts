@@ -1353,7 +1353,7 @@ export class App {
     const steps: { title: string; text: string; act?: [string, () => void] }[] = [
       { title: "Welcome to Railplot", text: "This is a sample layout: an oval with a passing loop. Pick track from the list on the left to add it at the arrow, drag pieces about, and press 3 to look round it in 3D. File > New starts your own." },
       { title: "Run the trains", text: "Control runs the layout: real trains through a small controller, or a simulated one on screen. Try the simulator now, it needs nothing plugged in.", act: ["Open Control", () => this.setMode("control")] },
-      { title: "Drive in 3D", text: "With the simulator going, Drive in 3D puts you behind the train: the arrow keys or W and S drive it, C changes the camera, and P throws the point ahead.", act: ["Drive in 3D", () => this.drive.start()] },
+      { title: "Drive in 3D", text: "With the simulator going, Drive in 3D puts you behind the train: E and Q (or the right and left arrows) open and close the throttle, C changes the camera, and P throws the point ahead.", act: ["Drive in 3D", () => this.drive.start()] },
     ];
     let i = 0;
     const card = h("section", { class: "tour", role: "dialog", "aria-label": "Getting started", "aria-live": "polite" });
@@ -1634,7 +1634,7 @@ export class App {
       ["H", "Track heights and gradients"], ["L", "Cycle track labels"], ["3", "3D view"], ["R / Shift+R", "Rotate selection 15° clockwise / anticlockwise"],
       ["Arrows", "Nudge 1 mm (Shift: 10 mm), or change a selected height"], ["Del", "Delete selection"], ["Enter", "Finish flex track or baseboard"],
       ["Esc", "Cancel, then back to Select"], ["Home", "Zoom to fit"], ["Wheel / right-drag", "Zoom / pan"],
-      ["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+C, X, V, D", "Copy, cut, paste, duplicate"], ["Ctrl+S / Ctrl+Shift+S", "Save / save as"],
+      ["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+C, X, V, D", "Copy, cut, paste, duplicate"], ["Ctrl+S / Ctrl+Shift+S", "Save / save as"], ["Ctrl+P", "Print"],
     ];
     const drive: [string, string][] = [
       ["D", "Drive in 3D (from Control)"], ["1–9", "Pick a train"], ["E / Q, → / ←", "Throttle up / down (Shift: bigger steps)"],
