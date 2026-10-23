@@ -2,7 +2,7 @@
 import { Pose, Prim, primAt, triangulate } from "./geom";
 import { Item, Project, geom, isVisible, projectBounds } from "./model";
 import { getModule, moduleToWorld, overallDepth } from "./modules";
-import { Model, RGB, Shapes, modelById } from "./sim/models";
+import { MOTION_FRAMES, Model, RGB, Shapes, modelById, withTravel } from "./sim/models";
 import { Label, paintLabel } from "./sim/decals";
 
 type V3 = [number, number, number];
@@ -391,7 +391,16 @@ export function modelMesh(md: Model): MeshBuilder {
 }
 
 function vehicleMesh(kind: string): MeshBuilder {
-  if (kind.startsWith("model:")) { const md = modelById(kind.slice(6)); if (md) return modelMesh(md); }
+  if (kind.startsWith("model:")) {
+    // "model:id" stands still; "model:id#k" is frame k of a moving loco's wheels going round
+    const [id, frame] = kind.slice(6).split("#"), md = modelById(id);
+    if (md) {
+      if (frame === undefined || !md.motion) return modelMesh(md);
+      let m!: MeshBuilder;
+      withTravel((+frame / MOTION_FRAMES) * 2 * Math.PI * md.motion, () => { m = modelMesh(md); }, md.motion);
+      return m;
+    }
+  }
   const m = new MeshBuilder();
   if (kind === "box") {
     // a plain unit box in the object's colour: signal masts, lamps, point levers

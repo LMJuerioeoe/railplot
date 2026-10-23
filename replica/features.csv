@@ -47,3 +47,5 @@ In-game magazine,content,skip,yes,skip,their content
 Rolling Line models liveries and sounds,content,skip,yes,skip,their assets; Railplot draws its own simple stock
 Layout and scenery building in 3D,building,skip,yes,skip,Railplot is the planner; the scenery builder was removed on request
 Weather,effects,skip,yes,skip,
+Locos' wheels rods and valve gear move as they run,drive view,should,yes,yes,"12 frames per turn of the driving wheels, chosen by how far the train has run; steam locos and the Class 08; src/sim/parts.ts withTravel"
+Divide the layout into blocks for two or more trains,control,should,no,yes,"Railplot's own: Drive > Add a second train, or Set up > Divide into blocks for N trains; cuts at points and along long runs; trains keep their place; src/control/divide.ts"

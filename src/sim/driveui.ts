@@ -11,7 +11,7 @@ import { geom } from "../model";
 import { World, scaleOf, worldFor } from "./world";
 import { TrackPos, TrackPose } from "./track";
 import { STOCK, newVehicle } from "./stock";
-import { MODELS, ModelGroup, modelById, vehiclesOfModel } from "./models";
+import { MODELS, MOTION_FRAMES, ModelGroup, modelById, vehiclesOfModel } from "./models";
 import { VehicleKind } from "../control/types";
 
 export type Camera = "tabletop" | "chase" | "cab";
@@ -258,8 +258,8 @@ export class DriveView {
       // run the world to now, so trains glide between the control loop's ticks
       w.advanceTo(performance.now());
       const railTop = 5;
-      const vehicles: DynamicVehicle[] = w.vehiclePoses().map(({ vehicle, pose }) => ({
-        ...this.shape(vehicle), color: vehicle.model && modelById(vehicle.model) ? [1, 1, 1] : hexRgb(vehicle.color),
+      const vehicles: DynamicVehicle[] = w.vehiclePoses().map(({ consist, vehicle, pose }) => ({
+        ...this.shape(vehicle, consist.odo), color: vehicle.model && modelById(vehicle.model) ? [1, 1, 1] : hexRgb(vehicle.color),
         x: pose.x, y: pose.y, z: pose.z + railTop, h: pose.h, tilt: pose.tilt,
       }));
       v3.setDynamic([...vehicles, ...this.scenery(w), ...this.ghost(w)]);
@@ -271,9 +271,16 @@ export class DriveView {
     this.raf = requestAnimationFrame(() => this.frame());
   }
 
-  /** What a vehicle is drawn as: its model, at the model's own size, or a plain body of its kind. */
-  private shape(v: { kind: string; length: number; model?: string }) {
+  /**
+   * What a vehicle is drawn as: its model, at the model's own size, or a plain body of its kind. A loco
+   * whose wheels and rods move is drawn at the point in their turn that `odo` mm of running brings them to.
+   */
+  private shape(v: { kind: string; length: number; model?: string }, odo?: number) {
     const md = modelById(v.model);
+    if (md?.motion && odo !== undefined) {
+      const turns = odo / (2 * Math.PI * md.motion), frame = Math.floor((turns - Math.floor(turns)) * MOTION_FRAMES) % MOTION_FRAMES;
+      return { kind: `model:${md.id}#${frame}`, length: md.length, width: md.width, height: md.height };
+    }
     if (md) return { kind: `model:${md.id}`, length: md.length, width: md.width, height: md.height };
     const gauge = 16.5;
     return { kind: v.kind, length: v.length - 2, width: gauge * 1.9, height: v.kind === "loco" ? gauge * 3 : gauge * 2.6 };

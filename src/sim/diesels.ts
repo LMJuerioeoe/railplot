@@ -1,5 +1,5 @@
 // Diesel locomotives: the BR Class 08 shunter and the Class 37.
-import { BLACK, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER, WHEEL_FACE, YELLOW, barX, barZ, darker, discWheels, headstocks, step, strip } from "./parts";
+import { BLACK, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER, WHEEL_FACE, YELLOW, barX, barZ, darker, discWheels, headstocks, sideCrank, step, strip, turn } from "./parts";
 import { bogie } from "./coaches";
 
 const BR_GREEN: RGB = [0.11, 0.3, 0.19], BR_BLUE: RGB = [0.17, 0.3, 0.47], ROOF_GREY: RGB = [0.42, 0.43, 0.44];
@@ -42,17 +42,18 @@ export function drawClass08(s: Shapes) {
   for (const x of xs) {
     discWheels(s, x, r, BLACK);
     for (const e of SIDES) {
-      const cx = x + Math.cos(CR) * r * 0.42, cz = r + Math.sin(CR) * r * 0.42;
+      const ca = CR + turn(r) + sideCrank(e), cx = x + Math.cos(ca) * r * 0.42, cz = r + Math.sin(ca) * r * 0.42;
       s.cyl("y", Math.min(e * WHEEL_FACE, e * (WHEEL_FACE + 0.9)), Math.max(e * WHEEL_FACE, e * (WHEEL_FACE + 0.9)), cx, cz, 1.1, 1.1, STEEL);
       // the balance weight, a raised crescent opposite the crank
       const pts: [number, number][] = [];
-      for (let k = 0; k <= 8; k++) { const t = CR + Math.PI - 0.8 + (1.6 * k) / 8; pts.push([x + Math.cos(t) * (r - 1.3), r + Math.sin(t) * (r - 1.3)]); }
+      for (let k = 0; k <= 8; k++) { const t = ca + Math.PI - 0.8 + (1.6 * k) / 8; pts.push([x + Math.cos(t) * (r - 1.3), r + Math.sin(t) * (r - 1.3)]); }
       s.prismY(pts, Math.min(e * (WHEEL_FACE - 0.6), e * WHEEL_FACE), Math.max(e * (WHEEL_FACE - 0.6), e * WHEEL_FACE), BLACK);
     }
   }
   for (const e of SIDES) {
-    const ya = e * (WHEEL_FACE + 0.9), yb = e * (WHEEL_FACE + 1.9), pin = (x: number) => [x + Math.cos(CR) * r * 0.42, r + Math.sin(CR) * r * 0.42];
-    const p0 = pin(xs[0]), p2 = pin(xs[2]), pj = [-36 + Math.cos(CR) * 3, r + 1 + Math.sin(CR) * 3];
+    // the jackshaft turns with the wheels (it drives them through the rods), its crank 3 mm out
+    const ya = e * (WHEEL_FACE + 0.9), yb = e * (WHEEL_FACE + 1.9), ca = CR + turn(r) + sideCrank(e), pin = (x: number) => [x + Math.cos(ca) * r * 0.42, r + Math.sin(ca) * r * 0.42];
+    const p0 = pin(xs[0]), p2 = pin(xs[2]), pj = [-36 + Math.cos(ca) * 3, r + 1 + Math.sin(ca) * 3];
     s.beam(p0[0], p0[1], p2[0], p2[1], Math.min(ya, yb), Math.max(ya, yb), 1.6, STEEL);
     s.beam(p2[0], p2[1], pj[0], pj[1], Math.min(ya, yb), Math.max(ya, yb), 1.6, STEEL);
     s.cyl("y", Math.min(e * 6.4, e * 10), Math.max(e * 6.4, e * 10), -36, r + 1, 3.4, 3.4, BLACK);     // jackshaft crank

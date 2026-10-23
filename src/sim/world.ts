@@ -32,6 +32,8 @@ export interface Consist {
   lastStop?: TrackPos[];
   /** Standing still now, with lastStop already noted for this stand. */
   stood?: boolean;
+  /** How far it has run along its front's way, mm (backing counts down): turns the locos' wheels in 3D. */
+  odo?: number;
   /** Held at the curve limit (derailments off): the HUD says so. */
   held?: boolean;
 }
@@ -532,7 +534,7 @@ export class World {
     // another consist's buffers ahead: stop there, and couple, bounce or crash
     const hit = this.contact(c, lead, sgn, Math.abs(go));
     if (hit) go = sgn * Math.max(0, Math.min(Math.abs(go), hit.room));
-    if (go !== 0) c.at = c.at.map((a) => this.graph.advance(a, go, this.points).pos);
+    if (go !== 0) { c.at = c.at.map((a) => this.graph.advance(a, go, this.points).pos); c.odo = (c.odo ?? 0) + go; }
     if (hit && hit.room <= Math.abs(ds) + 1e-6) this.meet(c, lead, sgn, hit.other, hit.end);
   }
 
