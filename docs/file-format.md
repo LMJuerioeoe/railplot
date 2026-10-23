@@ -74,6 +74,10 @@ A layout set up for [control](control/README.md) has a `control` object. Everyth
 
 Where trains are and how points are set are saved with the layout, so the hub and the controllers can pick up where you left off.
 
+## Older and damaged files
+
+Railplot opens every older version of the format, bringing it up to date as it reads it. It also puts right what would stop a plan working, and says what it changed: a piece on a layer that's gone moves to the current layer, two things with the same id get different ids, a board with fewer than three corners or a piece with no position is taken out, and a train or signal in a block that's gone loses its place. Save the layout to keep the changes. A file from a newer Railplot isn't opened: update Railplot first.
+
 ## Proposals
 
 Changes Claude has proposed through the [connector](claude.md) and that are still waiting are kept in `proposals[]`. A reader that only wants the plan can ignore them: they aren't part of it until they are accepted.

@@ -14,7 +14,7 @@ import { EXAMPLES, buildExample } from "./examples";
 import { YardKind, YardOptions, buildYard, minYardLength, partName, roadSpacings, wagonLength, yardParts } from "./yards";
 import { History } from "./history";
 import { Proposal, applyProposal, describeProposal, rejectProposal, staleIds } from "./proposals";
-import { FileError, parseProject, serialize } from "./io";
+import { FileError, parseProject, readProject, serialize } from "./io";
 import { LabelMode, Palette, View, drawProject, fmtLen, hitItem, itemsInRect, projectToSvg, readPalette, toScreen, toWorldPt } from "./render2d";
 import { partThumb } from "./thumbs";
 import { LAYOUT_FILTER, hostedSave, isDesktop, isHosted, openText, saveBlob as rawSaveBlob, saveText, setWindowTitle, store } from "./platform";
@@ -56,6 +56,10 @@ async function saveBlob(...args: Parameters<typeof rawSaveBlob>) {
 }
 
 const AUTOSAVE_KEY = "railplot.autosave.v1";
+/** The last autosave that opened, kept in case the newest one is damaged (a crash mid-write, a full disk). */
+const AUTOSAVE_BACKUP = "railplot.autosave.backup";
+/** A damaged autosave, kept so nothing is thrown away. */
+const AUTOSAVE_BROKEN = "railplot.autosave.broken";
 /** Set once the first-run tour has been seen through or put away. */
 const TOUR_KEY = "railplot.tour.v1";
 const PREFS_KEY = "railplot.prefs.v1";
@@ -159,17 +163,29 @@ export class App {
   // ---------- boot / persistence ----------
 
   private boot() {
-    const saved = store.get(AUTOSAVE_KEY);
-    let loaded = false;
-    if (saved) {
+    // the plan as it was when Railplot last closed (or crashed): the newest autosave, else the one before it
+    const tryLoad = (text: string | null) => {
+      if (!text) return false;
       try {
-        const d = JSON.parse(saved);
-        this.p = parseProject(JSON.stringify(d.project));
+        const d = JSON.parse(text);
+        const r = readProject(JSON.stringify(d.project));
+        this.p = r.p;
         this.fileName = d.fileName ?? "";
         this.filePath = d.filePath;
         this.dirty = !!d.dirty;
-        loaded = true;
-      } catch { /* ignore a damaged autosave */ }
+        if (r.notes.length) setTimeout(() => toast(`Railplot put right some things in your plan: ${r.notes.join("; ")}.`), 800);
+        return true;
+      } catch { return false; }
+    };
+    const saved = store.get(AUTOSAVE_KEY);
+    let loaded = tryLoad(saved);
+    if (loaded) store.set(AUTOSAVE_BACKUP, saved!);
+    else if (saved) {
+      store.set(AUTOSAVE_BROKEN, saved);
+      loaded = tryLoad(store.get(AUTOSAVE_BACKUP));
+      setTimeout(() => toast(loaded
+        ? "Your last session's plan couldn't be read back, so Railplot opened the one before it. If you saved to a file, open that for your latest changes."
+        : "Your last session's plan couldn't be read back. If you saved to a file, open that.", "error"), 800);
     }
     if (!loaded) this.p = buildSample();
     // the very first time: a short tour, in a corner, that doesn't get in the way
@@ -225,7 +241,9 @@ export class App {
       const path: string | null = await T.core.invoke("startup_file");
       if (!path) return;
       const text: string = await T.core.invoke("read_text_file", { path });
-      this.replaceProject(parseProject(text), path.split(/[\\/]/).pop(), path);
+      const { p, notes } = readProject(text);
+      this.replaceProject(p, path.split(/[\\/]/).pop(), path);
+      if (notes.length) toast(`Railplot put right some things in this layout: ${notes.join("; ")}. Save to keep them.`);
     } catch (err) {
       toast(err instanceof FileError ? err.message : `Couldn't open the file: ${(err as Error).message ?? err}`, "error");
     }
@@ -1262,9 +1280,9 @@ export class App {
     try {
       const f = await openText(LAYOUT_FILTER);
       if (!f) return;
-      const p = parseProject(f.text);
+      const { p, notes } = readProject(f.text);
       this.replaceProject(p, f.name, f.path);
-      toast(`Opened ${f.name}.`);
+      toast(notes.length ? `Opened ${f.name}. Railplot put right some things in it: ${notes.join("; ")}. Save to keep them.` : `Opened ${f.name}.`);
     } catch (err) {
       toast(err instanceof FileError ? err.message : `Couldn't open the file: ${(err as Error).message}`, "error");
     }
