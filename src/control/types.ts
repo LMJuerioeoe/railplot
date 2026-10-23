@@ -95,7 +95,8 @@ export type Step =
   | { do: "route"; route: string }
   | { do: "point"; item: string; state: number }
   | { do: "signal"; signal: string; mode: SignalMode }
-  | { do: "light"; light: string; on: boolean };
+  | { do: "light"; light: string; on: boolean }
+  | { do: "waitTime"; at: string };                     // until the layout clock says this ("10:05")
 
 /** A little program for one train: a shuttle, a timetable run, a station stop. */
 export interface AutomationCfg {
@@ -153,6 +154,8 @@ export interface ControlConfig {
   derailments?: "off" | "forgiving" | "realistic";
   /** In the simulator: trains stop short of a point set against them instead of running through it. */
   pointGuard?: boolean;
+  /** The layout clock for timetables: the time it starts at (minutes after midnight) and how many times real time it runs. */
+  clock?: { start: number; ratio: number };
   /** Through a Railplot hub, let Claude set routes, points, signals and lights, drive trains and run automations (never track power). */
   claude?: boolean;
   nextId: number;

@@ -7,7 +7,7 @@ import { fmtLen, toScreen, View } from "../render2d";
 import { clear, h, icon } from "../ui/dom";
 import { dialog, field, numInput, toast } from "../ui/dialogs";
 import {
-  Aspect, ControlEngine, addBlock, addController, addLight, addSensorsAtBoundaries, addSignal, addSignalsAtBoundaries, addTrain, controlWarnings, inputWhere,
+  Aspect, ControlEngine, addBlock, addController, addLight, addSensorsAtBoundaries, addSignal, addSignalsAtBoundaries, addTrain, clockOf, clockText, controlWarnings, inputWhere,
   outputWhere, pointLabel, quickStart, servoWhere, syncPoints, syncSensors, topology, wiringList, BLOCK_PINS,
 } from "./engine";
 import { CLIENT_ID, Link, SimLink, baseUrl, makeLink, uploadFile, webSerialSupported } from "./link";
@@ -546,6 +546,8 @@ export class ControlUI {
   private renderDrive(el: HTMLElement) {
     const cfg = this.cfg, e = this.engine;
     el.append(this.statusChips());
+    if ((cfg.automations ?? []).some((a) => a.steps.some((s) => s.do === "waitTime")))
+      el.append(h("div", { class: "drive-clock" }, h("span", { class: "muted small" }, "Layout clock "), this.liveText(() => clockText(e.time || clockOf(cfg).start * 60), "layout-clock mono")));
     el.append(h("div", { class: "btn-row stop-row" },
       h("button", { class: "btn stop-all", type: "button", onclick: () => this.doAndRender({ c: "stopAll" }, "All trains stopped.") },
         h("span", { html: icon("close", 18) }), "Stop all trains", h("kbd", {}, "Space")),

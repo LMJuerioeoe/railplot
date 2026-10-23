@@ -136,6 +136,8 @@ export class ControlEngine {
   /** When a train last left each block (engine seconds): its last wagons may still be there for a while. */
   private leftAt = new Map<string, number>();
   private clock = 0;
+  /** The layout clock, seconds after midnight (see ControlConfig.clock). */
+  time = NaN;
 
   constructor(public p: Project, public cfg: ControlConfig) {
     this.topo = topology(p, cfg);
@@ -234,6 +236,7 @@ export class ControlEngine {
   /** Advance automations and momentum by dt seconds. */
   step(dt: number) {
     this.clock += dt;
+    this.tick(dt);
     for (const a of this.automations()) {
       const r = this.autoRuns.get(a.id);
       if (r?.running) this.advanceAuto(a, r, dt);
@@ -270,6 +273,20 @@ export class ControlEngine {
     this.setThrottle(trainId, 0);
     r.speed = 0;
     this.assign();
+  }
+
+  /** Run the layout clock on by dt real seconds. */
+  private tick(dt: number) {
+    const c = clockOf(this.cfg);
+    if (Number.isNaN(this.time)) this.time = c.start * 60;
+    this.time = (this.time + dt * c.ratio) % 86400;
+  }
+
+  /** Set the layout clock (minutes after midnight), and how fast it runs. */
+  setClock(at?: number, ratio?: number) {
+    const c = (this.cfg.clock ??= clockOf(this.cfg));
+    if (ratio !== undefined) c.ratio = Math.max(1, Math.min(60, ratio));
+    if (at !== undefined) { c.start = ((Math.round(at) % 1440) + 1440) % 1440; this.time = c.start * 60; }
   }
 
   stopAll() {
@@ -426,6 +443,14 @@ export class ControlEngine {
         const l = this.cfg.lights.find((x) => x.id === s.light);
         if (l) l.on = s.on;
         return true;
+      }
+      case "waitTime": {
+        const at = parseClock(s.at);
+        if (at === null) return true;
+        if (Number.isNaN(this.time)) this.tick(0);
+        ar.status = `waiting until ${s.at} (the clock says ${clockText(this.time)})`;
+        // due once the clock has reached it, up to twelve hours after (not when it's still the evening before)
+        return (this.time / 60 - at + 1440) % 1440 < 720;
       }
     }
   }
@@ -588,6 +613,19 @@ export class ControlEngine {
 }
 
 /** Throttle (-1..1) to block duty (-1..1) using the train's starting and top speed. */
+/** The layout clock's settings: 06:00, real time, unless the layout says otherwise. */
+export function clockOf(cfg: ControlConfig) { return cfg.clock ?? { start: 360, ratio: 1 }; }
+/** "10:05" to minutes after midnight, or null. */
+export function parseClock(text: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(text.trim());
+  return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
+}
+/** Seconds after midnight to "10:05". */
+export function clockText(sec: number) {
+  const m = Math.floor(sec / 60) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
 const needsTrain = (s: Step) => ["drive", "waitBlock", "arrive", "stop"].includes(s.do);
 
 export function duty(t: TrainCfg, speed: number): number {

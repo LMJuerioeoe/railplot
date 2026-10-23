@@ -132,6 +132,7 @@ export function describeStep(s: Step, cfg: ControlConfig, pointName: (item: stri
     case "arrive": return `Slow to ${Math.abs(s.speed)}% and stop in this block after ${s.after} s`;
     case "stop": return "Stop";
     case "wait": return `Wait ${s.sec} s`;
+    case "waitTime": return `Wait until the clock says ${s.at}`;
     case "waitFree": return `Wait until ${block(s.block)} is free`;
     case "route": return `Set route ${cfg.routes?.find((r) => r.id === s.route)?.name ?? "(deleted)"}`;
     case "point": {

@@ -64,8 +64,12 @@ A layout set up for [control](control/README.md) has a `control` object. Everyth
 | `lights[]` | `id`, `name`, `controller`, `output`, `on` and brightness `level` (1–100). |
 | `trains[]` | `id`, `name`, `color`, the `block` it is in, and `minSpeed`, `maxSpeed` (% of track voltage) and `momentum` (seconds from stop to full speed). |
 | `routes[]` | `id`, `name` and `points`: the `item` and `state` for each point the route sets. |
-| `automations[]` | `id`, `name`, `train`, `loop` and `steps`. Each step has `do` (`"drive"`, `"waitBlock"`, `"arrive"`, `"stop"`, `"wait"`, `"waitFree"`, `"route"`, `"point"`, `"signal"` or `"light"`) and that step's settings, as in [Automation](control/automation.md). |
+| `automations[]` | `id`, `name`, `train`, `loop` and `steps`. Each step has `do` (`"drive"`, `"waitBlock"`, `"arrive"`, `"stop"`, `"wait"`, `"waitFree"`, `"route"`, `"point"`, `"signal"`, `"light"` or `"waitTime"`, which has `at`, a time on the layout clock such as `"10:05"`) and that step's settings, as in [Automation](control/automation.md). |
 | `claude` | `true` when the owner lets Claude use the controls through the hub (see [Claude and Railplot](claude.md)). |
+| `clock` | The layout clock for timetables: `start`, the time it starts at in minutes after midnight, and `ratio`, how many times real time it runs. |
+| `consists[]` | The simulator's rolling stock: `id`, the `train` it belongs to (none for wagons on their own), its `vehicles` front to back, and where its front stands (`at`). |
+| `derailments` | In the simulator: `"realistic"` (the default), `"forgiving"` or `"off"`. |
+| `pointGuard` | In the simulator: `true` to have trains stop short of a point set against them. |
 | `nextId` | The next number used for a new id. |
 
 Where trains are and how points are set are saved with the layout, so the hub and the controllers can pick up where you left off.
