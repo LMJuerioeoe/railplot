@@ -393,7 +393,10 @@ with sync_playwright() as p:
     check("too fast round a curve, the train derails", came_off and "curve" in pg.locator("#drive-derailed").inner_text(), js(pg, "railplot.drive.world().consistOf(railplot.drive.train).speed"))
     check("a derailment shorts its block, as on the real layout", js(pg, "railplot.ctl.engine.faults.size") >= 1)
     shot(pg, "09c-derailed")
-    pg.keyboard.press("r"); pg.wait_for_timeout(400)
+    pg.keyboard.press("r")
+    for _ in range(20):
+        pg.wait_for_timeout(100)
+        if pg.locator("#drive-derailed").count() == 0 and js(pg, "railplot.ctl.engine.faults.size") == 0: break
     check("R re-rails it and clears the fault", pg.locator("#drive-derailed").count() == 0 and not js(pg, "!!railplot.drive.world().consistOf(railplot.drive.train).derailed") and js(pg, "railplot.ctl.engine.faults.size") == 0)
     # points and signals in 3D: click the lever beside a point, and a signal's mast
     while pg.locator("#drive-camera").inner_text().split()[0] != "Tabletop": pg.keyboard.press("c"); pg.wait_for_timeout(100)
@@ -405,12 +408,17 @@ with sync_playwright() as p:
           return t && s ? [t.id, r.left + s.x, r.top + s.y] : null; }})()""")
         if at: pg.mouse.click(at[1], at[2]); pg.wait_for_timeout(200)
         return at and at[0]
+    before = js(pg, "JSON.stringify([railplot.p.control.points.map(q => [q.item, q.state]), railplot.p.control.signals.map(s => [s.id, s.mode])])")
     pid = click_target("point")
-    check("clicking a point's lever in 3D throws it", pid and js(pg, f"railplot.p.control.points.find(q => q.item === '{pid}').state") == 1, pid)
+    check("clicking a point's lever in 3D throws it", pid and js(pg, f"JSON.stringify(railplot.p.control.points.find(q => q.item === '{pid}').state)") != json.dumps(dict(json.loads(before)[0])[pid]), pid)
     sid = click_target("signal")
     check("clicking a signal in 3D holds it at red", sid and js(pg, f"railplot.p.control.signals.find(s => s.id === '{sid}').mode") == "stop", sid)
     shot(pg, "09d-points-signals")
-    click_target("point"); click_target("signal")
+    # put them back as they were (simulated trains stop at a signal held at danger)
+    js(pg, f"""(() => {{ const [pts, sigs] = {before};
+      for (const [item, state] of pts) railplot.ctl.act({{ c: 'point', item, state }});
+      for (const [id, mode] of sigs) railplot.ctl.act({{ c: 'signal', id, mode }}); }})()""")
+    pg.wait_for_timeout(200)
     pg.keyboard.press("Space"); pg.wait_for_timeout(100)
     check("Space stops the selected train", js(pg, "railplot.ctl.engine.run(railplot.drive.train).target") == 0)
     # F17c make up a rake of vans, place it by clicking the track, uncouple it by its coupler

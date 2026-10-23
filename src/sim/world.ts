@@ -59,7 +59,7 @@ export interface Derailment {
 /** Sideways acceleration a vehicle stays on the rails at, mm/s² (realistic). About 0.6 m/s on second radius. */
 export const CURVE_ACCEL = 800;
 /** How hard a train brakes for a block ahead that isn't its own, mm/s², and how far short of it it stands, mm. */
-const BRAKE = 500, STAND_OFF = 6;
+const BRAKE = 500, STAND_OFF = 10;
 /** Running through a point set against the train, mm/s: forgiving lets a sprung point through at walking pace. */
 const TRAIL_SPEED = 80;
 /** Hitting the end of the line faster than this, mm/s, tips the front vehicle off (forgiving: 1.5 times). */
@@ -560,11 +560,15 @@ export class World {
   private roomAhead(c: Consist, reach: number): { room: number; block?: string; point?: string } {
     const e = this.engine(), way = c.travel, i = way === 1 ? 0 : c.at.length - 1, guard = !!e.cfg.pointGuard;
     let pos = this.graph.advance(c.at[i], way * c.vehicles[i].length / 2, this.points).pos;
-    for (let d = 0; d <= reach; d += 8) {
+    let last = e.topo.blockOfItem.get(pos.item);
+    for (let d = 0; d <= reach; d += 4) {
       const b = e.topo.blockOfItem.get(pos.item);
       const other = b && (e.claimedBy.get(b) ?? e.held.get(b));
       if (other && other !== c.train) return { room: d, block: b };
-      const r = this.graph.advance(pos, way * 8, this.points);
+      // a signal at danger into a block that isn't this train's: stand at it
+      if (b && last && b !== last && e.claimedBy.get(b) !== c.train && e.cfg.signals.some((s) => s.from === last && s.to === b && e.aspects.get(s.id) === "red")) return { room: d, block: b };
+      if (b) last = b;
+      const r = this.graph.advance(pos, way * 4, this.points);
       // with the point guard on, a point set against it stops it like a signal at danger
       if (guard && r.trailed) return { room: d, point: r.trailed };
       if (r.stop) break;
@@ -641,7 +645,7 @@ export class World {
           const vmax = Math.sqrt(2 * BRAKE * Math.max(0, ahead.room - STAND_OFF));
           const wait = () => { c.waiting = ahead.block; c.waitPoint = ahead.point; };
           if (Math.abs(c.speed) >= vmax) { c.speed = Math.sign(c.speed) * vmax; wait(); }
-          if (vmax < 1) { c.speed = 0; wait(); }
+          if (vmax < 20) { c.speed = 0; wait(); }   // at walking pace this close, it has stopped
         }
       }
       // the tightest curve under any vehicle

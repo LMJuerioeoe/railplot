@@ -685,6 +685,27 @@ export function addSignal(p: Project, cfg: ControlConfig, at: Vec, from: string,
   return s;
 }
 
+/**
+ * A signal at every joint between two blocks, for each way through it, where there isn't one yet.
+ * Returns how many were added.
+ */
+export function addSignalsAtBoundaries(p: Project, cfg: ControlConfig, topo = topology(p, cfg)): number {
+  let n = 0;
+  for (const b of topo.boundaries) {
+    for (const i of [0, 1]) {
+      const from = b.blocks[i], to = b.blocks[1 - i];
+      if (cfg.signals.some((s) => s.from === from && s.to === to && dist(s, b) < 40)) continue;
+      const end = b.ends[i], it = p.items.find((x) => x.id === end.item);
+      if (!it) continue;
+      // facing trains coming out of `from`: set back a little from the joint, on their left
+      const h = geom(it).ends[end.end].h;
+      addSignal(p, cfg, { x: b.x - Math.cos(h) * 12 + Math.sin(h) * 18, y: b.y - Math.sin(h) * 12 - Math.cos(h) * 18 }, from, to, h);
+      n++;
+    }
+  }
+  return n;
+}
+
 export function addLight(cfg: ControlConfig, name?: string) {
   const used = cfg.signals.flatMap((s) => [s.red, s.yellow, s.green]).concat(cfg.lights.map((l) => l.output));
   const l = { id: cid(cfg, "l"), name: name ?? `Light ${cfg.lights.length + 1}`, controller: cfg.controllers[0]?.id, output: firstFree(used), on: false, level: 80 };

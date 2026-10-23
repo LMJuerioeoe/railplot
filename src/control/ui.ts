@@ -7,7 +7,7 @@ import { fmtLen, toScreen, View } from "../render2d";
 import { clear, h, icon } from "../ui/dom";
 import { dialog, field, numInput, toast } from "../ui/dialogs";
 import {
-  Aspect, ControlEngine, addBlock, addController, addLight, addSensorsAtBoundaries, addSignal, addTrain, controlWarnings, inputWhere,
+  Aspect, ControlEngine, addBlock, addController, addLight, addSensorsAtBoundaries, addSignal, addSignalsAtBoundaries, addTrain, controlWarnings, inputWhere,
   outputWhere, pointLabel, quickStart, servoWhere, syncPoints, syncSensors, topology, wiringList, BLOCK_PINS,
 } from "./engine";
 import { CLIENT_ID, Link, SimLink, baseUrl, makeLink, uploadFile, webSerialSupported } from "./link";
@@ -895,7 +895,12 @@ export class ControlUI {
         ...(["red", "yellow", "green"] as const).map((col) => h("label", { class: `led led-${col}` }, h("span", { class: "sr-only" }, `${col} LED output`),
           num(`g${col}-${s.id}`, s[col], (v) => { s[col] = v; }, { "aria-label": `${col} LED output`, title: kindOf(s.controller) === "dccex" ? `${col} LED VPIN` : `${col} LED output`, placeholder: "–" }))),
         del("Delete signal", () => { cfg.signals = cfg.signals.filter((x) => x !== s); }))),
-      cfg.blocks.length > 1 ? h("div", { class: "btn-row" }, h("button", { class: `btn btn-sm ${this.tool?.kind === "signal" ? "btn-primary" : ""}`, type: "button", onclick: () => { this.tool = { kind: "signal" }; this.render(); toast("Tap the track just before a block joint, on the side trains come from."); } }, "Add signal")) : h("p", { class: "muted small" }, "Signals need two or more blocks.")));
+      cfg.blocks.length > 1 ? h("div", { class: "btn-row" },
+        h("button", { class: `btn btn-sm ${this.tool?.kind === "signal" ? "btn-primary" : ""}`, type: "button", onclick: () => { this.tool = { kind: "signal" }; this.render(); toast("Tap the track just before a block joint, on the side trains come from."); } }, "Add signal"),
+        h("button", { class: "btn btn-sm", type: "button", id: "signals-everywhere", onclick: () => {
+          const n = addSignalsAtBoundaries(p, cfg); this.commitSetup(); this.render();
+          toast(n ? `${n} signal${n === 1 ? "" : "s"} added: one each way at every block joint. They show red when the block beyond isn't free, and simulated trains stop at them.` : "Every block joint already has its signals.");
+        } }, "Signals at every block joint")) : h("p", { class: "muted small" }, "Signals need two or more blocks.")));
 
     // lights
     el.append(sec("Lights",

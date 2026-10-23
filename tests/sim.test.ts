@@ -594,3 +594,35 @@ test("With the point guard on, a train stops short of a point set against it ins
   expect(c.derailed).toBeUndefined();
   expect(Math.abs(c.odo! - at)).toBeGreaterThan(100);
 });
+
+test("Signals at every block joint: a simulated train stops at one held at danger, and goes on when it clears", () => {
+  const p = buildSample();
+  const { quickStart, addSignalsAtBoundaries } = require("../src/control/engine");
+  const { divideForTrains } = require("../src/control/divide");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  w.advanceTo(0);
+  divideForTrains(p, cfg, 1, { where: (id: string) => w.consistOf(id)?.at[0]?.item });
+  const n = addSignalsAtBoundaries(p, cfg);
+  expect(n).toBe(require("../src/control/engine").topology(p, cfg).boundaries.length * 2);   // one each way
+  expect(addSignalsAtBoundaries(p, cfg)).toBe(0);
+  e.setProject(p, cfg);
+  w.advanceTo(100);
+  const t = cfg.trains[0], c = w.consistOf(t.id)!;
+  for (const s of cfg.signals) s.mode = "stop";   // every signal at danger
+  e.assign();
+  e.setThrottle(t.id, 0.6);
+  let ms = 100;
+  const run = (sec: number) => { for (let k = 0; k < sec * 10; k++) { e.step(0.1); ms += 100; w.advanceTo(ms); } };
+  run(12);
+  expect(c.speed).toBe(0);
+  expect(c.waiting).toBeDefined();
+  expect(c.derailed).toBeUndefined();
+  const held = t.block;
+  for (const s of cfg.signals) s.mode = "auto";
+  e.assign();
+  run(4);
+  expect(t.block === held && Math.abs(c.speed) < 1).toBe(false);
+});
