@@ -22,6 +22,7 @@ import { buildControlDemo, buildSample } from "./sample";
 import { clear, h, icon } from "./ui/dom";
 import { closeDialog, confirmDialog, dialog, field, isDialogOpen, numInput, toast } from "./ui/dialogs";
 import { View3D } from "./view3d";
+import { printDocument, printNow, templatePages } from "./print";
 import { DriveView } from "./sim/driveui";
 import { trainFit } from "./trainfit";
 import { RELEASES_URL, desktopCanUpdate, desktopCheck, desktopInstall, installKind, latestRelease, newer } from "./update";
@@ -1111,6 +1112,7 @@ export class App {
         z: () => (e.shiftKey ? this.redo() : this.undo()), y: () => this.redo(),
         c: () => this.copy(), x: () => this.copy(true), v: () => this.paste(), a: () => this.selectAll(),
         s: () => this.save(e.shiftKey), o: () => this.openFile(), n: () => this.newFile(), d: () => { this.copy(); this.paste(); },
+        p: () => this.showPrint(),
       };
       if (map[lk]) { e.preventDefault(); map[lk](); }
       return;
@@ -1318,6 +1320,37 @@ export class App {
     const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
     if (!blob) { toast("Couldn't render the image.", "error"); return; }
     await saveBlob(`${this.p.name}.png`, blob, { name: "PNG image", extensions: ["png"], mime: "image/png" });
+  }
+
+  /** Print the plan: an overview, the track at 1:1 on A4 pages, the parts, cutting and wiring lists. */
+  showPrint() {
+    if (!projectBounds(this.p)) { toast("Nothing to print yet."); return; }
+    const box = (id: string, label: string, on = true) => h("label", { class: "check" }, h("input", { type: "checkbox", id, checked: on }), label);
+    const picked = [...this.sel].filter((id) => this.p.items.some((i) => i.id === id));
+    const only = new Set(picked);
+    const count = h("span", { class: "muted small", id: "print-count" });
+    const onlySel = h("input", { type: "checkbox", id: "print-only", checked: false, disabled: !picked.length }) as HTMLInputElement;
+    const pages = () => { count.textContent = `${templatePages(this.p, onlySel.checked ? only : undefined).length} A4 pages`; };
+    onlySel.addEventListener("change", pages);
+    pages();
+    const wired = !!this.p.control?.controllers.some((c) => c.kind !== "sim");
+    const body = h("div", { class: "form-grid" },
+      box("print-overview", "The whole plan on one page"),
+      h("div", {}, box("print-templates", "The track at 1:1, to lay it from: "), count),
+      h("label", { class: "check sub" }, onlySel, picked.length ? `Only the ${picked.length} selected piece${picked.length === 1 ? "" : "s"}` : "Only the selected track (select some first)"),
+      box("print-parts", "Parts list"),
+      this.p.boards.length ? box("print-cutting", "Baseboard cutting list") : null,
+      wired ? box("print-wiring", "Wiring list") : null,
+      h("p", { class: "muted small" }, "Print at 100% (\"actual size\"). To make a PDF, choose \"Save as PDF\" as the printer."));
+    dialog("Print", body, [
+      { label: "Cancel" },
+      { label: "Print", primary: true, onClick: () => {
+        const on = (id: string) => !!(body.querySelector(`#${id}`) as HTMLInputElement | null)?.checked;
+        const doc = printDocument(this.p, printPalette(), { overview: on("print-overview"), templates: on("print-templates"), parts: on("print-parts"), cutting: on("print-cutting"), wiring: on("print-wiring"), only: onlySel.checked ? only : undefined });
+        // after the dialog has closed
+        setTimeout(() => printNow(doc), 50);
+      } },
+    ]);
   }
 
   async exportSvg() {
@@ -1738,6 +1771,7 @@ export class App {
       { label: "Save as…", kbd: "Ctrl+Shift+S", run: () => this.save(true) },
       "-",
       { label: "Export image (PNG)…", run: () => this.exportPng() },
+      { label: "Print…", kbd: "Ctrl+P", run: () => this.showPrint() },
       { label: "Export true-scale drawing (SVG)…", run: () => this.exportSvg() },
       { label: "Parts list…", run: () => this.showPartsList() },
       "-",

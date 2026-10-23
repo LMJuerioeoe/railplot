@@ -424,6 +424,28 @@ table.keys td:first-child { width: 1%; white-space: nowrap; }
   body.printing-shunt .dialog-head, body.printing-shunt .dialog-foot, body.printing-shunt .shunt > :not(.shunt-print) { display: none !important; }
 }
 
+/* The print-out (File > Print): only ever on paper */
+.print-doc { display: none; }
+.check.sub { margin-left: 24px; }
+@page { size: A4 portrait; margin: 10mm; }
+@media print {
+  body.printing-doc > *:not(.print-doc) { display: none !important; }
+  body.printing-doc { background: #fff; overflow: visible; height: auto; }
+  body.printing-doc .print-doc { display: block; color: #000; font: 10pt/1.4 var(--font-ui); }
+  .print-page { break-after: page; page-break-after: always; }
+  .print-page:last-child { break-after: auto; page-break-after: auto; }
+  .print-page h1 { font-size: 18pt; margin: 0 0 2mm; }
+  .print-page h2 { font-size: 14pt; margin: 0 0 4mm; }
+  .print-sub, .print-note { color: #333; margin: 0 0 4mm; }
+  .print-fig svg { width: 100%; height: auto; max-height: 200mm; }
+  .print-label { font-size: 8pt; height: 6mm; color: #222; }
+  .print-template svg { display: block; width: 190mm; height: 265mm; }
+  .print-table { width: 100%; border-collapse: collapse; }
+  .print-table th, .print-table td { border-bottom: 0.3mm solid #999; padding: 1.2mm 2mm; text-align: left; vertical-align: top; }
+  .print-table .num { text-align: right; white-space: nowrap; }
+  .print-table thead th { border-bottom: 0.5mm solid #000; }
+}
+
 /* Wiring diagram */
 .wiring-svg { overflow: auto; max-height: 65vh; border: 1px solid var(--line); border-radius: var(--r); background: #fff; }
 .wiring-svg svg { display: block; max-width: 100%; height: auto; }
