@@ -2,7 +2,7 @@
 // cameras that follow a train. It runs over the 3D view and the control loop that already exist.
 import type { App } from "../app";
 import { SimLink } from "../control/link";
-import { quickStart } from "../control/engine";
+import { pointLabel, quickStart } from "../control/engine";
 import { h, clear } from "../ui/dom";
 import { closeDialog, confirmDialog, dialog, toast } from "../ui/dialogs";
 import { store } from "../platform";
@@ -765,10 +765,11 @@ export class DriveView {
     r.speedBox?.classList.toggle("over", m > 1 || !!c?.held);
     const dead = w.noPower(this.train);
     if (r.tag) {
-      const e = this.ctl.engine, wait = c?.waiting, by = wait ? e.train(e.claimedBy.get(wait) ?? "") : undefined;
-      r.tag.hidden = !(dead || m >= 0.85 || c?.held || wait);
-      r.tag.textContent = dead ? "No power" : wait ? "Waiting" : c?.held ? "Held" : "Curve";
+      const e = this.ctl.engine, wait = c?.waiting, by = wait ? e.train(e.claimedBy.get(wait) ?? e.held.get(wait) ?? "") : undefined, pt = c?.waitPoint;
+      r.tag.hidden = !(dead || m >= 0.85 || c?.held || wait || pt);
+      r.tag.textContent = dead ? "No power" : wait || pt ? "Waiting" : c?.held ? "Held" : "Curve";
       r.tag.title = dead ? "This track is in no block, so it gets no power. Add it to a block in Control > Set up > Blocks."
+        : pt ? `${pointLabel(this.app.p, this.ctl.cfg, pt)} ahead is set against it: throw it to go on (P throws the point ahead).`
         : wait ? (by ? `${e.blockName(wait)} ahead is ${by.name}'s: it goes on when that's clear.` : `${e.blockName(wait)} ahead isn't free: a signal at stop, a fault, or another train heading for it.`) : "";
     }
     this.syncHud();

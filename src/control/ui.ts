@@ -586,8 +586,9 @@ export class ControlUI {
           h("strong", {}, t.name),
           this.liveText(() => {
             if (!t.block) return "not placed";
-            const wait = this.app.drive.world()?.consistOf(t.id)?.waiting, by = wait && e.train(e.claimedBy.get(wait) ?? "");
-            return `in ${e.blockName(t.block)}${wait ? ` · waiting for ${e.blockName(wait)}${by ? ` (${by.name})` : ""}` : ""}`;
+            const c = this.app.drive.world()?.consistOf(t.id), wait = c?.waiting, by = wait && e.train(e.claimedBy.get(wait) ?? e.held.get(wait) ?? "");
+            const why = wait ? ` · waiting for ${e.blockName(wait)}${by ? ` (${by.name})` : ""}` : c?.waitPoint ? ` · waiting: ${pointLabel(this.app.p, this.cfg, c.waitPoint)} is set against it` : "";
+            return `in ${e.blockName(t.block)}${why}`;
           }, "muted small"),
           this.liveText(() => `${Math.round(Math.abs(e.run(t.id).speed) * 100)}%`, "train-speed mono")),
         h("div", { class: "train-ctl" }, dirBtn(-1, "Back", "left"), slider, dirBtn(1, "Forward", "right")),
@@ -861,6 +862,8 @@ export class ControlUI {
         ...([["realistic", "Realistic"], ["forgiving", "Forgiving"], ["off", "Off: hold trains at the limit"]] as const).map(([v, t]) => h("option", { value: v, selected: (cfg.derailments ?? "realistic") === v }, t)));
       el.append(sec("Simulator",
         h("div", { class: "setup-row" }, h("span", { class: "small grow" }, "Derailments"), mode),
+        h("label", { class: "check" }, h("input", { id: "sim-point-guard", type: "checkbox", checked: !!cfg.pointGuard, onchange: (ev: Event) => { cfg.pointGuard = (ev.target as HTMLInputElement).checked || undefined; this.commitSetup(); } }),
+          "Trains stop short of a point set against them"),
         h("p", { class: "muted small" }, "Simulated trains come off when driven too fast round a curve, through a point set against them, or into the end of the line. Forgiving lets them take curves half as fast again and run through points at walking pace. Re-rail them in Drive in 3D.")));
     }
 

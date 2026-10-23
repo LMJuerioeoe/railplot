@@ -151,6 +151,8 @@ export interface ControlConfig {
   consists?: ConsistCfg[];
   /** In the simulator: how forgiving derailments are (default "realistic"). */
   derailments?: "off" | "forgiving" | "realistic";
+  /** In the simulator: trains stop short of a point set against them instead of running through it. */
+  pointGuard?: boolean;
   /** Through a Railplot hub, let Claude set routes, points, signals and lights, drive trains and run automations (never track power). */
   claude?: boolean;
   nextId: number;

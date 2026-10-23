@@ -38,6 +38,8 @@ export interface Consist {
   held?: boolean;
   /** Slowing for, or stopped at, a block ahead that another train has: that block. */
   waiting?: string;
+  /** Slowing for, or stopped at, a point ahead set against it (with the point guard on): that point. */
+  waitPoint?: string;
 }
 
 export type DerailCause = "curve" | "trailing" | "open-end" | "collision";
@@ -107,7 +109,7 @@ export interface WorldSnap {
     id: string; train?: string; auto?: boolean; v: Vehicle[];
     at: [string, number, number, 1 | -1][];   // item, route, s, dir: each vehicle's centre
     sp: number; tr: 1 | -1; odo: number;
-    d?: Derailment; held?: boolean; w?: string;
+    d?: Derailment; held?: boolean; w?: string; wp?: string;
   }[];
 }
 
@@ -456,7 +458,7 @@ export class World {
         id: c.id, train: c.train, auto: c.auto || undefined, v: c.vehicles,
         at: c.at.map((a): [string, number, number, 1 | -1] => [a.item, a.route, r1(a.s), a.dir]),
         sp: r1(c.speed), tr: c.travel, odo: r1(c.odo ?? 0),
-        d: c.derailed, held: c.held || undefined, w: c.waiting,
+        d: c.derailed, held: c.held || undefined, w: c.waiting, wp: c.waitPoint,
       })),
     };
   }
@@ -468,7 +470,7 @@ export class World {
     this.consists = s.c.map((x) => ({
       id: x.id, train: x.train, auto: x.auto, vehicles: x.v,
       at: x.at.map(([item, route, s, dir]) => ({ item, route, s, dir })).filter((a) => this.graph.has(a)),
-      speed: x.sp, travel: x.tr, lastSign: 0, odo: x.odo, derailed: x.d, held: x.held, waiting: x.w,
+      speed: x.sp, travel: x.tr, lastSign: 0, odo: x.odo, derailed: x.d, held: x.held, waiting: x.w, waitPoint: x.wp,
     })).map((c) => (c.at.length === c.vehicles.length ? c : { ...c, at: [] }));
     this.lastClock = nowMs;
   }
@@ -555,14 +557,16 @@ export class World {
    * How far a train can run the way it's going before its leading end reaches another train's block (one
    * given to it, or with some of its vehicles in), within `reach` mm; Infinity if there's none that near.
    */
-  private roomAhead(c: Consist, reach: number): { room: number; block?: string } {
-    const e = this.engine(), way = c.travel, i = way === 1 ? 0 : c.at.length - 1;
+  private roomAhead(c: Consist, reach: number): { room: number; block?: string; point?: string } {
+    const e = this.engine(), way = c.travel, i = way === 1 ? 0 : c.at.length - 1, guard = !!e.cfg.pointGuard;
     let pos = this.graph.advance(c.at[i], way * c.vehicles[i].length / 2, this.points).pos;
     for (let d = 0; d <= reach; d += 8) {
       const b = e.topo.blockOfItem.get(pos.item);
       const other = b && (e.claimedBy.get(b) ?? e.held.get(b));
       if (other && other !== c.train) return { room: d, block: b };
       const r = this.graph.advance(pos, way * 8, this.points);
+      // with the point guard on, a point set against it stops it like a signal at danger
+      if (guard && r.trailed) return { room: d, point: r.trailed };
       if (r.stop) break;
       pos = r.pos;
     }
@@ -630,13 +634,14 @@ export class World {
       c.speed += (target - c.speed) * Math.min(1, dt / MOTOR_LAG);
       if (Math.abs(c.speed) < 0.01 && target === 0) c.speed = 0;
       // a train coming up to a block that isn't its own brakes, to stand short of it
-      c.waiting = undefined;
+      c.waiting = undefined; c.waitPoint = undefined;
       if (c.train && (c.speed * c.travel > 0 || target * c.travel > 0)) {
         const ahead = this.roomAhead(c, (this.fullSpeed * this.fullSpeed) / (2 * BRAKE) + 40);
         if (ahead.room < Infinity) {
           const vmax = Math.sqrt(2 * BRAKE * Math.max(0, ahead.room - STAND_OFF));
-          if (Math.abs(c.speed) >= vmax) { c.speed = Math.sign(c.speed) * vmax; c.waiting = ahead.block; }
-          if (vmax < 1) { c.speed = 0; c.waiting = ahead.block; }
+          const wait = () => { c.waiting = ahead.block; c.waitPoint = ahead.point; };
+          if (Math.abs(c.speed) >= vmax) { c.speed = Math.sign(c.speed) * vmax; wait(); }
+          if (vmax < 1) { c.speed = 0; wait(); }
         }
       }
       // the tightest curve under any vehicle
