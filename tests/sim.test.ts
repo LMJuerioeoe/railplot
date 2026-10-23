@@ -222,6 +222,30 @@ test("BUG-013: after running off at a point, 're-rail where it last stood' puts 
   expect(e.faults.size).toBe(0);
 });
 
+test("BUG-014: a loco on track that's in no block has no power, and the world says so", () => {
+  const p = buildSample();
+  const { quickStart } = require("../src/control/engine");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const t = cfg.trains[0];
+  const w0 = worldFor(new ControlEngine(p, cfg));
+  w0.advanceTo(0);
+  const here = w0.consistOf(t.id)!.at[0].item;
+  cfg.blocks[0].items = cfg.blocks[0].items.filter((i: string) => i !== here);   // laid after the block was set up
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  w.advanceTo(0);
+  const c = w.consistOf(t.id)!;
+  c.at = [w.graph.middleOf(here)!];
+  expect(w.noPower(t.id)).toBe(true);
+  e.setThrottle(t.id, 0.5);
+  for (let k = 0; k < 30; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  expect(c.speed).toBe(0);
+  cfg.blocks[0].items.push(here);
+  const e2 = new ControlEngine(p, cfg);
+  expect(worldFor(e2).noPower(t.id)).toBe(false);
+});
+
 describe("making up trains, placing, coupling", () => {
   /** A straight line of eight Setrack straights, one block, one train, nothing in the way. */
   function line(mode: "off" | "forgiving" | "realistic" = "realistic") {
