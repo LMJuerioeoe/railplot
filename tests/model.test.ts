@@ -232,3 +232,38 @@ describe("geometry helpers", () => {
     expect(triangulate(pts).length).toBe(12);
   });
 });
+
+describe("opening damaged and older files", () => {
+  const { readProject, serialize } = require("../src/io");
+  const { buildSample, buildControlDemo } = require("../src/sample");
+  test("a sound file opens with nothing to put right", () => {
+    expect(readProject(serialize(buildSample())).notes).toEqual([]);
+    expect(readProject(serialize(buildControlDemo())).notes).toEqual([]);
+  });
+  test("what would stop a plan working is put right, and said", () => {
+    const d = JSON.parse(serialize(buildControlDemo()));
+    d.items[1].id = d.items[0].id;              // two pieces with one id
+    d.items[2].layer = "gone";                  // a layer that's gone
+    d.items[3].x = null;                        // a piece with no position
+    d.boards.push({ id: "bx", name: "Scrap", pts: [{ x: 0, y: 0 }] });
+    d.control.trains[0].block = "nowhere";
+    d.control.signals.push({ ...d.control.signals[0], id: "gx", from: "nowhere" });
+    delete d.control.lights;
+    const { p, notes } = readProject(JSON.stringify(d));
+    expect(new Set(p.items.map((i: any) => i.id)).size).toBe(p.items.length);
+    expect(p.items.every((i: any) => p.layers.some((l: any) => l.id === i.layer))).toBe(true);
+    expect(p.items.length).toBe(d.items.length - 1);
+    expect(p.boards.some((b: any) => b.id === "bx")).toBe(false);
+    expect(p.control.trains[0].block).toBeUndefined();
+    expect(p.control.signals.some((g: any) => g.id === "gx")).toBe(false);
+    expect(p.control.lights).toEqual([]);
+    expect(notes.length).toBe(6);
+    // and it comes out sound
+    expect(readProject(serialize(p)).notes).toEqual([]);
+  });
+  test("a file from a newer Railplot says so", () => {
+    const d = JSON.parse(serialize(buildSample()));
+    d.version = 99;
+    expect(() => readProject(JSON.stringify(d))).toThrow(/newer Railplot/);
+  });
+});

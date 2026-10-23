@@ -7,10 +7,10 @@ import { fmtLen, toScreen, View } from "../render2d";
 import { clear, h, icon } from "../ui/dom";
 import { dialog, field, numInput, toast } from "../ui/dialogs";
 import {
-  Aspect, ControlEngine, addBlock, addController, addLight, addSensorsAtBoundaries, addSignal, addTrain, controlWarnings, inputWhere,
+  Aspect, ControlEngine, addBlock, addController, addLight, addSensorsAtBoundaries, addSignal, addSignalsAtBoundaries, addTrain, clockOf, clockText, controlWarnings, inputWhere,
   outputWhere, pointLabel, quickStart, servoWhere, syncPoints, syncSensors, topology, wiringList, BLOCK_PINS,
 } from "./engine";
-import { CLIENT_ID, Link, SimLink, baseUrl, makeLink, uploadFile, webSerialSupported } from "./link";
+import { BrowserDccExLink, CLIENT_ID, Link, SerialPortInfo, SimLink, baseUrl, desktopSerial, listSerialPorts, makeLink, uploadFile, usbSupported, webSerialSupported } from "./link";
 import { ControlRuntime } from "./runtime";
 import { Cmd, LinkSummary, applyCommand, applySnapshot } from "./remote";
 import { HubClient, hubBase, hubStatus } from "./hubclient";
@@ -18,6 +18,7 @@ import { renderAuto } from "./autoui";
 import { divideForTrains } from "./divide";
 import { Feed, Joiner, feeds, joiners, wiringSvg } from "./wiringplan";
 import { ORIGINAL_HTML } from "../original";
+import { worldFor } from "../sim/world";
 import { ControlConfig, DCCEX_CAB_BASE, channelName, channelsOf, emptyControl } from "./types";
 
 type SetupTool = { kind: "block"; id: string } | { kind: "signal" } | { kind: "place"; train: string } | null;
@@ -125,6 +126,15 @@ export class ControlUI {
     return Promise.resolve(err);
   }
 
+  /**
+   * Send a command that changes the simulator's rolling stock to the hub, after this window's edits not
+   * sent yet (a rake just made up has to be on the hub before it can be put on the track there).
+   */
+  async sendStock(cmd: Cmd): Promise<string | null> {
+    if (this.pushTimer) { clearTimeout(this.pushTimer); this.pushTimer = 0; await this.pushLayout(false); }
+    return this.act(cmd);
+  }
+
   /** Run a command, then redraw the panel and the plan. */
   private doAndRender(cmd: Cmd, ok?: string) {
     this.act(cmd).then((err) => { if (!err && ok) toast(ok); this.render(); this.app.render(); });
@@ -148,9 +158,12 @@ export class ControlUI {
     this.hub = hub;
     try { if (host) localStorage.setItem(HUB_KEY, host); } catch { /* not kept */ }
     hub.onEvent = (t) => toast(t);
+    let sim = false;
     hub.onSnapshot = (s) => {
       if (s.v !== hub.version && !this.pulling) this.pullLayout();
       else if (!this.pulling) applySnapshot(this.engine, s);
+      // the hub's simulator came or went: Drive in 3D comes and goes with it
+      if (!!s.world !== sim) { sim = !!s.world; this.render(); }
     };
     this.rt.setSuspended(true);
     if (useHubLayout) await this.pullLayout();
@@ -165,6 +178,7 @@ export class ControlUI {
     if (!this.hub) return;
     this.hub.close();
     this.hub = null;
+    worldFor(this.engine).unmirror();
     this.rt.setSuspended(false);
     this.onProjectChanged();
     if (notify) { toast("Disconnected from the hub. This device drives the controllers again."); this.render(); }
@@ -501,7 +515,7 @@ export class ControlUI {
         const text = !st ? `${c.name}: connecting…` : !st.online ? `${c.name}: offline` : st.accepted ? `${c.name}: driving` : c.kind === "dccex" ? `${c.name}: not answering` : `${c.name}: another device is driving`;
         wrap.append(h("span", { class: `chip chip-${kind}`, title: st?.message ?? "" }, text));
         if (st?.online && !st.accepted && c.kind === "esp32") wrap.append(h("button", { class: "btn btn-sm", type: "button", onclick: () => { this.act({ c: "take", controller: c.id }); toast(`Taking over ${c.name}…`); } }, "Take over"));
-        if (c.kind === "dccex" && !this.hub && c.conn !== "net" && !st?.online && webSerialSupported()) wrap.append(h("button", { class: "btn btn-sm", type: "button", onclick: () => this.connectUsb(c.id) }, "Connect USB"));
+        if (c.kind === "dccex" && !this.hub && c.conn !== "net" && !st?.online && usbSupported()) wrap.append(h("button", { class: "btn btn-sm", type: "button", onclick: () => this.connectUsb(c.id) }, "Connect USB"));
       }
       if (!this.engine.powerOn) {
         wrap.append(h("span", { class: "chip chip-warn" }, "Track power off"),
@@ -524,6 +538,30 @@ export class ControlUI {
   async connectUsb(controllerId: string) {
     const l = this.links.get(controllerId);
     if (!l?.connect) return;
+    // the desktop app opens ports itself: the only USB port there is, or the one picked from a list
+    if (!webSerialSupported() && desktopSerial() && l instanceof BrowserDccExLink) {
+      let ports: SerialPortInfo[];
+      try { ports = (await listSerialPorts()).sort((a, b) => Number(b.usb) - Number(a.usb)); }
+      catch (e) { toast(`Couldn't list the USB ports: ${(e as Error).message ?? e}`, "error"); return; }
+      if (!ports.length) { toast("No USB serial port found. Is the command station plugged in and switched on?", "error"); return; }
+      const open = async (name: string) => {
+        try {
+          await l.connectPort(name);
+          const c = this.cfg.controllers.find((x) => x.id === controllerId);
+          if (c && c.host !== name) { c.host = name; this.commitSetup(); }   // opened again by itself next time
+          toast(`Connected to DCC-EX on ${name}.`);
+        } catch (e) { toast((e as Error).message, "error"); }
+        this.render();
+      };
+      const usb = ports.filter((p) => p.usb);
+      if (usb.length === 1) { await open(usb[0].name); return; }
+      const pick = h("select", { id: "usb-port", "aria-label": "Port" }, ...ports.map((p) => h("option", { value: p.name }, `${p.name}${p.description ? ` (${p.description})` : p.usb ? "" : " (not USB)"}`))) as HTMLSelectElement;
+      dialog("Connect USB", h("div", { class: "form-grid" }, field("Which port is the command station on?", pick)), [
+        { label: "Cancel" },
+        { label: "Connect", primary: true, onClick: () => { open(pick.value); } },
+      ]);
+      return;
+    }
     try { await l.connect(); toast("Connected to DCC-EX over USB."); }
     catch (e) { if ((e as Error).name !== "NotFoundError") toast((e as Error).message, "error"); }
     this.render();
@@ -532,11 +570,13 @@ export class ControlUI {
   private renderDrive(el: HTMLElement) {
     const cfg = this.cfg, e = this.engine;
     el.append(this.statusChips());
+    if ((cfg.automations ?? []).some((a) => a.steps.some((s) => s.do === "waitTime")))
+      el.append(h("div", { class: "drive-clock" }, h("span", { class: "muted small" }, "Layout clock "), this.liveText(() => clockText(e.time || clockOf(cfg).start * 60), "layout-clock mono")));
     el.append(h("div", { class: "btn-row stop-row" },
       h("button", { class: "btn stop-all", type: "button", onclick: () => this.doAndRender({ c: "stopAll" }, "All trains stopped.") },
         h("span", { html: icon("close", 18) }), "Stop all trains", h("kbd", {}, "Space")),
       e.powerOn ? h("button", { class: "btn btn-sm", type: "button", title: "Turn the track power off, like the power button on a DCC throttle", onclick: () => this.doAndRender({ c: "power", on: false }, "Track power off.") }, "Power off") : null));
-    if (cfg.controllers.some((c) => c.kind === "sim") && !this.hub && cfg.trains.some((t) => t.block))
+    if (cfg.controllers.some((c) => c.kind === "sim") && (this.hub ? !!this.hub.snap?.world : true) && cfg.trains.some((t) => t.block))
       el.append(h("div", { class: "btn-row" }, h("button", { class: "btn", type: "button", id: "drive-3d", title: "Drive the simulated trains in 3D (D)", onclick: () => this.app.drive.start(), html: `${icon("cube", 16)}<span>Drive in 3D</span>` })));
     if (!cfg.trains.length || !cfg.blocks.length) {
       el.append(h("div", { class: "ctl-empty" },
@@ -572,8 +612,9 @@ export class ControlUI {
           h("strong", {}, t.name),
           this.liveText(() => {
             if (!t.block) return "not placed";
-            const wait = this.app.drive.world()?.consistOf(t.id)?.waiting, by = wait && e.train(e.claimedBy.get(wait) ?? "");
-            return `in ${e.blockName(t.block)}${wait ? ` · waiting for ${e.blockName(wait)}${by ? ` (${by.name})` : ""}` : ""}`;
+            const c = this.app.drive.world()?.consistOf(t.id), wait = c?.waiting, by = wait && e.train(e.claimedBy.get(wait) ?? e.held.get(wait) ?? "");
+            const why = wait ? ` · waiting for ${e.blockName(wait)}${by ? ` (${by.name})` : ""}` : c?.waitPoint ? ` · waiting: ${pointLabel(this.app.p, this.cfg, c.waitPoint)} is set against it` : "";
+            return `in ${e.blockName(t.block)}${why}`;
           }, "muted small"),
           this.liveText(() => `${Math.round(Math.abs(e.run(t.id).speed) * 100)}%`, "train-speed mono")),
         h("div", { class: "train-ctl" }, dirBtn(-1, "Back", "left"), slider, dirBtn(1, "Forward", "right")),
@@ -763,10 +804,10 @@ export class ControlUI {
         return h("div", { class: "dccex-setup" },
           h("div", { class: "setup-row" }, name, conn, remove),
           h("div", { class: "setup-row" }, host, field("Cab for track A", cab),
-            c.conn !== "net" && !this.hub ? h("button", { class: "btn btn-sm", type: "button", disabled: !webSerialSupported(), title: webSerialSupported() ? "" : "Needs Chrome or Edge on a computer", onclick: () => this.connectUsb(c.id) }, "Connect USB") : null),
+            c.conn !== "net" && !this.hub ? h("button", { class: "btn btn-sm", type: "button", disabled: !usbSupported(), title: usbSupported() ? "" : "Needs Chrome or Edge on a computer, or the desktop app", onclick: () => this.connectUsb(c.id) }, "Connect USB") : null),
           h("p", { class: "muted small" }, c.conn === "net"
             ? "Over Wi-Fi or Ethernet, DCC-EX listens on port 2560. A browser can't open that connection, so network DCC-EX needs the Railplot hub."
-            : this.hub ? "Plugged into the hub's computer: put its serial port in the address box (for example /dev/ttyACM0 on a Raspberry Pi)." : "Plugged into this computer: press Connect USB (Chrome or Edge). The desktop app can't reach USB yet; open the offline file in Chrome or Edge, or use the hub."));
+            : this.hub ? "Plugged into the hub's computer: put its serial port in the address box (for example /dev/ttyACM0 on a Raspberry Pi)." : "Plugged into this computer: press Connect USB, in the desktop app or in Chrome or Edge. The desktop app opens the same port again by itself next time."));
       }),
       h("div", { class: "btn-row" },
         h("button", { class: "btn btn-sm", type: "button", onclick: () => { addController(cfg, "esp32", cfg.controllers.some((c) => c.kind === "esp32") ? `railplot-${cfg.controllers.filter((c) => c.kind === "esp32").length + 1}.local` : "railplot.local"); this.commitSetup(); this.render(); } }, "Add ESP32 controller"),
@@ -847,6 +888,8 @@ export class ControlUI {
         ...([["realistic", "Realistic"], ["forgiving", "Forgiving"], ["off", "Off: hold trains at the limit"]] as const).map(([v, t]) => h("option", { value: v, selected: (cfg.derailments ?? "realistic") === v }, t)));
       el.append(sec("Simulator",
         h("div", { class: "setup-row" }, h("span", { class: "small grow" }, "Derailments"), mode),
+        h("label", { class: "check" }, h("input", { id: "sim-point-guard", type: "checkbox", checked: !!cfg.pointGuard, onchange: (ev: Event) => { cfg.pointGuard = (ev.target as HTMLInputElement).checked || undefined; this.commitSetup(); } }),
+          "Trains stop short of a point set against them"),
         h("p", { class: "muted small" }, "Simulated trains come off when driven too fast round a curve, through a point set against them, or into the end of the line. Forgiving lets them take curves half as fast again and run through points at walking pace. Re-rail them in Drive in 3D.")));
     }
 
@@ -878,7 +921,12 @@ export class ControlUI {
         ...(["red", "yellow", "green"] as const).map((col) => h("label", { class: `led led-${col}` }, h("span", { class: "sr-only" }, `${col} LED output`),
           num(`g${col}-${s.id}`, s[col], (v) => { s[col] = v; }, { "aria-label": `${col} LED output`, title: kindOf(s.controller) === "dccex" ? `${col} LED VPIN` : `${col} LED output`, placeholder: "–" }))),
         del("Delete signal", () => { cfg.signals = cfg.signals.filter((x) => x !== s); }))),
-      cfg.blocks.length > 1 ? h("div", { class: "btn-row" }, h("button", { class: `btn btn-sm ${this.tool?.kind === "signal" ? "btn-primary" : ""}`, type: "button", onclick: () => { this.tool = { kind: "signal" }; this.render(); toast("Tap the track just before a block joint, on the side trains come from."); } }, "Add signal")) : h("p", { class: "muted small" }, "Signals need two or more blocks.")));
+      cfg.blocks.length > 1 ? h("div", { class: "btn-row" },
+        h("button", { class: `btn btn-sm ${this.tool?.kind === "signal" ? "btn-primary" : ""}`, type: "button", onclick: () => { this.tool = { kind: "signal" }; this.render(); toast("Tap the track just before a block joint, on the side trains come from."); } }, "Add signal"),
+        h("button", { class: "btn btn-sm", type: "button", id: "signals-everywhere", onclick: () => {
+          const n = addSignalsAtBoundaries(p, cfg); this.commitSetup(); this.render();
+          toast(n ? `${n} signal${n === 1 ? "" : "s"} added: one each way at every block joint. They show red when the block beyond isn't free, and simulated trains stop at them.` : "Every block joint already has its signals.");
+        } }, "Signals at every block joint")) : h("p", { class: "muted small" }, "Signals need two or more blocks.")));
 
     // lights
     el.append(sec("Lights",

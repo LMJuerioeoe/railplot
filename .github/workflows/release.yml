@@ -15,8 +15,17 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
+            args: ""
           - platform: ubuntu-22.04
+            args: ""
+          # one app for both Apple silicon and Intel Macs
+          - platform: macos-latest
+            args: "--target universal-apple-darwin --bundles app,dmg"
     runs-on: ${{ matrix.platform }}
+    env:
+      # whether the signing certificates are set up (secrets can't be tested in a step's if)
+      HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
     steps:
       - uses: actions/checkout@v5
       - name: Linux build dependencies
@@ -26,6 +35,8 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -37,6 +48,37 @@ jobs:
         env:
           TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
         run: bun scripts/updater-config.ts
+      # Code signing, so Windows and macOS don't warn about an unknown publisher: needs certificates
+      # (see "Releasing" in the README). Without them the installers are built unsigned, as before.
+      - name: Windows code signing
+        if: matrix.platform == 'windows-latest' && env.HAS_WINDOWS_CERT == 'true'
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "cert.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $pw = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+          Remove-Item $pfx
+          $env:WINDOWS_CERTIFICATE_THUMBPRINT = $cert.Thumbprint
+          bun scripts/windows-signing.ts
+      - name: macOS code signing and notarising
+        if: matrix.platform == 'macos-latest' && env.HAS_APPLE_CERT == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        # the bundler signs and notarises when these are in its environment
+        run: |
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            delim="EOF_$RANDOM$RANDOM"
+            { echo "$v<<$delim"; printenv "$v"; echo "$delim"; } >> "$GITHUB_ENV"
+          done
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,8 +88,9 @@ jobs:
           tauriScript: bunx tauri
           tagName: ${{ github.ref_name }}
           releaseName: Railplot ${{ github.ref_name }}
-          releaseBody: See the README for what's new. Windows users want the -setup.exe; the .html file runs in any browser without installing. The railplot-claude-*.mcpb files add the Railplot connector to the Claude desktop app.
+          releaseBody: See the README for what's new. Windows users want the -setup.exe, Mac users the .dmg; the .html file runs in any browser without installing. The railplot-claude-*.mcpb files add the Railplot connector to the Claude desktop app.
           releaseDraft: true
+          args: ${{ matrix.args }}
       - name: Attach offline HTML
         if: matrix.platform == 'ubuntu-22.04' && startsWith(github.ref, 'refs/tags/')
         continue-on-error: true

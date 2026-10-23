@@ -14,7 +14,7 @@ import { EXAMPLES, buildExample } from "./examples";
 import { YardKind, YardOptions, buildYard, minYardLength, partName, roadSpacings, wagonLength, yardParts } from "./yards";
 import { History } from "./history";
 import { Proposal, applyProposal, describeProposal, rejectProposal, staleIds } from "./proposals";
-import { FileError, parseProject, serialize } from "./io";
+import { FileError, parseProject, readProject, serialize } from "./io";
 import { LabelMode, Palette, View, drawProject, fmtLen, hitItem, itemsInRect, projectToSvg, readPalette, toScreen, toWorldPt } from "./render2d";
 import { partThumb } from "./thumbs";
 import { LAYOUT_FILTER, hostedSave, isDesktop, isHosted, openText, saveBlob as rawSaveBlob, saveText, setWindowTitle, store } from "./platform";
@@ -22,6 +22,7 @@ import { buildControlDemo, buildSample } from "./sample";
 import { clear, h, icon } from "./ui/dom";
 import { closeDialog, confirmDialog, dialog, field, isDialogOpen, numInput, toast } from "./ui/dialogs";
 import { View3D } from "./view3d";
+import { printDocument, printNow, templatePages } from "./print";
 import { DriveView } from "./sim/driveui";
 import { trainFit } from "./trainfit";
 import { RELEASES_URL, desktopCanUpdate, desktopCheck, desktopInstall, installKind, latestRelease, newer } from "./update";
@@ -55,6 +56,12 @@ async function saveBlob(...args: Parameters<typeof rawSaveBlob>) {
 }
 
 const AUTOSAVE_KEY = "railplot.autosave.v1";
+/** The last autosave that opened, kept in case the newest one is damaged (a crash mid-write, a full disk). */
+const AUTOSAVE_BACKUP = "railplot.autosave.backup";
+/** A damaged autosave, kept so nothing is thrown away. */
+const AUTOSAVE_BROKEN = "railplot.autosave.broken";
+/** Set once the first-run tour has been seen through or put away. */
+const TOUR_KEY = "railplot.tour.v1";
 const PREFS_KEY = "railplot.prefs.v1";
 const PRICES_KEY = "railplot.prices.v1";
 const CURRENCY_KEY = "railplot.currency.v1";
@@ -77,7 +84,7 @@ function defaultCurrency(): string {
   if (region === "PL") return "zł";
   return "€";
 }
-const VERSION = "0.14.0";
+const VERSION = "1.0.0";
 
 export class App {
   p: Project = newProject();
@@ -156,19 +163,33 @@ export class App {
   // ---------- boot / persistence ----------
 
   private boot() {
-    const saved = store.get(AUTOSAVE_KEY);
-    let loaded = false;
-    if (saved) {
+    // the plan as it was when Railplot last closed (or crashed): the newest autosave, else the one before it
+    const tryLoad = (text: string | null) => {
+      if (!text) return false;
       try {
-        const d = JSON.parse(saved);
-        this.p = parseProject(JSON.stringify(d.project));
+        const d = JSON.parse(text);
+        const r = readProject(JSON.stringify(d.project));
+        this.p = r.p;
         this.fileName = d.fileName ?? "";
         this.filePath = d.filePath;
         this.dirty = !!d.dirty;
-        loaded = true;
-      } catch { /* ignore a damaged autosave */ }
+        if (r.notes.length) setTimeout(() => toast(`Railplot put right some things in your plan: ${r.notes.join("; ")}.`), 800);
+        return true;
+      } catch { return false; }
+    };
+    const saved = store.get(AUTOSAVE_KEY);
+    let loaded = tryLoad(saved);
+    if (loaded) store.set(AUTOSAVE_BACKUP, saved!);
+    else if (saved) {
+      store.set(AUTOSAVE_BROKEN, saved);
+      loaded = tryLoad(store.get(AUTOSAVE_BACKUP));
+      setTimeout(() => toast(loaded
+        ? "Your last session's plan couldn't be read back, so Railplot opened the one before it. If you saved to a file, open that for your latest changes."
+        : "Your last session's plan couldn't be read back. If you saved to a file, open that.", "error"), 800);
     }
     if (!loaded) this.p = buildSample();
+    // the very first time: a short tour, in a corner, that doesn't get in the way
+    if (!loaded && !store.get(TOUR_KEY)) setTimeout(() => this.showTour(), 600);
     for (const x of this.p.proposals ?? []) this.seenProposals.add(x.id);
     this.ctl.onProjectChanged();
     this.hist.reset(this.p);
@@ -220,7 +241,9 @@ export class App {
       const path: string | null = await T.core.invoke("startup_file");
       if (!path) return;
       const text: string = await T.core.invoke("read_text_file", { path });
-      this.replaceProject(parseProject(text), path.split(/[\\/]/).pop(), path);
+      const { p, notes } = readProject(text);
+      this.replaceProject(p, path.split(/[\\/]/).pop(), path);
+      if (notes.length) toast(`Railplot put right some things in this layout: ${notes.join("; ")}. Save to keep them.`);
     } catch (err) {
       toast(err instanceof FileError ? err.message : `Couldn't open the file: ${(err as Error).message ?? err}`, "error");
     }
@@ -1111,6 +1134,7 @@ export class App {
         z: () => (e.shiftKey ? this.redo() : this.undo()), y: () => this.redo(),
         c: () => this.copy(), x: () => this.copy(true), v: () => this.paste(), a: () => this.selectAll(),
         s: () => this.save(e.shiftKey), o: () => this.openFile(), n: () => this.newFile(), d: () => { this.copy(); this.paste(); },
+        p: () => this.showPrint(),
       };
       if (map[lk]) { e.preventDefault(); map[lk](); }
       return;
@@ -1256,9 +1280,9 @@ export class App {
     try {
       const f = await openText(LAYOUT_FILTER);
       if (!f) return;
-      const p = parseProject(f.text);
+      const { p, notes } = readProject(f.text);
       this.replaceProject(p, f.name, f.path);
-      toast(`Opened ${f.name}.`);
+      toast(notes.length ? `Opened ${f.name}. Railplot put right some things in it: ${notes.join("; ")}. Save to keep them.` : `Opened ${f.name}.`);
     } catch (err) {
       toast(err instanceof FileError ? err.message : `Couldn't open the file: ${(err as Error).message}`, "error");
     }
@@ -1318,6 +1342,68 @@ export class App {
     const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
     if (!blob) { toast("Couldn't render the image.", "error"); return; }
     await saveBlob(`${this.p.name}.png`, blob, { name: "PNG image", extensions: ["png"], mime: "image/png" });
+  }
+
+  /**
+   * Three steps for someone new: planning, running trains, driving in 3D. A card in the corner of the
+   * plan, not a dialog, so the app can be used while it's open; put away for good once seen through.
+   */
+  showTour() {
+    this.el.workspace.querySelector(".tour")?.remove();
+    const steps: { title: string; text: string; act?: [string, () => void] }[] = [
+      { title: "Welcome to Railplot", text: "This is a sample layout: an oval with a passing loop. Pick track from the list on the left to add it at the arrow, drag pieces about, and press 3 to look round it in 3D. File > New starts your own." },
+      { title: "Run the trains", text: "Control runs the layout: real trains through a small controller, or a simulated one on screen. Try the simulator now, it needs nothing plugged in.", act: ["Open Control", () => this.setMode("control")] },
+      { title: "Drive in 3D", text: "With the simulator going, Drive in 3D puts you behind the train: E and Q (or the right and left arrows) open and close the throttle, C changes the camera, and P throws the point ahead.", act: ["Drive in 3D", () => this.drive.start()] },
+    ];
+    let i = 0;
+    const card = h("section", { class: "tour", role: "dialog", "aria-label": "Getting started", "aria-live": "polite" });
+    const done = () => { store.set(TOUR_KEY, "1"); card.remove(); };
+    const draw = () => {
+      const s = steps[i];
+      clear(card);
+      card.append(
+        h("div", { class: "tour-head" }, h("span", { class: "tour-step" }, `${i + 1} of ${steps.length}`), h("strong", {}, s.title),
+          h("button", { class: "icon-btn sm", type: "button", "aria-label": "Close the tour", title: "Close the tour", html: icon("close", 14), onclick: done })),
+        h("p", {}, s.text),
+        h("div", { class: "btn-row" },
+          s.act ? h("button", { class: "btn btn-sm", type: "button", onclick: () => s.act![1]() }, s.act[0]) : null,
+          h("span", { class: "grow" }),
+          i > 0 ? h("button", { class: "btn btn-sm", type: "button", onclick: () => { i--; draw(); } }, "Back") : null,
+          h("button", { class: "btn btn-sm btn-primary", type: "button", id: "tour-next", onclick: () => { if (i === steps.length - 1) done(); else { i++; draw(); } } }, i === steps.length - 1 ? "Done" : "Next")));
+    };
+    draw();
+    this.el.workspace.append(card);
+  }
+
+  /** Print the plan: an overview, the track at 1:1 on A4 pages, the parts, cutting and wiring lists. */
+  showPrint() {
+    if (!projectBounds(this.p)) { toast("Nothing to print yet."); return; }
+    const box = (id: string, label: string, on = true) => h("label", { class: "check" }, h("input", { type: "checkbox", id, checked: on }), label);
+    const picked = [...this.sel].filter((id) => this.p.items.some((i) => i.id === id));
+    const only = new Set(picked);
+    const count = h("span", { class: "muted small", id: "print-count" });
+    const onlySel = h("input", { type: "checkbox", id: "print-only", checked: false, disabled: !picked.length }) as HTMLInputElement;
+    const pages = () => { count.textContent = `${templatePages(this.p, onlySel.checked ? only : undefined).length} A4 pages`; };
+    onlySel.addEventListener("change", pages);
+    pages();
+    const wired = !!this.p.control?.controllers.some((c) => c.kind !== "sim");
+    const body = h("div", { class: "form-grid" },
+      box("print-overview", "The whole plan on one page"),
+      h("div", {}, box("print-templates", "The track at 1:1, to lay it from: "), count),
+      h("label", { class: "check sub" }, onlySel, picked.length ? `Only the ${picked.length} selected piece${picked.length === 1 ? "" : "s"}` : "Only the selected track (select some first)"),
+      box("print-parts", "Parts list"),
+      this.p.boards.length ? box("print-cutting", "Baseboard cutting list") : null,
+      wired ? box("print-wiring", "Wiring list") : null,
+      h("p", { class: "muted small" }, "Print at 100% (\"actual size\"). To make a PDF, choose \"Save as PDF\" as the printer."));
+    dialog("Print", body, [
+      { label: "Cancel" },
+      { label: "Print", primary: true, onClick: () => {
+        const on = (id: string) => !!(body.querySelector(`#${id}`) as HTMLInputElement | null)?.checked;
+        const doc = printDocument(this.p, printPalette(), { overview: on("print-overview"), templates: on("print-templates"), parts: on("print-parts"), cutting: on("print-cutting"), wiring: on("print-wiring"), only: onlySel.checked ? only : undefined });
+        // after the dialog has closed
+        setTimeout(() => printNow(doc), 50);
+      } },
+    ]);
   }
 
   async exportSvg() {
@@ -1548,7 +1634,7 @@ export class App {
       ["H", "Track heights and gradients"], ["L", "Cycle track labels"], ["3", "3D view"], ["R / Shift+R", "Rotate selection 15° clockwise / anticlockwise"],
       ["Arrows", "Nudge 1 mm (Shift: 10 mm), or change a selected height"], ["Del", "Delete selection"], ["Enter", "Finish flex track or baseboard"],
       ["Esc", "Cancel, then back to Select"], ["Home", "Zoom to fit"], ["Wheel / right-drag", "Zoom / pan"],
-      ["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+C, X, V, D", "Copy, cut, paste, duplicate"], ["Ctrl+S / Ctrl+Shift+S", "Save / save as"],
+      ["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+C, X, V, D", "Copy, cut, paste, duplicate"], ["Ctrl+S / Ctrl+Shift+S", "Save / save as"], ["Ctrl+P", "Print"],
     ];
     const drive: [string, string][] = [
       ["D", "Drive in 3D (from Control)"], ["1–9", "Pick a train"], ["E / Q, → / ←", "Throttle up / down (Shift: bigger steps)"],
@@ -1738,6 +1824,7 @@ export class App {
       { label: "Save as…", kbd: "Ctrl+Shift+S", run: () => this.save(true) },
       "-",
       { label: "Export image (PNG)…", run: () => this.exportPng() },
+      { label: "Print…", kbd: "Ctrl+P", run: () => this.showPrint() },
       { label: "Export true-scale drawing (SVG)…", run: () => this.exportSvg() },
       { label: "Parts list…", run: () => this.showPartsList() },
       "-",
@@ -1789,6 +1876,7 @@ export class App {
       { label: "New layer", run: () => { addLayer(this.p); this.commit(); } },
     ] },
     { label: "Help", items: [
+      { label: "Show the tour", run: () => this.showTour() },
       { label: "Keyboard shortcuts", run: () => this.showShortcuts() },
       { label: "Connect Claude…", run: () => this.showClaudeHelp() },
       { label: "Check for updates…", run: () => this.showUpdates() },

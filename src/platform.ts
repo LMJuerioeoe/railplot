@@ -8,6 +8,7 @@ declare global {
         open: (o: { multiple?: boolean; filters?: { name: string; extensions: string[] }[] }) => Promise<string | string[] | null>;
       };
       window?: { getCurrentWindow: () => { setTitle: (t: string) => Promise<void> } };
+      event?: { listen: <T>(name: string, cb: (e: { payload: T }) => void) => Promise<() => void> };
     };
     showSaveFilePicker?: (o: any) => Promise<any>;
   }

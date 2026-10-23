@@ -1,8 +1,8 @@
 // Commands and state snapshots: the same commands drive the local engine and a Railplot hub,
 // and a hub sends snapshots of its engine to every phone and laptop connected to it.
-import { worldFor } from "../sim/world";
+import { WorldSnap, worldFor } from "../sim/world";
 import { Aspect, AutoRun, ControlEngine } from "./engine";
-import { SignalMode } from "./types";
+import { SignalMode, TrackPosCfg } from "./types";
 
 export type Cmd =
   | { c: "throttle"; train: string; v: number }
@@ -19,7 +19,16 @@ export type Cmd =
   | { c: "auto"; id: string; run: boolean }
   | { c: "take"; controller: string }
   | { c: "rerail"; train: string; how?: "here" | "last-stop" }
-  | { c: "derailMode"; mode: "off" | "forgiving" | "realistic" };
+  | { c: "derailMode"; mode: "off" | "forgiving" | "realistic" }
+  | { c: "clock"; at?: number; ratio?: number }
+  // the simulator's rolling stock, from the 3D drive view
+  | { c: "placeConsist"; id: string; front: TrackPosCfg }
+  | { c: "uncouple"; id: string; after: number }
+  | { c: "turnRound"; id: string }
+  | { c: "removeConsist"; id: string };
+
+/** Commands that change the simulator's rolling stock (so the layout changes too). */
+export const STOCK_CMDS: Cmd["c"][] = ["placeConsist", "uncouple", "turnRound", "removeConsist"];
 
 export interface LinkSummary { online: boolean; accepted: boolean; message?: string; fw?: string }
 
@@ -39,6 +48,10 @@ export interface Snapshot {
   autos: [string, AutoRun][];
   links: [string, LinkSummary][];
   clients: number;
+  /** The layout clock, seconds after midnight. */
+  time?: number;
+  /** The simulator's trains and wagons, where they stand (a layout with the simulator only). */
+  world?: WorldSnap;
 }
 
 export interface CmdContext {
@@ -98,6 +111,28 @@ export function applyCommand(e: ControlEngine, cmd: Cmd, ctx: CmdContext = {}): 
       e.stopAuto(cmd.id);
       return null;
     case "take": ctx.take?.(cmd.controller); return null;
+    case "clock":
+      if ((cmd.at !== undefined && !Number.isFinite(cmd.at)) || (cmd.ratio !== undefined && !Number.isFinite(cmd.ratio))) return "That isn't a time.";
+      e.setClock(cmd.at, cmd.ratio);
+      return null;
+    case "placeConsist": {
+      const f = cmd.front;
+      if (!f || typeof f.item !== "string" || !Number.isFinite(f.s) || (f.dir !== 1 && f.dir !== -1)) return "That isn't a place on the track.";
+      return worldFor(e).placeConsist(cmd.id, { item: f.item, route: f.route | 0, s: f.s, dir: f.dir });
+    }
+    case "uncouple": return worldFor(e).uncouple(cmd.id, cmd.after | 0);
+    case "turnRound": {
+      const w = worldFor(e);
+      if (!w.consists.some((c) => c.id === cmd.id && c.at.length)) return "That isn't on the track.";
+      w.turnRound(cmd.id);
+      return null;
+    }
+    case "removeConsist": {
+      const w = worldFor(e);
+      if (!w.consists.some((c) => c.id === cmd.id && !c.train)) return "Only wagons on their own can be taken off.";
+      w.remove(cmd.id);
+      return null;
+    }
   }
   return "Unknown command.";
 }
@@ -118,6 +153,8 @@ export function snapshot(e: ControlEngine, v: number, links: [string, LinkSummar
     faults: [...e.faults],
     autos: [...e.autoRuns],
     links, clients,
+    time: Number.isNaN(e.time) ? undefined : Math.floor(e.time),
+    world: cfg.controllers.some((c) => c.kind === "sim") ? worldFor(e).snap() : undefined,
   };
 }
 
@@ -136,4 +173,6 @@ export function applySnapshot(e: ControlEngine, s: Snapshot) {
   e.sensorActive = new Set(s.sensors);
   e.faults = new Map(s.faults);
   e.autoRuns = new Map(s.autos);
+  if (s.time !== undefined) e.time = s.time;
+  if (s.world) worldFor(e).applySnap(s.world);
 }

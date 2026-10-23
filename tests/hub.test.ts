@@ -199,4 +199,47 @@ describe("the hub", () => {
     const bad = await fetch(`http://127.0.0.1:${port}/api/layout`, { method: "POST", body: "{}" });
     expect(bad.status).toBe(400);
   });
+
+  test("a window copies the hub's simulator to drive in 3D, and turns trains round there", async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/ws?cid=mirror`);
+    const states: any[] = [];
+    let results: any[] = [];
+    ws.onmessage = (ev) => { const m = JSON.parse(String(ev.data)); if (m.t === "state") states.push(m.s); if (m.t === "result") results.push(m); };
+    await new Promise((r) => (ws.onopen = r));
+    const ex = hub.p.control!.trains[1].id;
+    ws.send(JSON.stringify({ t: "cmd", id: 1, cmd: { c: "throttle", train: ex, v: 0.5 } }));
+    await Bun.sleep(1200);
+    const s = states[states.length - 1];
+    expect(s.world.c.length).toBeGreaterThanOrEqual(2);
+    // a window with the same layout shows the hub's trains where the hub has them
+    const text = await (await fetch(`http://127.0.0.1:${port}/api/layout`)).text();
+    const { parseProject } = await import("../src/io");
+    const { applySnapshot } = await import("../src/control/remote");
+    const { worldFor } = await import("../src/sim/world");
+    const p = parseProject(text), e = new ControlEngine(p, p.control!);
+    applySnapshot(e, s);
+    const w = worldFor(e), hw = worldFor(hub.engine);
+    expect(w.mirror).toBe(true);
+    const mine = w.consistOf(ex)!, theirs = s.world.c.find((c: any) => c.train === ex);
+    expect(mine.at[0].item).toBe(theirs.at[0][0]);
+    expect(mine.at[0].s).toBeCloseTo(theirs.at[0][2], 1);
+    expect(Math.abs(mine.speed)).toBeGreaterThan(50);
+    // between updates it runs on by itself
+    const before = mine.odo ?? 0;
+    w.advanceTo(performance.now() + 200);
+    expect(Math.abs((w.consistOf(ex)!.odo ?? 0) - before)).toBeGreaterThan(5);
+    // turning a train round is done on the hub, and the layout version moves on so windows fetch the stock
+    ws.send(JSON.stringify({ t: "cmd", id: 2, cmd: { c: "stopAll" } }));
+    await Bun.sleep(1500);
+    const v0 = hub.version, c = hw.consistOf(ex)!, front = c.vehicles[0].id;
+    results = [];
+    ws.send(JSON.stringify({ t: "cmd", id: 3, cmd: { c: "turnRound", id: c.id } }));
+    ws.send(JSON.stringify({ t: "cmd", id: 4, cmd: { c: "removeConsist", id: c.id } }));
+    await Bun.sleep(400);
+    expect(results.find((m) => m.id === 3).error).toBeNull();
+    expect(results.find((m) => m.id === 4).error).toMatch(/Only wagons/);
+    expect(hw.consistOf(ex)!.vehicles[hw.consistOf(ex)!.vehicles.length - 1].id).toBe(front);
+    if (c.vehicles.length > 1) expect(hub.version).toBeGreaterThan(v0);
+    ws.close();
+  });
 });

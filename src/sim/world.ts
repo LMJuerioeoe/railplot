@@ -38,6 +38,8 @@ export interface Consist {
   held?: boolean;
   /** Slowing for, or stopped at, a block ahead that another train has: that block. */
   waiting?: string;
+  /** Slowing for, or stopped at, a point ahead set against it (with the point guard on): that point. */
+  waitPoint?: string;
 }
 
 export type DerailCause = "curve" | "trailing" | "open-end" | "collision";
@@ -57,7 +59,7 @@ export interface Derailment {
 /** Sideways acceleration a vehicle stays on the rails at, mm/s² (realistic). About 0.6 m/s on second radius. */
 export const CURVE_ACCEL = 800;
 /** How hard a train brakes for a block ahead that isn't its own, mm/s², and how far short of it it stands, mm. */
-const BRAKE = 500, STAND_OFF = 6;
+const BRAKE = 500, STAND_OFF = 10;
 /** Running through a point set against the train, mm/s: forgiving lets a sprung point through at walking pace. */
 const TRAIL_SPEED = 80;
 /** Hitting the end of the line faster than this, mm/s, tips the front vehicle off (forgiving: 1.5 times). */
@@ -98,9 +100,29 @@ export function worldFor(engine: ControlEngine): World {
   return w;
 }
 
+/**
+ * The hub's simulator as sent to phones and laptops: every consist, its vehicles and where they stand,
+ * rounded to a tenth of a mm. Enough to draw it in 3D and to see what's where.
+ */
+export interface WorldSnap {
+  c: {
+    id: string; train?: string; auto?: boolean; v: Vehicle[];
+    at: [string, number, number, 1 | -1][];   // item, route, s, dir: each vehicle's centre
+    sp: number; tr: 1 | -1; odo: number;
+    d?: Derailment; held?: boolean; w?: string; wp?: string;
+  }[];
+}
+
+const r1 = (n: number) => Math.round(n * 10) / 10;
+
 export class World {
   graph!: TrackGraph;
   consists: Consist[] = [];
+  /**
+   * A copy of a hub's simulator, in a window connected to it: the consists come from the hub's snapshots,
+   * and between them each just runs on at its speed so it moves smoothly. Nothing is worked out here.
+   */
+  mirror = false;
   /** mm/s at full power: a typical OO or H0 loco on 12 V, about 0.8 m/s. */
   fullSpeed = 800;
   private graphKey = "";
@@ -121,10 +143,8 @@ export class World {
    */
   sync() {
     const e = this.engine(), p = e.p, cfg = e.cfg;
-    const key = `${p.nextId}|${p.items.length}|${p.items.map((i) => `${i.id}:${i.x.toFixed(2)},${i.y.toFixed(2)},${i.rot.toFixed(4)},${i.z.join("/")}`).join(";")}`;
-    if (key !== this.graphKey) {
-      this.graph = new TrackGraph(p);
-      this.graphKey = key;
+    if (this.mirror) { this.syncGraph(); return; }
+    if (this.syncGraph()) {
       // vehicles on track that has gone come off the layout (trains go back into their block below)
       this.consists = this.consists.filter((c) => c.at.every((a) => this.graph.has(a)));
     }
@@ -421,11 +441,65 @@ export class World {
   }
 
   /** Run the world up to a clock time in ms (fixed steps; a long gap is capped, so nothing jumps). */
+  /** Rebuild the track graph if the plan changed; true if it did. */
+  private syncGraph(): boolean {
+    const p = this.engine().p;
+    const key = `${p.nextId}|${p.items.length}|${p.items.map((i) => `${i.id}:${i.x.toFixed(2)},${i.y.toFixed(2)},${i.rot.toFixed(4)},${i.z.join("/")}`).join(";")}`;
+    if (key === this.graphKey) return false;
+    this.graph = new TrackGraph(p);
+    this.graphKey = key;
+    return true;
+  }
+
+  /** This simulator's state, for a hub to send to the windows connected to it. */
+  snap(): WorldSnap {
+    return {
+      c: this.consists.map((c) => ({
+        id: c.id, train: c.train, auto: c.auto || undefined, v: c.vehicles,
+        at: c.at.map((a): [string, number, number, 1 | -1] => [a.item, a.route, r1(a.s), a.dir]),
+        sp: r1(c.speed), tr: c.travel, odo: r1(c.odo ?? 0),
+        d: c.derailed, held: c.held || undefined, w: c.waiting, wp: c.waitPoint,
+      })),
+    };
+  }
+
+  /** Show a hub's simulator: this world becomes a copy of it (see `mirror`). */
+  applySnap(s: WorldSnap, nowMs = performance.now()) {
+    this.mirror = true;
+    this.syncGraph();
+    this.consists = s.c.map((x) => ({
+      id: x.id, train: x.train, auto: x.auto, vehicles: x.v,
+      at: x.at.map(([item, route, s, dir]) => ({ item, route, s, dir })).filter((a) => this.graph.has(a)),
+      speed: x.sp, travel: x.tr, lastSign: 0, odo: x.odo, derailed: x.d, held: x.held, waiting: x.w, waitPoint: x.wp,
+    })).map((c) => (c.at.length === c.vehicles.length ? c : { ...c, at: [] }));
+    this.lastClock = nowMs;
+  }
+
+  /** Stop copying a hub: the simulator here takes its trains from the layout again. */
+  unmirror() {
+    if (!this.mirror) return;
+    this.mirror = false;
+    this.consists = [];
+    this.lastClock = null;
+    this.sync();
+  }
+
   advanceTo(nowMs: number) {
     if (this.lastClock === null) { this.lastClock = nowMs; this.sync(); return; }
     const dt = Math.min(0.5, Math.max(0, (nowMs - this.lastClock) / 1000));
     if (dt <= 0) return;
     this.lastClock = nowMs;
+    if (this.mirror) {
+      // between the hub's updates each consist runs on as it was going (the next update puts it right)
+      this.syncGraph();
+      for (const c of this.consists) {
+        if (!c.speed || c.derailed || !c.at.length) continue;
+        const go = c.speed * Math.min(dt, 0.3);
+        c.at = c.at.map((a) => this.graph.advance(a, go, this.points).pos);
+        c.odo = (c.odo ?? 0) + go;
+      }
+      return;
+    }
     this.sync();
     this.chooseTravel();
     let left = dt;
@@ -483,14 +557,20 @@ export class World {
    * How far a train can run the way it's going before its leading end reaches another train's block (one
    * given to it, or with some of its vehicles in), within `reach` mm; Infinity if there's none that near.
    */
-  private roomAhead(c: Consist, reach: number): { room: number; block?: string } {
-    const e = this.engine(), way = c.travel, i = way === 1 ? 0 : c.at.length - 1;
+  private roomAhead(c: Consist, reach: number): { room: number; block?: string; point?: string } {
+    const e = this.engine(), way = c.travel, i = way === 1 ? 0 : c.at.length - 1, guard = !!e.cfg.pointGuard;
     let pos = this.graph.advance(c.at[i], way * c.vehicles[i].length / 2, this.points).pos;
-    for (let d = 0; d <= reach; d += 8) {
+    let last = e.topo.blockOfItem.get(pos.item);
+    for (let d = 0; d <= reach; d += 4) {
       const b = e.topo.blockOfItem.get(pos.item);
       const other = b && (e.claimedBy.get(b) ?? e.held.get(b));
       if (other && other !== c.train) return { room: d, block: b };
-      const r = this.graph.advance(pos, way * 8, this.points);
+      // a signal at danger into a block that isn't this train's: stand at it
+      if (b && last && b !== last && e.claimedBy.get(b) !== c.train && e.cfg.signals.some((s) => s.from === last && s.to === b && e.aspects.get(s.id) === "red")) return { room: d, block: b };
+      if (b) last = b;
+      const r = this.graph.advance(pos, way * 4, this.points);
+      // with the point guard on, a point set against it stops it like a signal at danger
+      if (guard && r.trailed) return { room: d, point: r.trailed };
       if (r.stop) break;
       pos = r.pos;
     }
@@ -517,7 +597,8 @@ export class World {
         const match = (way: 1 | -1) => { const seen = this.blocksAhead(c, way); let n = 0; while (n < rest.length && seen[n] === rest[n]) n++; return n; };
         const f = match(1), b = match(-1);
         if (f > b) c.travel = 1; else if (b > f) c.travel = -1;
-      } else if (d !== 0 && c.lastSign !== 0 && Math.sign(d) !== c.lastSign) {
+      } else if (d !== 0 && Math.sign(d) !== (c.lastSign || 1)) {
+        // the driver reversed (a train that hasn't run yet counts as last going forward, so "back" backs it)
         c.travel = c.travel === 1 ? -1 : 1;
       }
       if (d !== 0) c.lastSign = Math.sign(d);
@@ -557,13 +638,14 @@ export class World {
       c.speed += (target - c.speed) * Math.min(1, dt / MOTOR_LAG);
       if (Math.abs(c.speed) < 0.01 && target === 0) c.speed = 0;
       // a train coming up to a block that isn't its own brakes, to stand short of it
-      c.waiting = undefined;
+      c.waiting = undefined; c.waitPoint = undefined;
       if (c.train && (c.speed * c.travel > 0 || target * c.travel > 0)) {
         const ahead = this.roomAhead(c, (this.fullSpeed * this.fullSpeed) / (2 * BRAKE) + 40);
         if (ahead.room < Infinity) {
           const vmax = Math.sqrt(2 * BRAKE * Math.max(0, ahead.room - STAND_OFF));
-          if (Math.abs(c.speed) >= vmax) { c.speed = Math.sign(c.speed) * vmax; c.waiting = ahead.block; }
-          if (vmax < 1) { c.speed = 0; c.waiting = ahead.block; }
+          const wait = () => { c.waiting = ahead.block; c.waitPoint = ahead.point; };
+          if (Math.abs(c.speed) >= vmax) { c.speed = Math.sign(c.speed) * vmax; wait(); }
+          if (vmax < 20) { c.speed = 0; wait(); }   // at walking pace this close, it has stopped
         }
       }
       // the tightest curve under any vehicle

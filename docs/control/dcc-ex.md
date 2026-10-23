@@ -8,14 +8,14 @@ This suits you if you already have an EX-CommandStation, or want ready-made hard
 
 - An EX-CommandStation running version 5 or newer (TrackManager came in version 5), on an Arduino Mega with a motor shield, an EX-CSB1, or similar. The motor driver must be one DCC-EX supports for DC.
 - How many blocks you get depends on the motor drivers: two outputs per motor shield, up to eight on a Mega and four on an EX-CSB1, according to DCC-EX's documentation.
-- **USB**: a computer running Railplot in Chrome or Edge (the offline file, or the page from a hub), or the [hub](hub.md) with the command station plugged into it.
+- **USB**: a computer running the Railplot desktop app, or Railplot in Chrome or Edge (the offline file, or the page from a hub), or the [hub](hub.md) with the command station plugged into it.
 - **Network**: a command station with Wi-Fi or Ethernet, and the [hub](hub.md). Browsers can't open the plain network connection DCC-EX uses (port 2560), so network connections go through the hub.
 
 ## Set it up
 
 1. In **Control > Set up > Controllers**, press **Add DCC-EX**.
 2. Choose **USB** or **Network**.
-   - USB, without a hub: press **Connect USB** and choose the command station's port. Chrome and Edge remember it next time.
+   - USB, without a hub: press **Connect USB** and choose the command station's port. In the desktop app, with only one USB port plugged in it connects straight away, and either way it opens the same port again by itself next time; Chrome and Edge remember it too.
    - USB, through the hub: type the serial port, for example `/dev/ttyACM0` on a Raspberry Pi or Linux, `/dev/cu.usbmodem1101` on a Mac, or `COM3` on Windows.
    - Network: type its address, for example `192.168.4.1` (port 2560 is assumed) or `192.168.4.1:2560`.
 3. In **Blocks**, give each block the DCC-EX controller and a track letter.

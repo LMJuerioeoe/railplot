@@ -103,6 +103,10 @@ Raspberry Pi OS already runs its own network announcer, Avahi. If throttle apps 
 
 The Pi itself then answers as `raspberrypi.local` (or whatever its host name is), so phones open `http://raspberrypi.local:8080`.
 
+## Driving in 3D through the hub
+
+Every phone and laptop connected to the hub can **Drive in 3D**: the hub sends its simulator's trains with every update, ten times a second, and each screen keeps them moving smoothly in between. Making up trains in the Trains dialog, placing them, uncoupling and turning them round are all done on the hub, so everyone sees the same trains.
+
 ## Claude
 
 The hub program is also the [Claude connector](../claude.md): `railplot-hub mcp` runs it for the Claude desktop app or Claude Code. With the hub running, Claude's proposals reach every Railplot connected to it straight away. If you turn on **Let Claude use the controls** in Control > Set up, Claude can also set routes, points, signals and lights, drive trains and run automations. It can never switch track power.

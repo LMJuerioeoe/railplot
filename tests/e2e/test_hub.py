@@ -24,7 +24,8 @@ URL = f"http://127.0.0.1:{PORT}/"
 
 try:
     with sync_playwright() as p:
-        b = p.chromium.launch()
+        # WebGL in software, for the 3D view
+        b = p.chromium.launch(executable_path=os.environ.get("CHROME") or None, args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
         errors = []
         pages = []
         for i in range(2):
@@ -46,6 +47,33 @@ try:
         check("its slider follows", c.locator(f"#thr-{ex}").input_value() == "60")
         c.click("button:has-text('Stop all trains')"); a.wait_for_timeout(500)
         check("stop all from the phone stops it on the laptop too", js(a, f"railplot.ctl.engine.run('{ex}').target") == 0)
+
+        # 3D through the hub: the laptop shows the hub's simulator, drives a train, and the phone sees it move
+        check("Drive in 3D is offered through the hub", a.locator("#drive-3d").count() == 1)
+        a.click("#drive-3d"); a.wait_for_timeout(1500)
+        check("the 3D view shows the hub's trains", js(a, "railplot.drive.open && railplot.drive.world().mirror && railplot.drive.world().consists.length >= 2"))
+        pos = lambda pg: js(pg, f"(() => {{ const c = railplot.drive.world().consistOf('{ex}'); return c.at[0].item + ':' + Math.round(c.at[0].s); }})()")
+        at0 = pos(c)
+        js(a, f"railplot.drive.train = '{ex}'")
+        for _ in range(5): a.keyboard.press("ArrowUp"); a.wait_for_timeout(80)
+        a.wait_for_timeout(2500)
+        check("driving in 3D moves the hub's train", abs(js(a, f"railplot.ctl.engine.run('{ex}').target")) > 0.1 and pos(c) != at0, (at0, pos(c)))
+        if SHOTS: a.screenshot(path=os.path.join(SHOTS, "23-hub-3d.png"))
+        a.keyboard.press("Space"); a.wait_for_timeout(2500)
+        a.keyboard.press("t"); a.wait_for_timeout(400)
+        check("the Trains dialog opens through the hub", a.locator(".trains-dlg").count() == 1)
+        v0 = json.loads(__import__("urllib.request").request.urlopen(f"http://127.0.0.1:{PORT}/api/status").read())["v"]
+        a.select_option("#trains-which", label="Express"); a.wait_for_timeout(300)
+        a.locator('[data-kind="wagon"]').click()
+        a.wait_for_timeout(2000)
+        hub_cons = json.loads(__import__("urllib.request").request.urlopen(f"http://127.0.0.1:{PORT}/api/layout").read())["control"].get("consists", [])
+        check("a wagon added in the dialog reaches the hub's train", any(x.get("train") == ex and len(x["vehicles"]) >= 2 for x in hub_cons), hub_cons)
+        n_on_c = lambda: js(c, f"(railplot.drive.world().consistOf('{ex}') || {{vehicles: []}}).vehicles.length")
+        check("and the phone's copy shows it", n_on_c() >= 2, n_on_c())
+        a.click("#trains-turn"); a.wait_for_timeout(1500)
+        check("turning it round is done on the hub", js(c, f"railplot.drive.world().consistOf('{ex}').vehicles[0].kind") != "loco" or js(a, f"railplot.drive.world().consistOf('{ex}').vehicles.length") < 2)
+        a.keyboard.press("Escape"); a.wait_for_timeout(200)
+        a.keyboard.press("Escape"); a.wait_for_timeout(400)
 
         # a WiThrottle app takes train 1 (the goods train)
         s = socket.create_connection(("127.0.0.1", WT)); s.settimeout(2)

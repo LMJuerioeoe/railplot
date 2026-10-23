@@ -2,7 +2,7 @@
 
 Railplot is a free, open-source track planner for OO and H0 model railways. You plan with real sectional track from the manufacturers' catalogues, add flexible track, set gradients and layers, check the layout in 3D and print a shopping list of parts.
 
-It runs as a small Windows (and Linux) desktop app, or in any modern browser without installing anything.
+It runs as a small desktop app for Windows, macOS and Linux, or in any modern browser without installing anything. New to it? [Getting started](docs/guide.md) takes you from an empty plan to trains running.
 
 ![Railplot showing an OO Setrack oval with a passing loop](docs/screenshot-light.png)
 
@@ -16,26 +16,27 @@ It runs as a small Windows (and Linux) desktop app, or in any modern browser wit
 - **Heights and gradients.** Press <kbd>H</kbd>, click a joint and type a height. Gradients are shown on every sloping piece: green up to 2.5%, amber up to 4%, red above. Points and crossings stay level.
 - **Plain baseboards.** Rectangles by size, or any shape by clicking corners.
 - **Layers.** Show, hide, rename, reorder and move track between layers.
-- **3D view.** Orbit around the layout with sleepers, rails and supports under raised track. Save a picture.
-- **Drive in 3D.** With the simulator, drive your trains round the layout you planned in 3D: from above, behind the train or from the cab, at scale speed in km/h or mph. The simulated trains run on the real track through the points as they're set, and trip sensors and draw current where they really are, so blocks, signals and automations work just as on the real layout. Make up trains from a catalogue of detailed British OO models (GWR, LMS, LNER and BR steam, the Class 08 and 37, Mk1 and pre-war coaches, vans, opens, tank wagons and brake vans), each traced from the maker's own side view, place them on the track, and couple and uncouple as you shunt.
+- **3D view.** Orbit around the layout with sleepers, rails and supports under raised track, in sunlight with shadows, shiny rails and paintwork. Save a picture.
+- **Drive in 3D.** With the simulator, drive your trains round the layout you planned in 3D: from above, behind the train or from the cab, at scale speed in km/h or mph. The simulated trains run on the real track through the points as they're set, and trip sensors and draw current where they really are, so blocks, signals and automations work just as on the real layout. Make up trains from a catalogue of detailed British OO models (GWR, LMS, LNER and BR steam, the Class 08 and 37, Mk1 and pre-war coaches, vans, opens, tank wagons and brake vans), each traced from the maker's own side view, place them on the track, and couple and uncouple as you shunt. Steam locos' wheels, rods and valve gear move as they run. Every phone and laptop connected to the hub can drive in 3D too.
 - **Will my trains fit?** Give the length of your longest train and longest vehicle (or pick short goods, branch passenger or main line). The Layout panel lists passing loops and sidings too short to hold the train clear of the points, blocks shorter than it, curves too tight for long coaches, and reverse curves with no straight between them, where buffers lock. Click a finding to select the track.
 - **Shunting sessions.** Tools > Shunting session deals a puzzle for the Inglenook or your plan's own sidings: where each wagon starts and the train to make up, as numbered cards you can print, with a clock and a move count. Each card set has a number, so you can deal it again.
 - **Parts list.** Counts of every part, with flexible track rounded up to whole lengths. Type what each part costs, in pounds, dollars, euros or another currency, to get a total and the cost of each baseboard; prices are saved with the layout and offered again on your other layouts. Copy or save it as CSV.
-- **Export.** PNG pictures, and SVG drawings at true scale (1 mm on paper = 1 mm on the layout) for printing templates.
-- **Layout control.** Drive a real analogue layout from a laptop or any phone on your Wi-Fi: train speed and direction with momentum, points on servos, colour-light signals, lights and infrared train sensors, through a small ESP32 controller with DRV8876 track drivers. Start with one train on the whole layout. Split the track into blocks to run more, with power following each train and automatic signals keeping a free block between them. A simulator and a two-train demo let you try it without hardware. See [docs/control](docs/control/README.md) and [firmware](firmware/README.md).
+- **Print.** File > Print puts the plan on one page and the track at 1:1 on A4 pages to lay it from (lettered and numbered, with crosses to tape them together and a 50 mm bar to check the scale), with the parts list, a baseboard cutting list and the wiring list. Save as PDF from the print dialog.
+- **Export.** PNG pictures, and SVG drawings at true scale (1 mm on paper = 1 mm on the layout).
+- **Layout control.** Drive a real analogue layout from a laptop or any phone on your Wi-Fi: train speed and direction with momentum, points on servos, colour-light signals, lights and infrared train sensors, through a small ESP32 controller with DRV8876 track drivers. Start with one train on the whole layout. Split the track into blocks to run more (one tap divides it for 2 to 6 trains), with power following each train and signals at every joint keeping a free block between them; a train that has to wait says so, and for whom. A simulator and a two-train demo let you try it without hardware. See [docs/control](docs/control/README.md) and [firmware](firmware/README.md).
 - **Detecting trains by current.** As well as the infrared sensors, the DRV8876 drivers can tell which blocks draw current, with short detection pulses into blocks that have no power. Railplot warns about anything standing where no train is booked (a wagon left behind) and keeps trains out of that block, and moves a train on when its sensor missed it. See [Detecting trains by current](docs/control/README.md#detecting-trains-by-current).
 - **Wiring plan.** With the track split into blocks, Set up marks every insulated joiner (block joints and Electrofrog points) and track feed on the plan, draws a wiring diagram of each controller, and adds the joiners, feed wire, boards, drivers, sensors and servos to the parts list.
-- **Automation.** Routes set several points with one tap. Trips work out the way between two blocks from the plan, set the points and stop the train in the right block; shuttles and step-by-step automations run timetables and station stops. See [Automation](docs/control/automation.md).
+- **Automation.** Routes set several points with one tap. Trips work out the way between two blocks from the plan, set the points and stop the train in the right block; shuttles and step-by-step automations run station stops; timetables send trains off at set times on a layout clock that can run up to 12 times real time. See [Automation](docs/control/automation.md).
 - **The hub.** A single-file program for a laptop or Raspberry Pi that runs the layout with no screen needed: several phones drive at once, automations keep going, and Engine Driver and WiThrottle apps can drive the analogue trains. See [the hub](docs/control/hub.md) and [throttle apps](docs/control/throttles.md).
-- **DCC-EX.** An EX-CommandStation's track outputs can be Railplot's analogue blocks, over USB or the network. See [DCC-EX](docs/control/dcc-ex.md).
+- **DCC-EX.** An EX-CommandStation's track outputs can be Railplot's analogue blocks, over USB (from the desktop app, Chrome or Edge, or the hub) or the network. See [DCC-EX](docs/control/dcc-ex.md).
 - **Plan with Claude.** The Railplot connector lets Claude (in the Claude desktop app or Claude Code) read your plans, check them and propose changes: modules, yards, track, example layouts. Each proposal appears under Claude's proposals, where you see it on the plan and accept or reject it; nothing changes until you do. With the hub, and only if you allow it, Claude can also set routes and points and run trains, never track power. See [Claude and Railplot](docs/claude.md).
-- **Safe by default.** Unlimited undo, and your current plan is kept automatically between sessions.
+- **Safe by default.** Unlimited undo, and your current plan is kept automatically between sessions; if the computer stops mid-way, Railplot opens the last good copy. Older layouts open, and anything that would stop one working is put right and listed.
 
 ![The sample layout in the 3D view](docs/screenshot-3d.png)
 
 ## Download
 
-Download the latest Windows installer (`Railplot_x.y.z_x64-setup.exe`) or Linux package from the [Releases](../../releases) page.
+Download the latest Windows installer (`Railplot_x.y.z_x64-setup.exe`), Mac disk image (`.dmg`) or Linux package from the [Releases](../../releases) page.
 
 Prefer not to install? Download `railplot-offline.html` from the same page and open it in Edge, Chrome or Firefox. It works offline and saves layouts as files.
 
@@ -117,6 +118,11 @@ For the desktop app to update itself, its installers must be signed with an upda
 
 With those set, the workflow turns the updater on (`scripts/updater-config.ts`), signs the installers and attaches `latest.json`, which the desktop app reads. Without them it builds as before, and the desktop app sends people to the release page instead. Copies installed before the first signed release need installing by hand once.
 
+The release builds Windows (`-setup.exe` and `.msi`), Linux (`.deb` and `.AppImage`) and macOS (a `.dmg` for both Apple silicon and Intel). They're unsigned unless you add code-signing certificates, which stop Windows SmartScreen and macOS Gatekeeper warning about an unknown publisher. Both cost money and need checks of who you are, so they're optional:
+
+- **Windows:** an OV or EV code-signing certificate as a `.pfx`. Add the secrets `WINDOWS_CERTIFICATE` (the `.pfx`, base64: `base64 -w0 cert.pfx`) and `WINDOWS_CERTIFICATE_PASSWORD`. The workflow imports it and signs the installers (`scripts/windows-signing.ts`). A certificate kept on a hardware key or in a cloud signing service needs that service's own signing step instead.
+- **macOS:** an Apple Developer account and a "Developer ID Application" certificate exported as a `.p12`. Add the secrets `APPLE_CERTIFICATE` (the `.p12`, base64), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` (such as `Developer ID Application: Your Name (TEAMID)`), and for notarising `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`.
+
 ## Adding a baseboard module
 
 Module presets in `src/boards/` are generated from the baseboard range's design data (`data/baseboard-range.json`) by `bun scripts/import-baseboards.ts`. [docs/baseboard-modules.md](docs/baseboard-modules.md) describes the fields and how to update them.
@@ -134,7 +140,7 @@ Next up, roughly in order:
 - Transition curves, helix and parallel-track tools
 - Scenery: platforms, buildings, roads and signals with original artwork
 - Tunnels and bridges, terrain in 3D
-- Tiled 1:1 printing and DXF export
+- DXF export
 - Synchronised PWM across controllers, reversing loops, solenoid point motors
 
 ## File format

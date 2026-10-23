@@ -209,3 +209,37 @@ describe("snapshots and commands", () => {
     expect(q.control!.automations![0].steps.length).toBe(p.control!.automations![0].steps.length);
   });
 });
+
+describe("timetables", () => {
+  test("a train leaves at each time on the fast layout clock, and the clock wraps at midnight", async () => {
+    const { p, cfg, e } = demo();
+    const ex = cfg.trains[1];
+    cfg.clock = { start: 6 * 60, ratio: 30 };   // 06:00, half a minute of layout time each real second
+    const [there] = tripPaths(p, cfg, e.topo, ex.block!, B(cfg, "Station"));
+    const [back] = tripPaths(p, cfg, e.topo, B(cfg, "Station"), ex.block!);
+    const a = addAutomation(cfg, "Express timetable", ex.id, [
+      { do: "waitTime", at: "06:05" }, ...tripSteps(there, { speed: 50, slow: 30, after: 1 }),
+      { do: "waitTime", at: "06:30" }, ...tripSteps(back, { speed: 50, slow: 30, after: 1 }),
+    ]);
+    expect(e.startAuto(a.id)).toBeNull();
+    const seen: [string, string][] = [];
+    const { clockText } = await import("../src/control/engine");
+    await runSim(p, 100, e, () => { const b = e.blockName(ex.block!); if (seen[seen.length - 1]?.[0] !== b) seen.push([b, clockText(e.time)]); });
+    expect(seen.map((x) => x[0])).toEqual(["East", "Station", "East"]);
+    // it didn't leave before 06:05, nor come back before it left again at 06:30
+    expect(seen[1][1] > "06:05").toBe(true);
+    expect(seen[2][1] >= "06:30").toBe(true);
+    expect(e.autoRuns.get(a.id)!.status).toBe("Finished");
+    e.setClock(23 * 60 + 59, 60);
+    e.step(2);
+    expect(clockText(e.time)).toBe("00:01");
+  });
+
+  test("clock text and parsing", async () => {
+    const { parseClock, clockText } = await import("../src/control/engine");
+    expect(parseClock("10:05")).toBe(605);
+    expect(parseClock("24:00")).toBeNull();
+    expect(parseClock("7:5")).toBeNull();
+    expect(clockText(605 * 60 + 59)).toBe("10:05");
+  });
+});

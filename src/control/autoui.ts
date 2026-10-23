@@ -3,7 +3,7 @@
 import type { ControlUI } from "./ui";
 import { clear, h, icon } from "../ui/dom";
 import { dialog, field, numInput, toast } from "../ui/dialogs";
-import { addAutomation, addRoute, pointLabel } from "./engine";
+import { addAutomation, addRoute, clockOf, clockText, parseClock, pointLabel } from "./engine";
 import { TripPath, describeStep, tripPaths, tripSteps } from "./auto";
 import { AutomationCfg, RouteCfg, Step } from "./types";
 import { partOf } from "../model";
@@ -40,6 +40,19 @@ export function renderAuto(ui: ControlUI, el: HTMLElement) {
       ? h("div", { class: "btn-row" }, h("button", { class: "btn btn-sm", type: "button", onclick: () => editRoute(ui) }, "New route"))
       : h("p", { class: "muted small" }, "There are no points on the plan.")));
 
+  // the layout clock, for timetables
+  const ck = clockOf(cfg);
+  const start = h("input", { type: "time", id: "clock-start", value: clockText(ck.start * 60), "aria-label": "Clock starts at" }) as HTMLInputElement;
+  start.addEventListener("change", () => { const m = parseClock(start.value); if (m !== null) { ui.act({ c: "clock", at: m }); cfg.clock = { ...clockOf(cfg), start: m }; ui.commitSetup(); } });
+  const ratio = h("select", { id: "clock-ratio", "aria-label": "Clock speed" },
+    ...[1, 2, 3, 4, 6, 12].map((n) => h("option", { value: String(n), selected: ck.ratio === n }, n === 1 ? "Real time" : `${n} × real time`))) as HTMLSelectElement;
+  ratio.addEventListener("change", () => { ui.act({ c: "clock", ratio: +ratio.value }); cfg.clock = { ...clockOf(cfg), ratio: +ratio.value }; ui.commitSetup(); });
+  el.append(sec("Clock",
+    h("p", { class: "muted small" }, "The layout's own clock, for timetables. A fast clock fits a day's trains into an evening: at 4 × real time, an hour goes by in 15 minutes."),
+    h("div", { class: "setup-row" }, ui.liveText(() => clockText(e.time || ck.start * 60), "layout-clock mono"), h("span", { class: "grow" }), ratio),
+    h("div", { class: "setup-row" }, h("span", { class: "small grow" }, "Starts at"), start,
+      h("button", { class: "btn btn-sm", type: "button", id: "clock-reset", onclick: () => ui.act({ c: "clock", at: clockOf(cfg).start }) }, "Back to the start"))));
+
   el.append(sec("Automations",
     h("p", { class: "muted small" }, "An automation drives a train for you: from the station to the loop, back and forth on a branch line, or round with a stop at every station. Signals and blocks still keep trains apart. Moving a train's throttle yourself stops its automation."),
     ...autos.map((a) => {
@@ -61,6 +74,7 @@ export function renderAuto(ui: ControlUI, el: HTMLElement) {
     }),
     h("div", { class: "btn-row" },
       cfg.blocks.length > 1 ? h("button", { class: "btn btn-sm btn-primary", type: "button", onclick: () => tripDialog(ui) }, "New trip") : null,
+      cfg.blocks.length > 1 ? h("button", { class: "btn btn-sm", type: "button", id: "new-timetable", onclick: () => timetableDialog(ui) }, "New timetable") : null,
       h("button", { class: "btn btn-sm", type: "button", onclick: () => editAutomation(ui) }, "New automation")),
     cfg.blocks.length > 1 ? null : h("p", { class: "muted small" }, "Trips need the layout split into two or more blocks, with sensors at the joints.")));
 }
@@ -114,7 +128,7 @@ function editRoute(ui: ControlUI, existing?: RouteCfg) {
 const STEP_KINDS: [Step["do"], string][] = [
   ["drive", "Drive"], ["waitBlock", "Wait until it reaches"], ["arrive", "Slow down and stop"], ["stop", "Stop"],
   ["wait", "Wait"], ["waitFree", "Wait until a block is free"], ["route", "Set a route"], ["point", "Set a point"],
-  ["signal", "Signal"], ["light", "Light"],
+  ["signal", "Signal"], ["light", "Light"], ["waitTime", "Wait until the clock says"],
 ];
 
 function defaultStep(ui: ControlUI, kind: Step["do"]): Step {
@@ -130,6 +144,7 @@ function defaultStep(ui: ControlUI, kind: Step["do"]): Step {
     case "point": return { do: "point", item: cfg.points[0]?.item ?? "", state: 0 };
     case "signal": return { do: "signal", signal: cfg.signals[0]?.id ?? "", mode: "stop" };
     case "light": return { do: "light", light: cfg.lights[0]?.id ?? "", on: true };
+    case "waitTime": return { do: "waitTime", at: clockText(Math.ceil((ui.engine.time || clockOf(cfg).start * 60) / 3600) * 3600) };
   }
 }
 
@@ -178,6 +193,11 @@ function editAutomation(ui: ControlUI, existing?: AutomationCfg) {
         sel(`sl-${i}`, "Light", cfg.lights.map((l) => [l.id, l.name]), s.light, (v) => { s.light = v; }),
         sel(`slo-${i}`, "On or off", [["1", "on"], ["0", "off"]], s.on ? "1" : "0", (v) => { s.on = v === "1"; })] : [h("span", { class: "muted small" }, "No lights")];
       case "stop": return [];
+      case "waitTime": {
+        const t = h("input", { type: "time", id: `wt-${i}`, value: s.at, "aria-label": "Time" }) as HTMLInputElement;
+        t.addEventListener("change", () => { if (parseClock(t.value) !== null) s.at = t.value; });
+        return [t];
+      }
     }
   };
 
@@ -218,6 +238,69 @@ function editAutomation(ui: ControlUI, existing?: AutomationCfg) {
 }
 
 // ---------- the trip builder ----------
+
+/**
+ * A timetable for one train: at each time on the layout clock it sets off for the next stop, by the
+ * shortest way, setting the points as it goes. Made into an ordinary automation, so it can be edited.
+ */
+function timetableDialog(ui: ControlUI) {
+  const cfg = ui.cfg, e = ui.engine, p = ui.app.p;
+  const placed = cfg.trains.filter((t) => t.block);
+  if (!placed.length) { toast("Place a train on the plan first (Drive or Set up).", "error"); return; }
+  const train = h("select", { id: "tt-train" }, ...placed.map((t) => h("option", { value: t.id }, `${t.name} (in ${e.blockName(t.block!)})`))) as HTMLSelectElement;
+  const speed = numInput("tt-speed", 50, { min: 5, max: 100, step: 5 });
+  const repeat = h("input", { type: "checkbox", id: "tt-repeat" }) as HTMLInputElement;
+  const rows: { at: string; to: string }[] = [];
+  const list = h("ol", { class: "step-list", id: "tt-rows" });
+  const from = () => cfg.trains.find((t) => t.id === train.value)?.block ?? "";
+  const next = (at: string, mins: number) => clockText(((parseClock(at) ?? clockOf(cfg).start) + mins) * 60);
+  const addRow = () => {
+    const last = rows[rows.length - 1];
+    const to = cfg.blocks.find((b) => b.id !== (last?.to ?? from()))?.id ?? "";
+    rows.push({ at: last ? next(last.at, 30) : clockText(clockOf(cfg).start * 60 + 600), to });
+    draw();
+  };
+  const draw = () => {
+    clear(list);
+    rows.forEach((r, i) => {
+      const t = h("input", { type: "time", id: `tt-at-${i}`, value: r.at, "aria-label": `Departure ${i + 1} time` }) as HTMLInputElement;
+      t.addEventListener("change", () => { if (parseClock(t.value) !== null) r.at = t.value; });
+      const d = h("select", { id: `tt-to-${i}`, "aria-label": `Departure ${i + 1} to` }, ...cfg.blocks.map((b) => h("option", { value: b.id, selected: b.id === r.to }, b.name))) as HTMLSelectElement;
+      d.addEventListener("change", () => { r.to = d.value; });
+      list.append(h("li", { class: "step-row" }, h("span", { class: "small" }, "At"), t, h("span", { class: "small" }, "go to"), d, h("span", { class: "grow" }),
+        h("button", { class: "icon-btn sm", type: "button", "aria-label": "Delete departure", title: "Delete departure", html: icon("trash", 14), onclick: () => { rows.splice(i, 1); draw(); } })));
+    });
+    if (!rows.length) list.append(h("li", { class: "muted small" }, "No departures yet."));
+  };
+  addRow(); addRow();
+  const build = () => {
+    const t = cfg.trains.find((x) => x.id === train.value)!;
+    if (!rows.length) { toast("Add a departure.", "error"); return true; }
+    const sp = Math.max(5, Math.min(100, +speed.value || 50));
+    const steps: Step[] = [];
+    let here = from();
+    for (const r of rows) {
+      if (r.to === here) { toast(`${t.name} is already in ${e.blockName(here)} at ${r.at}: pick somewhere else to go.`, "error"); return true; }
+      const way = tripPaths(p, cfg, e.topo, here, r.to, 1)[0];
+      if (!way) { toast(`Railplot can't find a way from ${e.blockName(here)} to ${e.blockName(r.to)}.`, "error"); return true; }
+      steps.push({ do: "waitTime", at: r.at }, ...tripSteps(way, { speed: sp, slow: 30, after: 1.5 }));
+      here = r.to;
+    }
+    if (repeat.checked && here !== from()) { toast(`To run every day, the last departure has to take ${t.name} back to ${e.blockName(from())}.`, "error"); return true; }
+    const a = addAutomation(cfg, `${t.name} timetable`, t.id, steps, repeat.checked);
+    ui.commitSetup(); ui.render();
+    toast(`${a.name} saved. Press Start: ${t.name} leaves at ${rows[0].at} on the layout clock.`);
+  };
+  const body = h("div", { class: "trip-dlg" },
+    field("Train", train),
+    h("div", { class: "sub-head" }, "Departures"),
+    list,
+    h("div", { class: "btn-row" }, h("button", { class: "btn btn-sm", type: "button", id: "tt-add", onclick: () => addRow() }, "Add a departure")),
+    h("div", { class: "row3" }, field("Speed (%)", speed)),
+    h("label", { class: "check" }, repeat, "Run it again every day (the last stop is where it starts)"),
+    h("p", { class: "muted small" }, "Times are on the layout clock (Auto tab). At each time the train sets off for its next stop by the shortest way, setting the points, and stops there. If it's held up, it leaves as soon as it can."));
+  dialog("New timetable", body, [{ label: "Cancel" }, { label: "Save", primary: true, onClick: build }]);
+}
 
 function tripDialog(ui: ControlUI) {
   const cfg = ui.cfg, e = ui.engine, p = ui.app.p;

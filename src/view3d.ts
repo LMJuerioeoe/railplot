@@ -74,12 +74,17 @@ function ribbon(m: MeshBuilder, poses: (Pose & { z: number })[], offset: number,
   }
 }
 
+/**
+ * Poses along a route for the rails and ballast to follow: the ends of a straight, and along a curve
+ * every `step` radians (0.04 keeps the chord within a tenth of a mm on a 450 mm radius). The height
+ * changes evenly along the route, so straights need nothing in between.
+ */
 function sampleRoute(prims: Prim[], step: number, z0: number, z1: number): (Pose & { z: number })[] {
   const total = prims.reduce((a, p) => a + p.len, 0) || 1;
   const out: (Pose & { z: number })[] = [];
   let acc = 0;
   prims.forEach((pr, k) => {
-    const n = Math.max(1, Math.ceil(pr.len / step));
+    const n = pr.kind === "arc" ? Math.max(1, Math.ceil(Math.abs(pr.sweep) / step)) : 1;
     for (let i = k === 0 ? 0 : 1; i <= n; i++) {
       const t = (pr.len * i) / n;
       const p = primAt(pr, t);
@@ -135,7 +140,7 @@ export function buildScene(p: Project, opt: Options3D): MeshBuilder {
     const isFlex = g.part.def.type === "flex";
     g.routes.forEach((r, ri) => {
       const [z0, z1] = routeHeights(it, ri);
-      const poses = sampleRoute(r.prims, 6, z0, z1);
+      const poses = sampleRoute(r.prims, 0.04, z0, z1);
       const elevated = Math.max(z0, z1) > 0.5;
       if (elevated) {
         ribbon(m, poses, 0, prof.sleeperLength + 8, -5, -0.01, C.deck);
@@ -933,7 +938,8 @@ export class View3D {
     const down = (e: PointerEvent) => {
       c.setPointerCapture(e.pointerId);
       drag = { x: e.clientX, y: e.clientY, mode: e.button === 2 || e.button === 1 || e.shiftKey ? "pan" : "orbit" };
-      press = e.button === 0 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
+      // timed by the events' own clock: on a slow machine the handlers run late, and a quick click mustn't look like a hold
+      press = e.button === 0 ? { x: e.clientX, y: e.clientY, t: e.timeStamp } : null;
     };
     const move = (e: PointerEvent) => {
       if (!drag) {
@@ -960,7 +966,7 @@ export class View3D {
     const up = (e: PointerEvent) => {
       drag = null;
       // a click, not a drag: tell whoever wants to know what was clicked
-      if (press && e.type === "pointerup" && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 5 && performance.now() - press.t < 500 && this.onPick) {
+      if (press && e.type === "pointerup" && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 5 && e.timeStamp - press.t < 500 && this.onPick) {
         const r = c.getBoundingClientRect();
         this.onPick(e.clientX - r.left, e.clientY - r.top);
       }

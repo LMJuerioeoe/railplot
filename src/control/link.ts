@@ -373,6 +373,59 @@ const serialApi = (): { requestPort(o?: object): Promise<SerialPortLike>; getPor
 
 export const webSerialSupported = () => !!serialApi() && (typeof isSecureContext === "undefined" || isSecureContext);
 
+// ---------- the desktop app's own serial ports ----------
+
+const tauri = () => (typeof window !== "undefined" ? window.__TAURI__ : undefined);
+/** The desktop app reaches USB ports itself (its web view has no Web Serial). */
+export const desktopSerial = () => !!tauri()?.event;
+/** This window can open a USB port: Web Serial, or the desktop app. */
+export const usbSupported = () => webSerialSupported() || desktopSerial();
+
+export interface SerialPortInfo { name: string; usb: boolean; description: string }
+export const listSerialPorts = (): Promise<SerialPortInfo[]> => tauri()!.core.invoke("serial_ports");
+
+/** A USB port opened by the desktop app; what comes in arrives as events. */
+export class DesktopSerialTransport implements Transport {
+  connected = false;
+  error?: string;
+  onText: (text: string) => void = () => {};
+  private id = 0;
+  private unlisten: (() => void)[] = [];
+
+  constructor(readonly name: string) {}
+
+  async open() {
+    const T = tauri()!;
+    try {
+      this.unlisten.push(await T.event!.listen<{ id: number; text: string }>("serial-data", (e) => { if (e.payload.id === this.id) this.onText(e.payload.text); }));
+      this.unlisten.push(await T.event!.listen<{ id: number; error: string | null }>("serial-closed", (e) => {
+        if (e.payload.id !== this.id) return;
+        this.connected = false;
+        if (e.payload.error) this.error = `The USB connection dropped: ${e.payload.error}`;
+      }));
+      this.id = await T.core.invoke("serial_open", { name: this.name });
+      this.connected = true;
+      this.error = undefined;
+    } catch (e) {
+      this.error = `Couldn't open ${this.name}: ${(e as Error).message ?? e}. Is another program (Arduino IDE, EX-WebThrottle) using it?`;
+      this.stopListening();
+    }
+  }
+
+  send(text: string) {
+    if (!this.connected) return;
+    tauri()!.core.invoke("serial_write", { id: this.id, text }).catch(() => { this.connected = false; this.error = "The USB connection dropped."; });
+  }
+
+  private stopListening() { for (const u of this.unlisten) u(); this.unlisten = []; }
+
+  close() {
+    this.connected = false;
+    if (this.id) tauri()?.core.invoke("serial_close", { id: this.id }).catch(() => {});
+    this.stopListening();
+  }
+}
+
 export class WebSerialTransport implements Transport {
   connected = false;
   error?: string;
@@ -428,11 +481,31 @@ export class BrowserDccExLink extends DccExLink {
   constructor(controller: Controller, engine: () => ControlEngine) {
     const hint = controller.conn === "net"
       ? "A browser can't open a network connection to DCC-EX. Run the Railplot hub, or connect DCC-EX by USB."
-      : !webSerialSupported()
-        ? "USB needs Chrome or Edge on a computer (the desktop app or the offline file opened in Chrome or Edge), or the Railplot hub."
+      : !usbSupported()
+        ? "USB needs Chrome or Edge on a computer, the desktop app, or the Railplot hub."
         : "Press Connect USB in Set up and choose the command station's port.";
     super(controller, engine, null, hint);
-    if (controller.conn !== "net") this.reuseGrantedPort();
+    if (controller.conn !== "net") { if (webSerialSupported()) this.reuseGrantedPort(); else if (desktopSerial()) this.reopenDesktopPort(); }
+  }
+
+  /** In the desktop app: the port used last time (kept as the controller's address), or the only USB port there is. */
+  private async reopenDesktopPort() {
+    try {
+      const usb = (await listSerialPorts()).filter((p) => p.usb);
+      const name = usb.find((p) => p.name === this.controller.host)?.name ?? (usb.length === 1 ? usb[0].name : null);
+      if (!name) return;
+      const t = new DesktopSerialTransport(name);
+      await t.open();
+      if (t.connected) this.setTransport(t);
+    } catch { /* the person connects by hand */ }
+  }
+
+  /** In the desktop app: open a port by name. */
+  async connectPort(name: string) {
+    const t = new DesktopSerialTransport(name);
+    await t.open();
+    if (!t.connected) throw new Error(t.error ?? "Couldn't open the port.");
+    this.setTransport(t);
   }
 
   private async reuseGrantedPort() {

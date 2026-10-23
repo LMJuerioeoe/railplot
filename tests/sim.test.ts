@@ -543,3 +543,86 @@ test("BUG-017: two simulated trains in their own blocks never run into each othe
   run(5);
   expect([c1.odo, c2.odo]).toEqual(before);   // no bouncing back and forth
 });
+
+test("BUG-018: a train that hasn't moved yet goes backwards when driven back", () => {
+  const p = buildSample();
+  const { quickStart } = require("../src/control/engine");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  w.advanceTo(0);
+  const t = cfg.trains[0], c = w.consistOf(t.id)!;
+  e.setThrottle(t.id, -0.5);
+  for (let k = 0; k < 30; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  expect(c.travel).toBe(-1);
+  expect(c.odo!).toBeLessThan(-100);
+  // and forward again after stopping goes forward
+  e.setThrottle(t.id, 0);
+  for (let k = 30; k < 60; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  const back = c.odo!;
+  e.setThrottle(t.id, 0.5);
+  for (let k = 60; k < 90; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  expect(c.odo!).toBeGreaterThan(back + 100);
+});
+
+test("With the point guard on, a train stops short of a point set against it instead of coming off, and goes on when it's set", () => {
+  const p = buildSample();
+  const { quickStart } = require("../src/control/engine");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  cfg.pointGuard = true;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  w.advanceTo(0);
+  const t = cfg.trains[0], c = w.consistOf(t.id)!;
+  for (const q of cfg.points) q.state = 1;
+  cfg.points[1].state = 0;   // as in BUG-013: somewhere round the oval it trails one set against it
+  e.setThrottle(t.id, 0.5);
+  let k = 0;
+  for (; k < 600 && !c.waitPoint; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  for (let j = 0; j < 40; j++, k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  expect(c.derailed).toBeUndefined();
+  expect(c.speed).toBe(0);
+  const pt = c.waitPoint!;
+  expect(cfg.points.some((q) => q.item === pt)).toBe(true);
+  // set it for the train: it goes on
+  const q = cfg.points.find((x) => x.item === pt)!;
+  q.state = q.state ? 0 : 1;
+  const at = c.odo!;
+  for (let j = 0; j < 30; j++, k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  expect(c.derailed).toBeUndefined();
+  expect(Math.abs(c.odo! - at)).toBeGreaterThan(100);
+});
+
+test("Signals at every block joint: a simulated train stops at one held at danger, and goes on when it clears", () => {
+  const p = buildSample();
+  const { quickStart, addSignalsAtBoundaries } = require("../src/control/engine");
+  const { divideForTrains } = require("../src/control/divide");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  w.advanceTo(0);
+  divideForTrains(p, cfg, 1, { where: (id: string) => w.consistOf(id)?.at[0]?.item });
+  const n = addSignalsAtBoundaries(p, cfg);
+  expect(n).toBe(require("../src/control/engine").topology(p, cfg).boundaries.length * 2);   // one each way
+  expect(addSignalsAtBoundaries(p, cfg)).toBe(0);
+  e.setProject(p, cfg);
+  w.advanceTo(100);
+  const t = cfg.trains[0], c = w.consistOf(t.id)!;
+  for (const s of cfg.signals) s.mode = "stop";   // every signal at danger
+  e.assign();
+  e.setThrottle(t.id, 0.6);
+  let ms = 100;
+  const run = (sec: number) => { for (let k = 0; k < sec * 10; k++) { e.step(0.1); ms += 100; w.advanceTo(ms); } };
+  run(12);
+  expect(c.speed).toBe(0);
+  expect(c.waiting).toBeDefined();
+  expect(c.derailed).toBeUndefined();
+  const held = t.block;
+  for (const s of cfg.signals) s.mode = "auto";
+  e.assign();
+  run(4);
+  expect(t.block === held && Math.abs(c.speed) < 1).toBe(false);
+});
