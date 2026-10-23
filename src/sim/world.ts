@@ -396,6 +396,13 @@ export class World {
   }
 
   /** The power in the block under a consist's loco (-1..1), or 0 without a loco. */
+  /** Is a train's loco standing on track that's in no block, where it gets no power? */
+  noPower(train: string): boolean {
+    const c = this.consistOf(train);
+    const i = c?.vehicles.findIndex((v) => v.kind === "loco") ?? -1;
+    return !!c && i >= 0 && !!c.at[i] && !this.engine().topo.blockOfItem.has(c.at[i].item);
+  }
+
   private powerOf(c: Consist): number {
     const e = this.engine();
     const i = c.vehicles.findIndex((v) => v.kind === "loco");

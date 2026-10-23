@@ -192,3 +192,17 @@ Steps
 Expected: back where it last stood still. Actual: back on the point it came off at (and straight off again): the last standing place was forgotten as soon as the train moved.
 Evidence: tests/sim.test.ts BUG-013
 Status: fixed: the last standing place is kept while the train runs
+
+### BUG-014: Track laid after setting up the simulator has no power: a train placed there won't move
+
+- Severity: S1
+- Flow / case: F01 / F02, reported by the owner on v0.12.1 (83-piece layout, an 08 with six vans at 71% and 0 km/h)
+- Screen: S07, Control > Set up
+
+Steps
+1. Control > Try it with the simulator (one block, "Whole layout").
+2. Lay more track, then put a train on it and open the throttle.
+
+Expected: it drives. Actual: 0 km/h. The block held only the track there was when it was made; new pieces were in no block, so no power. Set up said so, out of sight under Blocks; the drive view said nothing.
+Evidence: tests/sim.test.ts BUG-014; laying 3 pieces after setup left 3 unassigned in 0.12.1, none now
+Status: fixed: with one block holding all the track, new track joins it (in the undo history too); Set up offers "Add them to Whole layout" for track already left out; the drive view shows NO POWER and says why when the throttle opens on dead track

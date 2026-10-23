@@ -185,9 +185,16 @@ export class DriveView {
     this.cardFor = "~";   // redraw on the next frame
   }
 
+  /** Said already that the train's track has no power (until the throttle closes). */
+  private toldNoPower = false;
+
   private setThrottle(v: number, show = false) {
     if (!this.train) return;
     this.ctl.act({ c: "throttle", train: this.train, v: Math.max(-1, Math.min(1, v)) });
+    // opening up on dead track: say why nothing happens, once each time
+    const dead = v !== 0 && !!this.world()?.noPower(this.train);
+    if (dead && !this.toldNoPower) toast("No power here: this track is in no block. Add it to a block in Control > Set up > Blocks.");
+    this.toldNoPower = dead;
     if (show) this.syncHud(); else if (this.refs.throttleLabel) this.refs.throttleLabel.textContent = v === 0 ? "Stopped" : `${Math.round(Math.abs(v) * 100)}% ${v > 0 ? "forward" : "back"}`;
   }
 
@@ -714,7 +721,12 @@ export class DriveView {
     const m = w.curveMargin(this.train);
     r.speedBox?.classList.toggle("near", m >= 0.85 && m <= 1 && !c?.held);
     r.speedBox?.classList.toggle("over", m > 1 || !!c?.held);
-    if (r.tag) { r.tag.hidden = !(m >= 0.85 || c?.held); r.tag.textContent = c?.held ? "Held" : "Curve"; }
+    const dead = w.noPower(this.train);
+    if (r.tag) {
+      r.tag.hidden = !(dead || m >= 0.85 || c?.held);
+      r.tag.textContent = dead ? "No power" : c?.held ? "Held" : "Curve";
+      r.tag.title = dead ? "This track is in no block, so it gets no power. Add it to a block in Control > Set up > Blocks." : "";
+    }
     this.syncHud();
   }
 }

@@ -53,12 +53,33 @@ export class ControlUI {
     return this.app.p.control;
   }
 
+  /** The plan and its track pieces as this last saw them, to tell new track from old. */
+  private seen: { p: object; items: Set<string> } | null = null;
+
+  /**
+   * With one block for the whole layout, track laid since joins it: otherwise it has no power and a
+   * train put on it can't move. Only while that block holds all the track it did before.
+   */
+  private joinNewTrack() {
+    const p = this.app.p, cfg = this.cfg, ids = p.items.map((i) => i.id);
+    const before = this.seen?.p === p ? this.seen.items : null;
+    this.seen = { p, items: new Set(ids) };
+    if (!before || cfg.blocks.length !== 1) return;
+    const b = cfg.blocks[0], mine = new Set(b.items);
+    const fresh = ids.filter((id) => !before.has(id));
+    if (fresh.length && [...before].every((id) => mine.has(id) || !this.seen!.items.has(id))) {
+      b.items.push(...fresh);
+      this.app.hist.amend(p);   // the undo step that laid the track has it in the block too
+    }
+  }
+
   /** Called when the plan or the control setup changed. */
   onProjectChanged() {
     const cfg = this.cfg;
     syncPoints(this.app.p, cfg);
-    syncSensors(this.app.p, cfg, topology(this.app.p, cfg));
     for (const b of cfg.blocks) b.items = b.items.filter((id) => this.app.p.items.some((i) => i.id === id));
+    this.joinNewTrack();
+    syncSensors(this.app.p, cfg, topology(this.app.p, cfg));
     this.rt.setProject(this.app.p, cfg);
     if (this.hub?.snap) applySnapshot(this.engine, this.hub.snap);
     this.ensureRunning();
@@ -735,7 +756,10 @@ export class ControlUI {
     const unassigned = e.topo.unassigned.length;
     el.append(sec("Blocks",
       h("p", { class: "muted small" }, "A block is a stretch of track with both rails cut at its ends and its own driver. One train per block. With one train, one block for the whole layout is enough."),
-      unassigned ? h("p", { class: "warn-note" }, `${unassigned} piece${unassigned === 1 ? "" : "s"} of track ${unassigned === 1 ? "is" : "are"} in no block and won't get power.`) : null,
+      unassigned ? h("div", { class: "warn-note" }, `${unassigned} piece${unassigned === 1 ? "" : "s"} of track ${unassigned === 1 ? "is" : "are"} in no block and won't get power: a train standing there can't move.`,
+        cfg.blocks.length === 1 ? h("div", { class: "btn-row" }, h("button", { class: "btn btn-sm", type: "button", id: "join-unassigned", onclick: () => {
+          cfg.blocks[0].items.push(...e.topo.unassigned); this.commitSetup(); this.render(); toast(`Added to ${cfg.blocks[0].name}.`);
+        } }, `Add ${unassigned === 1 ? "it" : "them"} to ${cfg.blocks[0].name}`)) : null) : null,
       ...cfg.blocks.map((b) => {
         const editing = this.tool?.kind === "block" && this.tool.id === b.id;
         const name = h("input", { type: "text", id: `bn-${b.id}`, value: b.name, "aria-label": "Block name" }) as HTMLInputElement;
