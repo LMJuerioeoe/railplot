@@ -406,12 +406,24 @@ with sync_playwright() as p:
     while pg.locator("#drive-camera").inner_text().split()[0] != "Tabletop": pg.keyboard.press("c"); pg.wait_for_timeout(100)
     pg.wait_for_timeout(300)
     def click_target(kind):
-        at = js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect();
-          const free = d.world().itemsUnder();
-          const t = d.targets.find(t => t.kind === '{kind}' && !free.has(t.id)); const s = t && v.toCanvas(t.x, t.y, t.z);
-          return t && s ? [t.id, r.left + s.x, r.top + s.y] : null; }})()""")
+        # a point with a train on it can't be clicked: give a moving train a moment to clear one
+        for _ in range(15):
+            at = find_target(kind)
+            if at: break
+            pg.wait_for_timeout(200)
         if at: pg.mouse.click(at[1], at[2]); pg.wait_for_timeout(200)
+        else: print("  no", kind, "to click:", js(pg, f"JSON.stringify({{ open: railplot.drive.open, n: railplot.drive.targets.filter(t => t.kind === '{kind}').length, under: [...railplot.drive.world().itemsUnder()].length, cam: document.querySelector('#drive-camera')?.textContent }})"))
         return at and at[0]
+    def find_target(kind):
+        return js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect();
+          const free = d.world().itemsUnder();
+          // one in view and not under the HUD or a bar, so the click reaches the 3D view
+          for (const t of d.targets) {{
+            if (t.kind !== '{kind}' || free.has(t.id)) continue;
+            const s = v.toCanvas(t.x, t.y, t.z);
+            if (s && document.elementFromPoint(r.left + s.x, r.top + s.y) === v.canvas) return [t.id, r.left + s.x, r.top + s.y];
+          }}
+          return null; }})()""")
     before = js(pg, "JSON.stringify([railplot.p.control.points.map(q => [q.item, q.state]), railplot.p.control.signals.map(s => [s.id, s.mode])])")
     pid = click_target("point")
     check("clicking a point's lever in 3D throws it", pid and js(pg, f"JSON.stringify(railplot.p.control.points.find(q => q.item === '{pid}').state)") != json.dumps(dict(json.loads(before)[0])[pid]), pid)
