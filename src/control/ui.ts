@@ -18,6 +18,7 @@ import { renderAuto } from "./autoui";
 import { divideForTrains } from "./divide";
 import { Feed, Joiner, feeds, joiners, wiringSvg } from "./wiringplan";
 import { ORIGINAL_HTML } from "../original";
+import { worldFor } from "../sim/world";
 import { ControlConfig, DCCEX_CAB_BASE, channelName, channelsOf, emptyControl } from "./types";
 
 type SetupTool = { kind: "block"; id: string } | { kind: "signal" } | { kind: "place"; train: string } | null;
@@ -125,6 +126,15 @@ export class ControlUI {
     return Promise.resolve(err);
   }
 
+  /**
+   * Send a command that changes the simulator's rolling stock to the hub, after this window's edits not
+   * sent yet (a rake just made up has to be on the hub before it can be put on the track there).
+   */
+  async sendStock(cmd: Cmd): Promise<string | null> {
+    if (this.pushTimer) { clearTimeout(this.pushTimer); this.pushTimer = 0; await this.pushLayout(false); }
+    return this.act(cmd);
+  }
+
   /** Run a command, then redraw the panel and the plan. */
   private doAndRender(cmd: Cmd, ok?: string) {
     this.act(cmd).then((err) => { if (!err && ok) toast(ok); this.render(); this.app.render(); });
@@ -148,9 +158,12 @@ export class ControlUI {
     this.hub = hub;
     try { if (host) localStorage.setItem(HUB_KEY, host); } catch { /* not kept */ }
     hub.onEvent = (t) => toast(t);
+    let sim = false;
     hub.onSnapshot = (s) => {
       if (s.v !== hub.version && !this.pulling) this.pullLayout();
       else if (!this.pulling) applySnapshot(this.engine, s);
+      // the hub's simulator came or went: Drive in 3D comes and goes with it
+      if (!!s.world !== sim) { sim = !!s.world; this.render(); }
     };
     this.rt.setSuspended(true);
     if (useHubLayout) await this.pullLayout();
@@ -165,6 +178,7 @@ export class ControlUI {
     if (!this.hub) return;
     this.hub.close();
     this.hub = null;
+    worldFor(this.engine).unmirror();
     this.rt.setSuspended(false);
     this.onProjectChanged();
     if (notify) { toast("Disconnected from the hub. This device drives the controllers again."); this.render(); }
@@ -536,7 +550,7 @@ export class ControlUI {
       h("button", { class: "btn stop-all", type: "button", onclick: () => this.doAndRender({ c: "stopAll" }, "All trains stopped.") },
         h("span", { html: icon("close", 18) }), "Stop all trains", h("kbd", {}, "Space")),
       e.powerOn ? h("button", { class: "btn btn-sm", type: "button", title: "Turn the track power off, like the power button on a DCC throttle", onclick: () => this.doAndRender({ c: "power", on: false }, "Track power off.") }, "Power off") : null));
-    if (cfg.controllers.some((c) => c.kind === "sim") && !this.hub && cfg.trains.some((t) => t.block))
+    if (cfg.controllers.some((c) => c.kind === "sim") && (this.hub ? !!this.hub.snap?.world : true) && cfg.trains.some((t) => t.block))
       el.append(h("div", { class: "btn-row" }, h("button", { class: "btn", type: "button", id: "drive-3d", title: "Drive the simulated trains in 3D (D)", onclick: () => this.app.drive.start(), html: `${icon("cube", 16)}<span>Drive in 3D</span>` })));
     if (!cfg.trains.length || !cfg.blocks.length) {
       el.append(h("div", { class: "ctl-empty" },

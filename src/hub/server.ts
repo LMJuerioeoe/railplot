@@ -118,10 +118,26 @@ export class Hub {
     const e = this.engine;
     while (e.events.length) { const t = e.events.shift()!; this.log(t); this.broadcast({ t: "event", text: t }); }
     this.wt?.poll();
+    this.stockChanged();
     const s = JSON.stringify({ t: "state", s: this.snap() });
     if (s !== this.lastSnap) { this.lastSnap = s; for (const ws of this.clients) ws.send(s); }
     this.saveSoon();
   }
+
+  /**
+   * The simulator changes the layout's rolling stock as trains couple and uncouple, and when a window
+   * places, turns round or takes off vehicles: a new layout version then has windows fetch it again,
+   * so the stock they have (and send back with their next edit) matches the hub's.
+   */
+  private stockChanged() {
+    const sig = JSON.stringify((this.p.control?.consists ?? []).map((c) => [c.id, c.train, c.vehicles.map((v) => v.id)]));
+    if (this.stockSig === null) { this.stockSig = sig; return; }
+    if (sig === this.stockSig) return;
+    this.stockSig = sig;
+    this.version++;
+    this.saveSoon();
+  }
+  private stockSig: string | null = null;
 
   snap() { return snapshot(this.engine, this.version, this.rt.linkSummaries(), this.clients.size + (this.wt?.sessions.size ?? 0)); }
 
@@ -135,6 +151,7 @@ export class Hub {
     let error: string | null;
     try { error = applyCommand(this.engine, m.cmd as Cmd, { take: (id) => this.rt.takeOver.add(id) }); }
     catch (e) { error = (e as Error).message; }
+    this.stockChanged();
     this.send(ws, { t: "result", id: m.id, error });
   }
 
@@ -164,6 +181,7 @@ export class Hub {
     this.p = p;
     this.rt.setProject(p, cfg);
     this.version++;
+    this.stockSig = null;   // the editor's stock is the hub's now
     this.saveNow();
     this.wt?.relist();
     this.log(`Layout updated: ${p.name}`);

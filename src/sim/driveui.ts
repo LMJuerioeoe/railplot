@@ -7,6 +7,7 @@ import { h, clear } from "../ui/dom";
 import { closeDialog, confirmDialog, dialog, toast } from "../ui/dialogs";
 import { store } from "../platform";
 import { DynamicVehicle } from "../view3d";
+import type { Cmd } from "../control/remote";
 import { geom } from "../model";
 import { World, scaleOf, worldFor } from "./world";
 import { TrackPos, TrackPose } from "./track";
@@ -70,10 +71,26 @@ export class DriveView {
   private get ctl() { return this.app.ctl; }
   private savePrefs() { store.set(PREFS, JSON.stringify({ units: this.units, camera: this.camera })); }
 
-  /** The simulator's world, when this window runs it (no hub). */
+  /** The simulator's world: run in this window, or a copy of the one on the hub this window is connected to. */
   world(): World | null {
+    if (this.ctl.hub) return this.ctl.hub.snap?.world ? worldFor(this.ctl.engine) : null;
     const sim = [...this.ctl.links.values()].find((l) => l instanceof SimLink);
-    return sim && !this.ctl.hub ? worldFor(this.ctl.engine) : null;
+    return sim ? worldFor(this.ctl.engine) : null;
+  }
+
+  /**
+   * Change the simulator's rolling stock: here, or on the hub this window is connected to (its copy here
+   * follows). `then` runs once it's done; `here` tells it whether it was done here, where the layout
+   * changed with it and gets saved (the hub saves its own, and this window fetches it).
+   */
+  private stock(cmd: Cmd, local: (w: World) => string | null | void, then: (here: boolean) => void = () => {}) {
+    const w = this.world();
+    if (!w) return;
+    if (this.ctl.hub) { this.ctl.sendStock(cmd).then((err) => { if (!err) then(false); }); return; }
+    const err = local(w);
+    if (err) { toast(err); return; }
+    this.app.commit();
+    then(true);
   }
 
   /** Open the drive view: the simulator gets set up first if the layout has nothing to drive. */
@@ -81,6 +98,7 @@ export class DriveView {
     const p = this.app.p;
     if (!p.items.length) { toast("Lay some track first: there's nothing to drive on."); return; }
     const cfg = this.ctl.cfg;
+    if (this.ctl.hub && !this.world()) { toast("Drive in 3D shows the hub's simulator, and this hub isn't running one. Add the simulator in Control > Set up (Controllers)."); return; }
     if (!cfg.controllers.some((c) => c.kind === "sim")) {
       if (cfg.controllers.length) { toast("Drive in 3D uses the simulator. Add it in Control > Set up (Controllers) to drive here."); return; }
       if (!(await confirmDialog("Drive in the simulator?", "Railplot adds a simulated controller and a train, and treats the whole layout as one block. You can split it into blocks later in Control > Set up.", "Set up and drive"))) return;
@@ -236,8 +254,10 @@ export class DriveView {
     if (k === "u" || k === "U") {
       const w = this.world();
       if (!w || !this.train) return true;
-      const err = w.uncoupleLoco(this.train);
-      if (err) toast(err); else { this.app.commit(); toast("Uncoupled."); }
+      const train = this.train, c = w.consistOf(train);
+      if (!c || c.vehicles.length < 2) { toast("Nothing is coupled to this train."); return true; }
+      const loco = Math.max(0, c.vehicles.findIndex((v) => v.kind === "loco"));
+      this.stock({ c: "uncouple", id: c.id, after: loco === 0 ? 0 : loco - 1 }, (w) => w.uncoupleLoco(train), () => toast("Uncoupled."));
       return true;
     }
     if (/^[1-9]$/.test(k)) {
@@ -349,8 +369,7 @@ export class DriveView {
     const best = this.nearestTarget(cx, cy);
     if (!best) return;
     if (best.kind === "coupler") {
-      const err = this.world()?.uncouple(best.id, best.after!);
-      if (err) toast(err); else { this.app.commit(); toast("Uncoupled."); }
+      this.stock({ c: "uncouple", id: best.id, after: best.after! }, (w) => w.uncouple(best.id, best.after!), () => toast("Uncoupled."));
       this.hoverCoupler = null;
       return;
     }
@@ -476,14 +495,14 @@ export class DriveView {
   private placeHere() {
     const pl = this.placing, w = this.world();
     if (!pl?.front || !w) return;
-    const err = w.placeConsist(pl.id, { ...pl.front, dir: pl.dir });
-    if (err) { toast(err); return; }
-    const train = w.consists.find((x) => x.id === pl.id)?.train;
-    this.stopPlacing();
-    this.app.commit();
-    if (train) this.train = train;
-    this.buildHud();
-    toast(`${this.consistName(pl.id)} is on the track.`);
+    const front = { ...pl.front, dir: pl.dir };
+    this.stock({ c: "placeConsist", id: pl.id, front }, (w) => w.placeConsist(pl.id, front), () => {
+      const train = this.world()?.consists.find((x) => x.id === pl.id)?.train ?? this.ctl.cfg.consists?.find((x) => x.id === pl.id)?.train;
+      this.stopPlacing();
+      if (train) this.train = train;
+      this.buildHud();
+      toast(`${this.consistName(pl.id)} is on the track.`);
+    });
   }
 
   /** The placing ghost: the consist's vehicles where they'd stand, or its front vehicle in red where it won't fit. */
@@ -518,7 +537,7 @@ export class DriveView {
   /** Make up trains: pick a train (or a rake of wagons), add stock, reorder, place it on the track. */
   openTrains() {
     const w = this.world();
-    if (!w) { toast("Making up trains needs the simulator running in this window."); return; }
+    if (!w) { toast(this.ctl.hub ? "The hub isn't running the simulator: add it in Control > Set up." : "Making up trains needs the simulator running in this window."); return; }
     if (this.placing) this.stopPlacing();
     const cfg = this.ctl.cfg;
     if (!this.editing || !cfg.consists?.some((x) => x.id === this.editing)) {
@@ -580,7 +599,7 @@ export class DriveView {
       if (i > 0) {
         const gap = h("li", { class: "coupling" });
         if (onTrack && !c!.derailed) gap.append(h("button", { type: "button", class: "coupler-btn", title: `Uncouple between ${i} and ${i + 1}`, "aria-label": `Uncouple between vehicle ${i} and ${i + 1}`,
-          onclick: () => { const err = w.uncouple(sc.id, i - 1); if (err) toast(err); else { this.app.commit(); toast("Uncoupled: the vehicles behind stand on their own."); this.renderTrains(); } } }));
+          onclick: () => this.stock({ c: "uncouple", id: sc.id, after: i - 1 }, (w) => w.uncouple(sc.id, i - 1), () => { toast("Uncoupled: the vehicles behind stand on their own."); this.renderTrains(); }) }));
         strip.append(gap);
       }
       const b = h("button", { type: "button", class: `veh${this.picked === i ? " on" : ""}`, style: `--veh:${v.color}; width:${Math.max(28, Math.min(120, v.length * 0.45))}px`,
@@ -619,8 +638,8 @@ export class DriveView {
     // what to do with it
     const acts = h("div", { class: "trains-acts" },
       h("button", { class: "btn btn-primary", type: "button", id: "trains-place", disabled: !sc.vehicles.length, onclick: () => this.startPlacing(sc.id) }, onTrack ? "Move it on the track" : "Place on the track"),
-      h("button", { class: "btn", type: "button", id: "trains-turn", disabled: !onTrack, onclick: () => { w.turnRound(sc.id); this.app.commit(); this.renderTrains(); } }, "Turn round"));
-    if (!sc.train) acts.append(h("button", { class: "btn btn-danger-ghost", type: "button", id: "trains-remove", onclick: () => { w.remove(sc.id); this.editing = null; this.app.commit(); closeDialog(); this.openTrains(); } }, "Take off the layout"));
+      h("button", { class: "btn", type: "button", id: "trains-turn", disabled: !onTrack, onclick: () => this.stock({ c: "turnRound", id: sc.id }, (w) => { w.turnRound(sc.id); }, () => this.renderTrains()) }, "Turn round"));
+    if (!sc.train) acts.append(h("button", { class: "btn btn-danger-ghost", type: "button", id: "trains-remove", onclick: () => this.takeOff(sc.id) }, "Take off the layout"));
     body.append(acts);
     // stock to add
     body.append(h("h3", {}, "Add to the back"));
@@ -672,11 +691,16 @@ export class DriveView {
     this.renderTrains();
   }
 
+  /** Take a rake of wagons off the layout. */
+  private takeOff(id: string) {
+    this.stock({ c: "removeConsist", id }, (w) => { w.remove(id); }, () => { this.editing = null; closeDialog(); this.openTrains(); });
+  }
+
   private removeVehicle() {
     const sc = this.ctl.cfg.consists?.find((x) => x.id === this.editing);
     if (!sc || this.picked === null) return;
     sc.vehicles.splice(this.picked, 1);
-    if (!sc.vehicles.length && !sc.train) { this.world()?.remove(sc.id); this.editing = null; this.app.commit(); closeDialog(); this.openTrains(); return; }
+    if (!sc.vehicles.length && !sc.train) { this.takeOff(sc.id); return; }
     this.picked = sc.vehicles.length ? Math.min(this.picked, sc.vehicles.length - 1) : null;
     this.changed();
     this.focusVehicle();
