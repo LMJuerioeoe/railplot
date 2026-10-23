@@ -12,7 +12,7 @@ import { World, scaleOf, worldFor } from "./world";
 import { TrackPos, TrackPose } from "./track";
 import { STOCK, newVehicle } from "./stock";
 import { MODELS, MOTION_FRAMES, ModelGroup, modelById, vehiclesOfModel } from "./models";
-import { VehicleKind } from "../control/types";
+import { VehicleCfg, VehicleKind } from "../control/types";
 
 export type Camera = "tabletop" | "chase" | "cab";
 const CAMERAS: Camera[] = ["tabletop", "chase", "cab"];
@@ -594,6 +594,8 @@ export class DriveView {
     });
     body.append(strip);
     if (lost) body.append(h("p", { class: "trains-bad" }, "Made up like this, it doesn't fit where it stood. Place it again."));
+    const tooLong = !lost && w.roomFor(sc.id, sc.vehicles);
+    if (tooLong) body.append(h("p", { class: "trains-bad", id: "trains-too-long" }, `Too long: ${tooLong.replace(/^There's no room behind it: /, "")} Remove some vehicles.`));
 
     // the picked vehicle
     const pv = this.picked !== null ? sc.vehicles[this.picked] : undefined;
@@ -605,7 +607,7 @@ export class DriveView {
         h("button", { class: "btn btn-sm", type: "button", disabled: i === sc.vehicles.length - 1, onclick: () => this.moveVehicle(1) }, "Move back"),
         h("button", { class: "btn btn-sm btn-danger-ghost", type: "button", id: "trains-remove-veh", onclick: () => this.removeVehicle() }, "Remove"));
       const len = h("input", { type: "number", id: "trains-length", min: "20", max: "400", step: "1", value: String(pv.length), "aria-label": "Length over buffers (mm)",
-        onchange: () => { const v = Math.round(+len.value); if (v >= 20 && v <= 400) { pv.length = v; this.changed(); } } }) as HTMLInputElement;
+        onchange: () => { const v = Math.round(+len.value); if (v >= 20 && v <= 400 && !this.makeUp(sc, sc.vehicles.map((x) => x === pv ? { ...pv, length: v } : x))) len.value = String(pv.length); } }) as HTMLInputElement;
       row.append(h("label", { class: "check" }, "Length ", len, " mm"));
       if (pv.kind !== "loco") {
         const cb = h("input", { type: "checkbox", id: "trains-resistor", checked: !!pv.detectable, onchange: () => { pv.detectable = cb.checked; this.app.commit(); } }) as HTMLInputElement;
@@ -626,7 +628,7 @@ export class DriveView {
     for (const st of STOCK) {
       const len = newVehicle(st.kind, w.libId(), "x").length;
       tiles.append(h("button", { type: "button", class: "part-tile stock-tile", "data-kind": st.kind, "aria-label": `Add a ${st.name.toLowerCase()}, ${len} mm`,
-        onclick: () => { sc.vehicles.push(newVehicle(st.kind, w.libId(), `v${cfg.nextId++}`, st.kind === "loco" && train ? train.color : undefined)); this.changed(); } },
+        onclick: () => this.makeUp(sc, [...sc.vehicles, newVehicle(st.kind, w.libId(), `v${cfg.nextId++}`, st.kind === "loco" && train ? train.color : undefined)]) },
         silhouette(st.kind), h("span", { class: "name" }, st.name), h("span", { class: "len" }, `${len} mm`)));
     }
     body.append(tiles);
@@ -641,7 +643,7 @@ export class DriveView {
       for (const md of inGroup) {
         const t = modelById(md.tender), len = md.length + (t ? t.length + 2 : 0);
         models.append(h("button", { type: "button", class: "part-tile stock-tile", "data-model": md.id, "aria-label": `Add a ${md.maker ? md.maker + " " : ""}${md.name}${t ? " and its tender" : ""}, ${len} mm`, title: md.note,
-          onclick: () => { sc.vehicles.push(...vehiclesOfModel(md, () => `v${cfg.nextId++}`)); this.changed(); } },
+          onclick: () => this.makeUp(sc, [...sc.vehicles, ...vehiclesOfModel(md, () => `v${cfg.nextId++}`)]) },
           h("span", { class: "swatch", style: `background:${md.color}`, "aria-hidden": "true" }), silhouette(md.kind), h("span", { class: "name" }, md.name), h("span", { class: "len" }, `${md.maker ? md.maker + " · " : ""}${len} mm${t ? " with tender" : ""}`)));
       }
       body.append(models);
@@ -652,6 +654,15 @@ export class DriveView {
   private focusVehicle() {
     // the strip was just redrawn: keep the keyboard on the picked vehicle
     if (this.picked !== null) this.trainsBody?.querySelector<HTMLElement>(`.veh[data-i="${this.picked}"]`)?.focus();
+  }
+
+  /** Make a consist up of `vehicles`, if there's room for them where it stands; otherwise say why not. */
+  private makeUp(sc: { id: string; vehicles: VehicleCfg[] }, vehicles: VehicleCfg[]): boolean {
+    const why = this.world()?.roomFor(sc.id, vehicles);
+    if (why) { toast(why); return false; }
+    sc.vehicles = vehicles;
+    this.changed();
+    return true;
   }
 
   /** The made-up consist changed: save it (the world keeps its front where it stood) and redraw. */

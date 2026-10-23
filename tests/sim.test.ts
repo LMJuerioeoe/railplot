@@ -485,3 +485,22 @@ describe("the model catalogue", () => {
     expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo((164 + 82) / 2 + 2, 0);
   });
 });
+
+test("BUG-016: a train can't be made up longer than there's room for: not round a loop onto itself, not past 40 vehicles", () => {
+  const p = buildSample();
+  const { quickStart } = require("../src/control/engine");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  w.advanceTo(0);
+  const c = w.consistOf(cfg.trains[0].id)!;
+  const van = (k: number) => newVehicle("van", w.libId(), `x${k}`);
+  const rake = (n: number) => [...c.vehicles, ...Array.from({ length: n }, (_, k) => van(k))];
+  expect(w.roomFor(c.id, rake(5))).toBeNull();
+  // long coaches enough to reach right round the oval, but shorter than all the track
+  const track = p.items.reduce((a, i) => a + geom(i).length, 0);
+  const coaches = Array.from({ length: Math.floor((track - 600) / 300) }, (_, k) => ({ ...van(k), length: 300 }));
+  expect(w.roomFor(c.id, [...c.vehicles, ...coaches])).toMatch(/no room behind it/);
+  expect(w.roomFor(c.id, rake(45))).toMatch(/at most 40 vehicles/);
+});

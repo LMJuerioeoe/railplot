@@ -61,6 +61,10 @@ const BUFFER_SPEED = 120;
 
 /** Room between two vehicles' bodies (buffers just touching), mm. */
 const GAP = 2;
+/** The most vehicles in one train or rake. */
+export const MAX_VEHICLES = 40;
+/** Length of vehicles coupled together, buffer to buffer, mm. */
+const lengthOf = (vs: { length: number }[]) => vs.reduce((a, v) => a + v.length + GAP, -GAP);
 /** Closing speed at which buffers touching couple up, mm/s; faster, the trains bounce apart and stop. */
 export const COUPLE_SPEED = 70;
 /** How far a train the simulator stands on the track by itself can run both ways without trailing a point (mm). */
@@ -229,15 +233,10 @@ export class World {
     if (!c) return { error: "That train isn't in the simulator." };
     if (this.engine().cfg.points.some((q) => q.item === front.item)) return { error: "That's a point: pick plain track." };
     const at = this.layout(c.vehicles, front, true);
-    const need = c.vehicles.reduce((a, v) => a + v.length + GAP, -GAP);
+    const need = lengthOf(c.vehicles);
     if (!at) return { error: `It won't fit there: the track ends (the train is ${Math.round(need)} mm long).` };
     // longer than a loop it's put on, it would run round onto its own back
-    const poses = at.map((a) => this.graph.pose(a));
-    for (let i = 0; i < at.length; i++) for (let j = i + 2; j < at.length; j++) {
-      const reach = (c.vehicles[i].length + c.vehicles[j].length) / 2;
-      if (Math.hypot(poses[i].x - poses[j].x, poses[i].y - poses[j].y) < reach - 1 && Math.abs(poses[i].z - poses[j].z) < 30)
-        return { error: `It won't fit there: the train is ${Math.round(need)} mm long, longer than the loop it's on.` };
-    }
+    if (this.wraps(c.vehicles, at)) return { error: `It won't fit there: the train is ${Math.round(need)} mm long, longer than the loop it's on.` };
     if (this.overlaps(c, at)) return { error: "Another train is in the way there." };
     return { at };
   }
@@ -318,8 +317,37 @@ export class World {
   }
 
   /** Would a consist standing at `at` stand on another consist's vehicles? */
-  private overlaps(c: Consist, at: TrackPos[]): boolean {
-    const mine = at.map((a, i) => ({ p: this.graph.pose(a), half: c.vehicles[i].length / 2 }));
+  /**
+   * Why a consist can't be made up of `vehicles`, or null if it can: too many, longer than all the track,
+   * or (standing on the track) running off the end behind it, round a loop onto its own front, or into
+   * another train. Its front stays where it stands, so the new vehicles must fit behind it.
+   */
+  roomFor(id: string, vehicles: Vehicle[]): string | null {
+    if (vehicles.length > MAX_VEHICLES) return `A train can have at most ${MAX_VEHICLES} vehicles.`;
+    const need = Math.round(lengthOf(vehicles));
+    const track = Math.round(this.p.items.reduce((a, i) => a + geom(i).length, 0));
+    if (need > track) return `That would make it ${need} mm long, longer than all the track on the layout (${track} mm).`;
+    const c = this.consists.find((x) => x.id === id);
+    if (!c?.at.length || !vehicles.length) return null;
+    const at = this.layout(vehicles, c.at[0], true);
+    if (!at) return `There's no room behind it: the track ends (it would be ${need} mm long). Move it first, or make it shorter.`;
+    if (this.wraps(vehicles, at)) return `There's no room behind it: at ${need} mm long it would run round the loop onto its own front.`;
+    if (this.overlaps(c, at, vehicles)) return `There's no room behind it: it would run into another train (it would be ${need} mm long).`;
+    return null;
+  }
+
+  /** Would vehicles standing at `at` reach round a loop onto each other? */
+  private wraps(vehicles: Vehicle[], at: TrackPos[]): boolean {
+    const poses = at.map((a) => this.graph.pose(a));
+    for (let i = 0; i < at.length; i++) for (let j = i + 2; j < at.length; j++) {
+      const reach = (vehicles[i].length + vehicles[j].length) / 2;
+      if (Math.hypot(poses[i].x - poses[j].x, poses[i].y - poses[j].y) < reach - 1 && Math.abs(poses[i].z - poses[j].z) < 30) return true;
+    }
+    return false;
+  }
+
+  private overlaps(c: Consist, at: TrackPos[], vehicles = c.vehicles): boolean {
+    const mine = at.map((a, i) => ({ p: this.graph.pose(a), half: vehicles[i].length / 2 }));
     return this.consists.some((o) => o !== c && o.at.some((a, i) => {
       const q = this.graph.pose(a), half = o.vehicles[i].length / 2;
       return mine.some((m) => Math.hypot(m.p.x - q.x, m.p.y - q.y) < m.half + half - 1 && Math.abs(m.p.z - q.z) < 30);
