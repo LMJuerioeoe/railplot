@@ -34,6 +34,8 @@
   --warn-ink: #8d6300;
   --warn-soft: #f6ebc9;
   --bad: #b3362b;
+  /* the Stop all trains button: a deep red that white text reads on, in both themes */
+  --stop: #b3362b;
   --bad-soft: #f6dcd8;
   --info-soft: #e4e8e1;
   --shadow: 0 8px 28px rgb(20 30 24 / 0.16), 0 1px 3px rgb(20 30 24 / 0.12);
@@ -171,6 +173,7 @@ kbd { font: 11px/1 var(--font-num); padding: 2px 5px; border: 1px solid var(--li
 /* workspace */
 .workspace { grid-area: work; position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--plot); }
 .plot { position: absolute; inset: 0; display: block; touch-action: none; outline: none; cursor: default; }
+.plot:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .plot[data-tool="flex"], .plot[data-tool="board"], .plot[data-tool="measure"], .plot[data-tool="start"] { cursor: crosshair; }
 .empty-hint { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); max-width: 380px; text-align: center; color: var(--ink-2); pointer-events: none; }
 .tour { position: absolute; left: 14px; bottom: 14px; width: min(320px, calc(100% - 28px)); padding: 12px 14px; background: var(--raised); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: var(--shadow); z-index: 5; }
@@ -226,7 +229,7 @@ kbd { font: 11px/1 var(--font-num); padding: 2px 5px; border: 1px solid var(--li
 .layer.active { background: var(--accent-soft); }
 .layer-name { text-align: left; background: none; border: 0; padding: 4px 2px; cursor: default; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .layer.active .layer-name { font-weight: 600; }
-.layer-count { color: var(--ink-3); font-size: 11px; }
+.layer-count { color: var(--ink-2); font-size: 11px; }
 .layer-actions { display: flex; gap: 1px; opacity: 0.55; }
 .layer:hover .layer-actions, .layer.active .layer-actions { opacity: 1; }
 
@@ -319,8 +322,8 @@ table.keys td:first-child { width: 1%; white-space: nowrap; }
 .seg button.on { background: var(--accent-soft); color: var(--ink); }
 .ctl-tabs { justify-self: start; }
 
-.stop-all { width: 100%; justify-content: center; height: 44px; background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 700; font-size: 15px; }
-.stop-all:hover:not(:disabled) { border-color: var(--bad); filter: brightness(1.08); }
+.stop-all { width: 100%; justify-content: center; height: 44px; background: var(--stop); border-color: var(--stop); color: #fff; font-weight: 700; font-size: 15px; }
+.stop-all:hover:not(:disabled) { border-color: var(--stop); filter: brightness(1.08); }
 .stop-all kbd { background: transparent; color: #fff; border-color: rgb(255 255 255 / 0.5); }
 
 .train-card { display: grid; gap: 8px; padding: 10px 12px 12px; border: 1px solid var(--line); border-left: 4px solid var(--train); border-radius: var(--r); background: var(--raised); }

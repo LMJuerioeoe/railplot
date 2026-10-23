@@ -36,6 +36,11 @@ export function dialog(title: string, body: Node, actions: Action[], opts: { wid
   open = scrim;
   const first = form.querySelector<HTMLElement>("input, select, textarea") ?? btns[btns.length - 1];
   setTimeout(() => first?.focus(), 0);
+  // a body too long for the window scrolls: let the keyboard reach it, to scroll it with the arrow keys
+  requestAnimationFrame(() => {
+    const b = form.querySelector<HTMLElement>(".dialog-body");
+    if (b && b.scrollHeight > b.clientHeight + 1) { b.tabIndex = 0; b.setAttribute("role", "region"); b.setAttribute("aria-label", title); }
+  });
   return form;
 }
 
