@@ -485,3 +485,61 @@ describe("the model catalogue", () => {
     expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo((164 + 82) / 2 + 2, 0);
   });
 });
+
+test("BUG-016: a train can't be made up longer than there's room for: not round a loop onto itself, not past 40 vehicles", () => {
+  const p = buildSample();
+  const { quickStart } = require("../src/control/engine");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  w.advanceTo(0);
+  const c = w.consistOf(cfg.trains[0].id)!;
+  const van = (k: number) => newVehicle("van", w.libId(), `x${k}`);
+  const rake = (n: number) => [...c.vehicles, ...Array.from({ length: n }, (_, k) => van(k))];
+  expect(w.roomFor(c.id, rake(5))).toBeNull();
+  // long coaches enough to reach right round the oval, but shorter than all the track
+  const track = p.items.reduce((a, i) => a + geom(i).length, 0);
+  const coaches = Array.from({ length: Math.floor((track - 600) / 300) }, (_, k) => ({ ...van(k), length: 300 }));
+  expect(w.roomFor(c.id, [...c.vehicles, ...coaches])).toMatch(/no room behind it/);
+  expect(w.roomFor(c.id, rake(45))).toMatch(/at most 40 vehicles/);
+});
+
+test("BUG-017: two simulated trains in their own blocks never run into each other: one following waits, head-on they both stop short", () => {
+  const p = buildSample();
+  const { quickStart } = require("../src/control/engine");
+  const { divideForTrains } = require("../src/control/divide");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  w.advanceTo(0);
+  divideForTrains(p, cfg, 2, { where: (id: string) => w.consistOf(id)?.at[0]?.item });
+  e.setProject(p, cfg);
+  w.advanceTo(100);
+  const [t1, t2] = cfg.trains, c1 = w.consistOf(t1.id)!, c2 = w.consistOf(t2.id)!;
+  let ms = 100;
+  const run = (s: number) => { for (let k = 0; k < s * 10; k++) { e.step(0.1); ms += 100; w.advanceTo(ms); } };
+  const gap = () => { const a = w.graph.pose(c1.at[0]), b = w.graph.pose(c2.at[0]); return Math.hypot(a.x - b.x, a.y - b.y); };
+  e.setThrottle(t1.id, 0.7); e.setThrottle(t2.id, 0.7);
+  run(3);
+  // the second stops; the first catches up and waits behind it, then goes on when it moves off
+  e.setThrottle(t2.id, 0);
+  run(8);
+  expect(Math.abs(c1.speed)).toBe(0);
+  expect(c1.waiting).toBeDefined();
+  expect(w.consists.filter((c) => c.train).length).toBe(2);
+  e.setThrottle(t2.id, 0.7);
+  run(4);
+  expect(Math.abs(c1.speed)).toBeGreaterThan(100);
+  // now the second turns back towards the first: they stop facing each other, without touching
+  e.setThrottle(t2.id, 0); run(3);
+  e.setThrottle(t2.id, -0.7); run(15);
+  expect([c1.derailed ?? null, c2.derailed ?? null]).toEqual([null, null]);
+  expect([Math.abs(c1.speed), Math.abs(c2.speed)]).toEqual([0, 0]);
+  expect(w.consists.filter((c) => c.train).length).toBe(2);
+  expect(gap()).toBeGreaterThan(0);
+  const before = [c1.odo, c2.odo];
+  run(5);
+  expect([c1.odo, c2.odo]).toEqual(before);   // no bouncing back and forth
+});

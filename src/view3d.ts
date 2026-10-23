@@ -4,17 +4,26 @@ import { Item, Project, geom, isVisible, projectBounds } from "./model";
 import { getModule, moduleToWorld, overallDepth } from "./modules";
 import { MOTION_FRAMES, Model, RGB, Shapes, modelById, withTravel } from "./sim/models";
 import { Label, paintLabel } from "./sim/decals";
+import { BLACK, BRASS, COAL, COPPER, DARK_STEEL, GLASS, STEEL, UNDER } from "./sim/parts";
 
 type V3 = [number, number, number];
 
+/** Surface finishes: how a vertex catches the light (shiny metal, glossy paint, matt). */
+export const MAT = { matt: 0, soot: 0.15, paint: 0.5, glass: 0.8, metal: 1 };
+
 class MeshBuilder {
   pos: number[] = []; nrm: number[] = []; col: number[] = []; idx: number[] = [];
+  /** Each vertex's finish (MAT). */
+  mat: number[] = [];
+  /** The finish of what's drawn next, or a rule giving it from the colour. */
+  finish: number | ((c: V3) => number) = MAT.matt;
   /** Texture coordinates, for decal meshes. */
   uv: number[] = [];
   /** A model's decals, laid out but not yet painted: corners (unit space), normal, label, size in mm. */
   decals: { corners: V3[]; n: V3; label: Label; w: number; h: number }[] = [];
   vert(p: V3, n: V3, c: V3) {
     this.pos.push(...p); this.nrm.push(...n); this.col.push(...c);
+    this.mat.push(typeof this.finish === "number" ? this.finish : this.finish(c));
     return this.pos.length / 3 - 1;
   }
   quad(a: V3, b: V3, c: V3, d: V3, n: V3, col: V3) {
@@ -160,7 +169,9 @@ export function buildScene(p: Project, opt: Options3D): MeshBuilder {
         ribbon(m, poses, 0, prof.sleeperLength, sleeperTop - 1.6, sleeperTop, C.sleeper);
       }
       const half = g.part.lib.gauge / 2;
+      m.finish = MAT.metal;
       for (const off of [half, -half]) ribbon(m, poses, off, 0.9, sleeperTop, sleeperTop + prof.railHeight, C.rail);
+      m.finish = MAT.matt;
     });
   }
   return m;
@@ -181,6 +192,8 @@ function lookAt(e: V3, c: V3, up: V3): M4 {
   return new Float32Array([xx, yx, zx, 0, xy, yy, zy, 0, xz, yz, zz, 0,
     -(xx * e[0] + xy * e[1] + xz * e[2]), -(yx * e[0] + yy * e[1] + yz * e[2]), -(zx * e[0] + zy * e[1] + zz * e[2]), 1]);
 }
+const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (a: V3): V3 => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 function mul(a: M4, b: M4): M4 {
   const o = new Float32Array(16);
   for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
@@ -191,38 +204,104 @@ function mul(a: M4, b: M4): M4 {
   return o;
 }
 
+function ortho(l: number, r: number, b: number, t: number, n: number, f: number): M4 {
+  return new Float32Array([2 / (r - l), 0, 0, 0, 0, 2 / (t - b), 0, 0, 0, 0, -2 / (f - n), 0, -(r + l) / (r - l), -(t + b) / (t - b), -(f + n) / (f - n), 1]);
+}
+
+/** Where the sun is (GL axes: x, up, -y): high, from the front left as the layout is first seen. */
+const SUN: V3 = (() => { const v: V3 = [-0.5, 0.72, 0.42], l = Math.hypot(...v); return [v[0] / l, v[1] / l, v[2] / l]; })();
+
 const VS = `#version 300 es
-in vec3 aPos; in vec3 aNrm; in vec3 aCol; in vec2 aUV;
-uniform mat4 uMvp; uniform mat4 uModel; uniform vec3 uEye; uniform vec3 uTint;
-out vec3 vN; out vec3 vC; out float vD; out vec3 vW; out float vH; out vec2 vUV;
-void main(){ vec4 w=uModel*vec4(aPos,1.0); vN=mat3(uModel)*aNrm; vC=aCol*uTint; vD=distance(w.xyz,uEye); vW=w.xyz; vH=aPos.y; vUV=aUV; gl_Position=uMvp*w; }`;
+in vec3 aPos; in vec3 aNrm; in vec3 aCol; in vec2 aUV; in float aMat;
+uniform mat4 uMvp; uniform mat4 uModel; uniform mat4 uLight; uniform vec3 uEye; uniform vec3 uTint; uniform vec3 uSun; uniform float uNOff;
+out vec3 vN; out vec3 vC; out float vD; out vec3 vW; out float vH; out vec2 vUV; out vec4 vL; out float vM;
+void main(){
+  vec4 w=uModel*vec4(aPos,1.0); vN=mat3(uModel)*aNrm; vC=aCol*uTint; vD=distance(w.xyz,uEye); vW=w.xyz; vH=aPos.y; vUV=aUV; vM=aMat;
+  // look the shadow up a little off the surface, towards the sun, so a face doesn't shade itself
+  vec3 n=normalize(vN); if(dot(n,uSun)<0.0) n=-n;
+  vL=uLight*vec4(w.xyz+n*uNOff+uSun*uNOff*0.5,1.0);
+  gl_Position=uMvp*w; }`;
 const FS = `#version 300 es
 precision highp float;
-in vec3 vN; in vec3 vC; in float vD; in vec3 vW; in float vH; in vec2 vUV;
-uniform vec3 uBg; uniform float uFog; uniform vec3 uEye; uniform float uSpec; uniform float uAO; uniform float uShadow;
+precision highp sampler2DShadow;
+in vec3 vN; in vec3 vC; in float vD; in vec3 vW; in float vH; in vec2 vUV; in vec4 vL; in float vM;
+uniform vec3 uBg; uniform float uFog; uniform vec3 uEye; uniform float uAO; uniform float uShadow;
 uniform sampler2D uTex; uniform float uUseTex;
+uniform sampler2DShadow uShadowMap; uniform float uShadowOn; uniform float uTexel;
+uniform vec3 uSun; uniform vec3 uSky; uniform vec3 uGround; uniform float uTone;
 out vec4 o;
+float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
+// how much sun reaches here: 0 in shadow, 1 in sun (soft edged: 12 taps)
+float sunlit(vec3 n){
+  if(uShadowOn<0.5) return 1.0;
+  vec3 p=vL.xyz/vL.w*0.5+0.5;
+  if(p.x<0.0||p.x>1.0||p.y<0.0||p.y>1.0||p.z>1.0) return 1.0;
+  float bias=0.00005;
+  float s=0.0;
+  for(int i=-1;i<=2;i++) for(int j=-1;j<=1;j++) s+=texture(uShadowMap,vec3(p.xy+vec2(float(i)-0.5,float(j))*uTexel*1.3,p.z-bias));
+  return s/12.0;
+}
+vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
 void main(){
   // a contact shadow: dark, as see-through as its colour says
   if(uShadow>0.0){ o=vec4(0.0,0.0,0.0,vC.r*uShadow); return; }
   vec3 base=vC; float alpha=1.0;
   // a decal: its painted texture, lit like the body under it
   if(uUseTex>0.5){ vec4 t=texture(uTex,vUV); if(t.a<0.02) discard; base=t.rgb; alpha=t.a; }
+  // the layout's own surfaces: a fine grain, so boards and ballast don't look like plastic
+  if(uAO<0.5 && vM<0.05){ float g=noise(vW.xz*0.45)*0.6+noise(vW.xz*1.7)*0.4; base*=0.92+0.16*g; }
   vec3 n=normalize(vN);
   vec3 V=normalize(uEye-vW);
   if(dot(n,V)<0.0) n=-n;   // lit from whichever side is seen
-  vec3 L=normalize(vec3(-0.45,0.85,0.35));
-  float d=max(dot(n,L),0.0);
-  float hemi=0.5+0.5*n.y;
-  vec3 c=base*(0.38+0.22*hemi+0.55*d);
-  // paint and metal catch the light: a soft highlight, and a little sky reflected at grazing angles
-  float sp=pow(max(dot(n,normalize(L+V)),0.0),28.0)*uSpec;
-  float rim=pow(1.0-max(dot(n,V),0.0),3.0)*uSpec*0.35;
-  c+=vec3(sp)+uBg*rim;
+  float metal=step(0.9,vM), gloss=vM;
+  float sun=sunlit(n);
+  float d=max(dot(n,uSun),0.0)*sun;
+  vec3 lin=pow(base,vec3(2.2));
+  // sky from above, the board's bounce from below
+  vec3 amb=mix(uGround,uSky,0.5+0.5*n.y);
   // vehicles: the closer to the rails, the less sky reaches (wheels and underframes sit in shade)
-  c*=mix(1.0,0.5+0.5*smoothstep(0.0,0.42,vH),uAO);
+  float ao=mix(1.0,0.45+0.55*smoothstep(0.0,0.42,vH),uAO);
+  vec3 diff=lin*(1.0-0.65*metal);
+  vec3 c=diff*(amb*0.85*ao+vec3(1.0,0.96,0.88)*1.3*d);
+  // highlights: tight and coloured on metal, broad and white on paint, none on matt board
+  vec3 H=normalize(uSun+V);
+  float pw=mix(8.0,90.0,gloss);
+  float sp=pow(max(dot(n,H),0.0),pw)*(pw+8.0)/40.0*sun;
+  vec3 f0=mix(vec3(0.04),lin,metal);
+  float fres=pow(1.0-max(dot(n,V),0.0),5.0);
+  vec3 F=f0+(1.0-f0)*fres;
+  c+=F*sp*gloss*1.6;
+  // a little sky mirrored in paint and metal, more at grazing angles
+  c+=F*uSky*gloss*(0.35+0.65*metal)*ao*0.6;
+  vec3 outc=uTone>0.5 ? pow(aces(c*0.85),vec3(1.0/2.2)) : pow(c/(1.0+c*0.15),vec3(1.0/2.2));
   float f=clamp((vD-uFog)/(uFog*3.0),0.0,0.6);
-  o=vec4(mix(c,uBg,f),alpha);
+  o=vec4(mix(outc,uBg,f),alpha);
+}`;
+
+/** Depth from the sun, for shadows. */
+const SHADOW_VS = `#version 300 es
+in vec3 aPos; uniform mat4 uLight; uniform mat4 uModel;
+void main(){ gl_Position=uLight*uModel*vec4(aPos,1.0); }`;
+const SHADOW_FS = `#version 300 es
+precision mediump float; out vec4 o; void main(){ o=vec4(1.0); }`;
+
+/** A sky behind everything: deep blue overhead, pale at the horizon, warm round the sun. */
+const SKY_VS = `#version 300 es
+in vec2 aXY; out vec2 vXY; void main(){ vXY=aXY; gl_Position=vec4(aXY,0.9999,1.0); }`;
+const SKY_FS = `#version 300 es
+precision highp float;
+in vec2 vXY; uniform vec3 uRight; uniform vec3 uUp; uniform vec3 uFwd; uniform vec2 uTan; uniform vec3 uSun;
+uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uFloor;
+out vec4 o;
+void main(){
+  vec3 d=normalize(uFwd+vXY.x*uTan.x*uRight+vXY.y*uTan.y*uUp);
+  float h=d.y;
+  vec3 c=h>0.0 ? mix(uHorizon,uZenith,pow(h,0.55)) : mix(uHorizon,uFloor,smoothstep(0.0,0.25,-h));
+  float s=max(dot(d,uSun),0.0);
+  c+=vec3(1.0,0.92,0.75)*(pow(s,300.0)*1.5+pow(s,12.0)*0.18);
+  o=vec4(c,1.0);
 }`;
 
 /** A vehicle to draw this frame: its kind and size, colour, and where it stands. */
@@ -240,8 +319,18 @@ export interface DynamicVehicle { kind: string; length: number; width: number; h
  */
 const SIDES_ = [1, -1] as const;
 
+const same = (a: V3, b: V3) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+/** A model part's finish from its colour: bare metal shines, smokebox black is sooty, the rest is paint. */
+function finishOf(c: V3): number {
+  if ([STEEL, DARK_STEEL, BRASS, COPPER].some((x) => same(c, x))) return MAT.metal;
+  if ([BLACK, UNDER, COAL].some((x) => same(c, x))) return MAT.soot;
+  if (same(c, GLASS)) return MAT.glass;
+  return MAT.paint;
+}
+
 export function modelMesh(md: Model): MeshBuilder {
   const m = new MeshBuilder();
+  m.finish = finishOf;
   const L = md.length, Wd = md.width, H = md.height;
   type P3 = [number, number, number];
   const P = (p: P3): V3 => W(p[0] / L, p[1] / Wd, p[2] / H);
@@ -475,6 +564,16 @@ export class View3D {
   /** A camera following something (chase, cab): eye and target in plan mm (x, y, z up). Null: orbit. */
   follow: { eye: [number, number, number]; target: [number, number, number] } | null = null;
 
+  /** Depth from the sun, and the sky. */
+  private shadowProg: WebGLProgram;
+  private skyProg: WebGLProgram;
+  private shadowMap: { fb: WebGLFramebuffer; tex: WebGLTexture; size: number } | null = null;
+  private skyVao: WebGLVertexArrayObject | null = null;
+  /** Draw a sky instead of the plain background (the drive view). */
+  sky = false;
+  /** Shadows cast by the sun (on unless the system can't). */
+  shadows = true;
+
   constructor(readonly canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl2", { antialias: true, preserveDrawingBuffer: true });
     if (!gl) throw new Error("3D view needs WebGL 2, which this system doesn't provide.");
@@ -484,9 +583,23 @@ export class View3D {
       if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) ?? "shader error");
       return s;
     };
-    const p = gl.createProgram()!;
-    gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(p);
-    this.prog = p;
+    const program = (vs: string, fs: string) => {
+      const p = gl.createProgram()!;
+      gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+      // the same attribute slots in every program, so one vertex array serves them all
+      ["aPos", "aNrm", "aCol", "aUV", "aMat"].forEach((n, i) => gl.bindAttribLocation(p, i, n));
+      gl.bindAttribLocation(p, 0, "aXY");
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? "link error");
+      return p;
+    };
+    // drawn in software (no graphics card), a second pass for shadows would halve the frame rate
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const renderer = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "");
+    if (/swiftshader|llvmpipe|software|basic render/i.test(renderer)) this.shadows = false;
+    this.prog = program(VS, FS);
+    this.shadowProg = program(SHADOW_VS, SHADOW_FS);
+    this.skyProg = program(SKY_VS, SKY_FS);
     this.bindControls();
   }
 
@@ -501,15 +614,14 @@ export class View3D {
     const gl = this.gl;
     const vao = gl.createVertexArray()!;
     gl.bindVertexArray(vao);
-    const attr = (name: string, data: number[], size = 3) => {
+    const attr = (loc: number, data: number[], size = 3) => {
       const b = gl.createBuffer()!; keep.push(b);
       gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
-      const loc = gl.getAttribLocation(this.prog, name);
-      if (loc < 0) return;
       gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
     };
-    attr("aPos", m.pos); attr("aNrm", m.nrm); attr("aCol", m.col);
-    if (m.uv.length) attr("aUV", m.uv, 2);
+    attr(0, m.pos); attr(1, m.nrm); attr(2, m.col);
+    if (m.uv.length) attr(3, m.uv, 2);
+    if (m.mat.length) attr(4, m.mat, 1);
     const ib = gl.createBuffer()!; keep.push(ib);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(m.idx), gl.STATIC_DRAW);
     gl.bindVertexArray(null);
@@ -531,6 +643,7 @@ export class View3D {
 
   /** The vehicles to draw from now on (the layout's mesh stays as it is). */
   setDynamic(v: DynamicVehicle[]) { this.dynamic = v; this.draw(); }
+
 
   private shadowMesh: { vao: WebGLVertexArrayObject; count: number } | null = null;
   /** A flat patch, dark in the middle and fading to nothing at its edges, one unit long and wide. */
@@ -643,37 +756,61 @@ export class View3D {
     const dpr = Math.min(2.5, Math.max(1.5, (window.devicePixelRatio || 1) * 1.25));
     const w = Math.max(1, Math.round(c.clientWidth * dpr)), h = Math.max(1, Math.round(c.clientHeight * dpr));
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-    gl.viewport(0, 0, w, h);
-    gl.clearColor(this.bg[0], this.bg[1], this.bg[2], 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    if (!this.vao) return;
-    gl.enable(gl.DEPTH_TEST);
-    gl.disable(gl.CULL_FACE);
-    gl.useProgram(this.prog);
     const f = this.follow;
     const eye = f ? W(...f.eye) : this.eye();
     const target = f ? W(...f.target) : this.target;
+    const sky = this.sky;
+    // the sky's colours; without a sky, the page's background stands in for it
+    const horizon: V3 = sky ? [0.8, 0.86, 0.92] : this.bg;
+    const bg = horizon;
+    const light = this.vao && this.shadows ? this.renderShadows(target) : null;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(bg[0], bg[1], bg[2], 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (!this.vao) return;
     // following a train the eye is close to the track: a near plane of a few mm keeps the rails in view
-    const proj = f ? persp(0.95, w / h, 2, this.extent * 4) : persp(0.75, w / h, Math.max(1, this.distance / 200), this.distance * 20 + this.extent * 4);
+    const fov = f ? 0.95 : 0.75;
+    const proj = f ? persp(fov, w / h, 2, this.extent * 4) : persp(fov, w / h, Math.max(1, this.distance / 200), this.distance * 20 + this.extent * 4);
     const view = lookAt(eye, target, [0, 1, 0]);
-    const loc = (n: string) => gl.getUniformLocation(this.prog, n);
     this.lastMvp = mul(proj, view);
+    if (sky) this.renderSky(eye, target, fov, w / h);
+
+    gl.enable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(this.prog);
+    const loc = (n: string) => gl.getUniformLocation(this.prog, n);
     gl.uniformMatrix4fv(loc("uMvp"), false, this.lastMvp);
     gl.uniformMatrix4fv(loc("uModel"), false, IDENTITY);
+    gl.uniformMatrix4fv(loc("uLight"), false, light?.mvp ?? IDENTITY);
+    gl.uniform1f(loc("uShadowOn"), light ? 1 : 0);
+    gl.uniform1f(loc("uTexel"), light ? 1 / light.size : 0);
+    gl.uniform1f(loc("uNOff"), light ? light.texelMm * 1.6 : 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, light ? this.shadowMap!.tex : null);
+    gl.uniform1i(loc("uShadowMap"), 1);
+    // unit 0 is the decals' (a depth texture left there would clash with their sampler)
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, null);
     gl.uniform3fv(loc("uTint"), [1, 1, 1]);
     gl.uniform3fv(loc("uEye"), eye);
-    gl.uniform3fv(loc("uBg"), this.bg);
+    gl.uniform3fv(loc("uBg"), bg);
+    gl.uniform3fv(loc("uSun"), SUN);
+    // ambient light: the sky above, and the board's own colour bounced up from below
+    gl.uniform3fv(loc("uSky"), sky ? [0.42, 0.52, 0.66] : [0.5, 0.52, 0.55]);
+    gl.uniform3fv(loc("uGround"), [0.3, 0.26, 0.2]);
+    gl.uniform1f(loc("uTone"), 1);
     gl.uniform1f(loc("uFog"), f ? this.extent * 1.2 : this.distance * 1.4);
-    gl.uniform1f(loc("uSpec"), 0);
     gl.uniform1f(loc("uAO"), 0);
     gl.uniform1f(loc("uShadow"), 0);
     gl.bindVertexArray(this.vao);
     gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_INT, 0);
-    // contact shadows under the vehicles, softly blended onto the track
+    // contact shadows under the vehicles, softly blended onto the track: the shade where the sun can't reach
     const shadow = this.shadowVao();
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -2);
-    gl.uniform1f(loc("uShadow"), 0.68);
+    gl.uniform1f(loc("uShadow"), light ? 0.4 : 0.68);
     gl.uniform3fv(loc("uTint"), [1, 1, 1]);
     gl.bindVertexArray(shadow.vao);
     for (const v of this.dynamic) {
@@ -683,8 +820,6 @@ export class View3D {
     }
     gl.disable(gl.BLEND); gl.depthMask(true); gl.disable(gl.POLYGON_OFFSET_FILL);
     gl.uniform1f(loc("uShadow"), 0);
-    gl.uniform1f(loc("uSpec"), 0.32);
-    gl.uniform1f(loc("uAO"), 1);
     for (const v of this.dynamic) {
       const mesh = this.vehicleVao(v.kind);
       gl.uniformMatrix4fv(loc("uModel"), false, vehicleMatrix(v));
@@ -705,6 +840,90 @@ export class View3D {
       }
     }
     gl.bindVertexArray(null);
+  }
+
+  /**
+   * Draw the layout and vehicles as the sun sees them, into a depth texture. The sun's view takes in the
+   * whole layout, or (following a train) the few metres round it, so shadows there come out sharper.
+   */
+  private renderShadows(target: V3): { mvp: M4; size: number; texelMm: number } | null {
+    const gl = this.gl;
+    if (!this.shadowMap) {
+      const size = Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE) as number);
+      const tex = gl.createTexture()!;
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, size, size);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+      const fb = gl.createFramebuffer()!;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, tex, 0);
+      gl.drawBuffers([gl.NONE]); gl.readBuffer(gl.NONE);
+      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      if (!ok) { gl.deleteFramebuffer(fb); gl.deleteTexture(tex); this.shadows = false; return null; }
+      this.shadowMap = { fb, tex, size };
+    }
+    const { fb, size } = this.shadowMap;
+    const b = this.project ? projectBounds(this.project) : null;
+    const whole = b ? { c: W((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, 0), r: Math.hypot(b.maxX - b.minX, b.maxY - b.minY) / 2 + 150 } : { c: this.target, r: this.extent };
+    const near = this.follow && whole.r > 1600 ? { c: target, r: 1600 } : whole;
+    // the sun's view, its texels snapped to whole steps so shadow edges don't shimmer as the camera moves
+    const view = lookAt([near.c[0] + SUN[0] * near.r * 3, near.c[1] + SUN[1] * near.r * 3, near.c[2] + SUN[2] * near.r * 3], near.c, [0, 1, 0]);
+    const step = (2 * near.r) / size;
+    const cx = view[0] * near.c[0] + view[4] * near.c[1] + view[8] * near.c[2] + view[12];
+    const cy = view[1] * near.c[0] + view[5] * near.c[1] + view[9] * near.c[2] + view[13];
+    const ox = cx - Math.round(cx / step) * step, oy = cy - Math.round(cy / step) * step;
+    const mvp = mul(ortho(cx - ox - near.r, cx - ox + near.r, cy - oy - near.r, cy - oy + near.r, near.r * 0.5, near.r * 6), view);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.viewport(0, 0, size, size);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+    gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.1, 2);
+    gl.useProgram(this.shadowProg);
+    const loc = (n: string) => gl.getUniformLocation(this.shadowProg, n);
+    gl.uniformMatrix4fv(loc("uLight"), false, mvp);
+    gl.uniformMatrix4fv(loc("uModel"), false, IDENTITY);
+    gl.bindVertexArray(this.vao);
+    gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_INT, 0);
+    for (const v of this.dynamic) {
+      if (v.kind === "box") continue;
+      const mesh = this.vehicleVao(v.kind);
+      gl.uniformMatrix4fv(loc("uModel"), false, vehicleMatrix(v));
+      gl.bindVertexArray(mesh.vao);
+      gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
+    }
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { mvp, size, texelMm: step };
+  }
+
+  private renderSky(eye: V3, target: V3, fov: number, aspect: number) {
+    const gl = this.gl;
+    if (!this.skyVao) {
+      this.skyVao = gl.createVertexArray()!;
+      gl.bindVertexArray(this.skyVao);
+      const b = gl.createBuffer()!; this.bufs.push(b);
+      gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.bindVertexArray(null);
+    }
+    const fwd = norm([target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]]);
+    const right = norm(cross(fwd, [0, 1, 0])), up = cross(right, fwd);
+    const t = Math.tan(fov / 2);
+    gl.useProgram(this.skyProg);
+    const loc = (n: string) => gl.getUniformLocation(this.skyProg, n);
+    gl.uniform3fv(loc("uRight"), right); gl.uniform3fv(loc("uUp"), up); gl.uniform3fv(loc("uFwd"), fwd);
+    gl.uniform2f(loc("uTan"), t * aspect, t);
+    gl.uniform3fv(loc("uSun"), SUN);
+    gl.uniform3fv(loc("uZenith"), [0.3, 0.5, 0.8]); gl.uniform3fv(loc("uHorizon"), [0.8, 0.86, 0.92]); gl.uniform3fv(loc("uFloor"), [0.56, 0.58, 0.6]);
+    gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+    gl.bindVertexArray(this.skyVao);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.depthMask(true);
   }
 
   private bindControls() {
@@ -794,7 +1013,9 @@ export class View3D {
     for (const x of this.vehicleVaos.values()) { gl.deleteVertexArray(x.vao); if (x.decals) gl.deleteVertexArray(x.decals.vao); }
     for (const t of this.decalTextures) gl.deleteTexture(t);
     if (this.shadowMesh) gl.deleteVertexArray(this.shadowMesh.vao);
-    gl.deleteProgram(this.prog);
+    if (this.shadowMap) { gl.deleteFramebuffer(this.shadowMap.fb); gl.deleteTexture(this.shadowMap.tex); }
+    if (this.skyVao) gl.deleteVertexArray(this.skyVao);
+    for (const p of [this.prog, this.shadowProg, this.skyProg]) gl.deleteProgram(p);
   }
 }
 

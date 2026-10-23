@@ -36,6 +36,8 @@ export interface Consist {
   odo?: number;
   /** Held at the curve limit (derailments off): the HUD says so. */
   held?: boolean;
+  /** Slowing for, or stopped at, a block ahead that another train has: that block. */
+  waiting?: string;
 }
 
 export type DerailCause = "curve" | "trailing" | "open-end" | "collision";
@@ -54,6 +56,8 @@ export interface Derailment {
 
 /** Sideways acceleration a vehicle stays on the rails at, mm/s² (realistic). About 0.6 m/s on second radius. */
 export const CURVE_ACCEL = 800;
+/** How hard a train brakes for a block ahead that isn't its own, mm/s², and how far short of it it stands, mm. */
+const BRAKE = 500, STAND_OFF = 6;
 /** Running through a point set against the train, mm/s: forgiving lets a sprung point through at walking pace. */
 const TRAIL_SPEED = 80;
 /** Hitting the end of the line faster than this, mm/s, tips the front vehicle off (forgiving: 1.5 times). */
@@ -61,6 +65,10 @@ const BUFFER_SPEED = 120;
 
 /** Room between two vehicles' bodies (buffers just touching), mm. */
 const GAP = 2;
+/** The most vehicles in one train or rake. */
+export const MAX_VEHICLES = 40;
+/** Length of vehicles coupled together, buffer to buffer, mm. */
+const lengthOf = (vs: { length: number }[]) => vs.reduce((a, v) => a + v.length + GAP, -GAP);
 /** Closing speed at which buffers touching couple up, mm/s; faster, the trains bounce apart and stop. */
 export const COUPLE_SPEED = 70;
 /** How far a train the simulator stands on the track by itself can run both ways without trailing a point (mm). */
@@ -82,7 +90,11 @@ const worlds = new WeakMap<ControlEngine, World>();
 /** The world for an engine: one per layout, shared by every simulated controller. */
 export function worldFor(engine: ControlEngine): World {
   let w = worlds.get(engine);
-  if (!w) { const nw = new World(() => engine); w = nw; worlds.set(engine, nw); engine.onPoint = (item) => nw.onPiece(item); }
+  if (!w) {
+    const nw = new World(() => engine); w = nw; worlds.set(engine, nw);
+    engine.onPoint = (item) => nw.onPiece(item);
+    engine.where = (train) => nw.whereIs(train);
+  }
   return w;
 }
 
@@ -229,15 +241,10 @@ export class World {
     if (!c) return { error: "That train isn't in the simulator." };
     if (this.engine().cfg.points.some((q) => q.item === front.item)) return { error: "That's a point: pick plain track." };
     const at = this.layout(c.vehicles, front, true);
-    const need = c.vehicles.reduce((a, v) => a + v.length + GAP, -GAP);
+    const need = lengthOf(c.vehicles);
     if (!at) return { error: `It won't fit there: the track ends (the train is ${Math.round(need)} mm long).` };
     // longer than a loop it's put on, it would run round onto its own back
-    const poses = at.map((a) => this.graph.pose(a));
-    for (let i = 0; i < at.length; i++) for (let j = i + 2; j < at.length; j++) {
-      const reach = (c.vehicles[i].length + c.vehicles[j].length) / 2;
-      if (Math.hypot(poses[i].x - poses[j].x, poses[i].y - poses[j].y) < reach - 1 && Math.abs(poses[i].z - poses[j].z) < 30)
-        return { error: `It won't fit there: the train is ${Math.round(need)} mm long, longer than the loop it's on.` };
-    }
+    if (this.wraps(c.vehicles, at)) return { error: `It won't fit there: the train is ${Math.round(need)} mm long, longer than the loop it's on.` };
     if (this.overlaps(c, at)) return { error: "Another train is in the way there." };
     return { at };
   }
@@ -318,8 +325,37 @@ export class World {
   }
 
   /** Would a consist standing at `at` stand on another consist's vehicles? */
-  private overlaps(c: Consist, at: TrackPos[]): boolean {
-    const mine = at.map((a, i) => ({ p: this.graph.pose(a), half: c.vehicles[i].length / 2 }));
+  /**
+   * Why a consist can't be made up of `vehicles`, or null if it can: too many, longer than all the track,
+   * or (standing on the track) running off the end behind it, round a loop onto its own front, or into
+   * another train. Its front stays where it stands, so the new vehicles must fit behind it.
+   */
+  roomFor(id: string, vehicles: Vehicle[]): string | null {
+    if (vehicles.length > MAX_VEHICLES) return `A train can have at most ${MAX_VEHICLES} vehicles.`;
+    const need = Math.round(lengthOf(vehicles));
+    const track = Math.round(this.p.items.reduce((a, i) => a + geom(i).length, 0));
+    if (need > track) return `That would make it ${need} mm long, longer than all the track on the layout (${track} mm).`;
+    const c = this.consists.find((x) => x.id === id);
+    if (!c?.at.length || !vehicles.length) return null;
+    const at = this.layout(vehicles, c.at[0], true);
+    if (!at) return `There's no room behind it: the track ends (it would be ${need} mm long). Move it first, or make it shorter.`;
+    if (this.wraps(vehicles, at)) return `There's no room behind it: at ${need} mm long it would run round the loop onto its own front.`;
+    if (this.overlaps(c, at, vehicles)) return `There's no room behind it: it would run into another train (it would be ${need} mm long).`;
+    return null;
+  }
+
+  /** Would vehicles standing at `at` reach round a loop onto each other? */
+  private wraps(vehicles: Vehicle[], at: TrackPos[]): boolean {
+    const poses = at.map((a) => this.graph.pose(a));
+    for (let i = 0; i < at.length; i++) for (let j = i + 2; j < at.length; j++) {
+      const reach = (vehicles[i].length + vehicles[j].length) / 2;
+      if (Math.hypot(poses[i].x - poses[j].x, poses[i].y - poses[j].y) < reach - 1 && Math.abs(poses[i].z - poses[j].z) < 30) return true;
+    }
+    return false;
+  }
+
+  private overlaps(c: Consist, at: TrackPos[], vehicles = c.vehicles): boolean {
+    const mine = at.map((a, i) => ({ p: this.graph.pose(a), half: vehicles[i].length / 2 }));
     return this.consists.some((o) => o !== c && o.at.some((a, i) => {
       const q = this.graph.pose(a), half = o.vehicles[i].length / 2;
       return mine.some((m) => Math.hypot(m.p.x - q.x, m.p.y - q.y) < m.half + half - 1 && Math.abs(m.p.z - q.z) < 30);
@@ -424,12 +460,41 @@ export class World {
     return !!c && i >= 0 && !!c.at[i] && !this.engine().topo.blockOfItem.has(c.at[i].item);
   }
 
+  /** The power a train's loco picks up: its block's, if that block is the train's (not another train's cab). */
   private powerOf(c: Consist): number {
     const e = this.engine();
     const i = c.vehicles.findIndex((v) => v.kind === "loco");
     if (i < 0 || !c.at[i]) return 0;
     const block = e.topo.blockOfItem.get(c.at[i].item);
-    return block ? e.power.get(block) ?? 0 : 0;
+    if (!block || (c.train && e.claimedBy.get(block) !== c.train)) return 0;
+    return e.power.get(block) ?? 0;
+  }
+
+  /** For the control engine: the blocks a train stands in, and the next one the way it's going. */
+  whereIs(train: string): { on: string[]; lead: string | null; ahead: string | null } | undefined {
+    const c = this.consistOf(train);
+    if (!c?.at.length || c.derailed) return undefined;
+    const i = c.travel === 1 ? 0 : c.at.length - 1;
+    const end = this.graph.advance(c.at[i], c.travel * c.vehicles[i].length / 2, this.points).pos;
+    return { on: [...this.blocksOf(c)], lead: this.engine().topo.blockOfItem.get(end.item) ?? null, ahead: this.blocksAhead(c, c.travel)[0] ?? null };
+  }
+
+  /**
+   * How far a train can run the way it's going before its leading end reaches another train's block (one
+   * given to it, or with some of its vehicles in), within `reach` mm; Infinity if there's none that near.
+   */
+  private roomAhead(c: Consist, reach: number): { room: number; block?: string } {
+    const e = this.engine(), way = c.travel, i = way === 1 ? 0 : c.at.length - 1;
+    let pos = this.graph.advance(c.at[i], way * c.vehicles[i].length / 2, this.points).pos;
+    for (let d = 0; d <= reach; d += 8) {
+      const b = e.topo.blockOfItem.get(pos.item);
+      const other = b && (e.claimedBy.get(b) ?? e.held.get(b));
+      if (other && other !== c.train) return { room: d, block: b };
+      const r = this.graph.advance(pos, way * 8, this.points);
+      if (r.stop) break;
+      pos = r.pos;
+    }
+    return { room: Infinity };
   }
 
   /**
@@ -445,8 +510,10 @@ export class World {
       const t = e.cfg.trains.find((x) => x.id === c.train);
       const path = e.runs.get(c.train)?.path;
       if (path?.length && t?.block) {
-        // the way whose blocks ahead follow the trip's way furthest (both ends of a loop lead into the same block)
-        const rest = path.slice(path.indexOf(t.block) + 1);
+        // the way whose blocks ahead follow the trip's way furthest (both ends of a loop lead into the same block),
+        // from the furthest block along the way that any of the train is in already
+        const on = this.blocksOf(c);
+        const rest = path.slice(Math.max(path.indexOf(t.block), ...path.map((b, i) => (on.has(b) ? i : -1))) + 1);
         const match = (way: 1 | -1) => { const seen = this.blocksAhead(c, way); let n = 0; while (n < rest.length && seen[n] === rest[n]) n++; return n; };
         const f = match(1), b = match(-1);
         if (f > b) c.travel = 1; else if (b > f) c.travel = -1;
@@ -489,6 +556,16 @@ export class World {
       const target = c.travel * Math.abs(this.powerOf(c)) * this.fullSpeed;
       c.speed += (target - c.speed) * Math.min(1, dt / MOTOR_LAG);
       if (Math.abs(c.speed) < 0.01 && target === 0) c.speed = 0;
+      // a train coming up to a block that isn't its own brakes, to stand short of it
+      c.waiting = undefined;
+      if (c.train && (c.speed * c.travel > 0 || target * c.travel > 0)) {
+        const ahead = this.roomAhead(c, (this.fullSpeed * this.fullSpeed) / (2 * BRAKE) + 40);
+        if (ahead.room < Infinity) {
+          const vmax = Math.sqrt(2 * BRAKE * Math.max(0, ahead.room - STAND_OFF));
+          if (Math.abs(c.speed) >= vmax) { c.speed = Math.sign(c.speed) * vmax; c.waiting = ahead.block; }
+          if (vmax < 1) { c.speed = 0; c.waiting = ahead.block; }
+        }
+      }
       // the tightest curve under any vehicle
       let limit = Infinity, at = 0;
       c.at.forEach((a, i) => { const l = this.curveLimit(this.graph.pose(a).r); if (l < limit) { limit = l; at = i; } });

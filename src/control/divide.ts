@@ -113,8 +113,12 @@ export function divideForTrains(p: Project, cfg: ControlConfig, trains: number, 
   const len = (id: string) => cfg.blocks.find((b) => b.id === id)!.items.reduce((a, i) => { const it = p.items.find((x) => x.id === i); return a + (it ? geom(it).length : 0); }, 0);
   const pick = () => {
     const free = cfg.blocks.map((b) => b.id).filter((b) => !taken.has(b));
-    const apart = free.filter((b) => !neighbours(p, cfg, topo, b).some((n) => taken.has(n)));
-    return (apart.length ? apart : free).sort((a, b) => len(b) - len(a))[0];
+    // best a block with a way out as the points are set (not a loop road with its points against it),
+    // and not next to another train
+    const out = (b: string) => neighbours(p, cfg, topo, b).length > 0;
+    const apart = (b: string) => !neighbours(p, cfg, topo, b).some((n) => taken.has(n));
+    const tiers = [free.filter((b) => out(b) && apart(b)), free.filter(out), free.filter(apart), free];
+    return (tiers.find((x) => x.length) ?? []).sort((a, b) => len(b) - len(a))[0];
   };
   for (const t of cfg.trains) if (!t.block) { t.block = pick(); if (t.block) taken.add(t.block); }
   while (cfg.trains.length < trains) {

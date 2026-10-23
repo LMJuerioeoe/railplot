@@ -110,8 +110,16 @@ export class ControlEngine {
    * (real controllers) only the point's block is known, and any moving train in it holds the point.
    */
   onPoint?: (item: string) => string | null;
+  /**
+   * The simulator also knows which blocks a train stands in, the block its leading end is in, and the one
+   * it runs into next (null: none, the track ends). Then a train holds the blocks under it and asks only for
+   * those ahead; without it (real controllers) a moving train asks for every block next to its own, either way.
+   */
+  where?: (train: string) => { on: string[]; lead: string | null; ahead: string | null } | undefined;
   runs = new Map<string, TrainRun>();
   claimedBy = new Map<string, string>();     // block -> train
+  /** In the simulator: blocks with some of a train's vehicles in them -> that train. */
+  held = new Map<string, string>();
   power = new Map<string, number>();         // block -> signed duty -1..1
   aspects = new Map<string, Aspect>();       // signal -> aspect
   sensorActive = new Set<string>();
@@ -164,24 +172,36 @@ export class ControlEngine {
     for (const t of cfg.trains) if (t.block && cfg.blocks.some((b) => b.id === t.block)) claimed.set(t.block, t.id);
     const stopped = (from: string, to: string) => cfg.signals.some((s) => s.from === from && s.to === to && s.mode === "stop");
     const wants = new Map<string, Set<string>>();
+    // in the simulator: the blocks a train's vehicles stand in are kept from other trains
+    const seen = new Map(cfg.trains.map((t) => [t.id, t.block && claimed.get(t.block) === t.id ? this.where?.(t.id) : undefined]));
+    const held = new Map<string, string>();
+    for (const t of cfg.trains) for (const b of seen.get(t.id)?.on ?? []) if (!held.has(b)) held.set(b, t.id);
+    this.held = held;
     for (const t of cfg.trains) {
       const run = this.run(t.id);
       if (!t.block || !claimed.has(t.block) || run.hold) continue;
       // a train standing still with its throttle at zero doesn't need the blocks around it
       if (run.target === 0 && Math.abs(run.speed) < 0.005) continue;
       const path = this.run(t.id).path;
-      for (const n of neighbours(p, cfg, topo, t.block)) {
-        if (claimed.has(n) || stopped(t.block, n) || this.faults.has(n) || this.strays.has(n)) continue;
+      // knowing which way it's going, a train asks for the blocks it's in and the one ahead of it, not
+      // the one behind it too (which another train following it may need)
+      const w = seen.get(t.id);
+      const ask = w ? [...new Set([...w.on, w.lead, w.ahead])].filter((b): b is string => !!b && b !== t.block) : neighbours(p, cfg, topo, t.block);
+      for (const n of ask) {
+        if (claimed.has(n) || (held.get(n) ?? t.id) !== t.id || stopped(t.block, n) || this.faults.has(n) || this.strays.has(n)) continue;
         if (path && !path.includes(n)) continue;
         (wants.get(n) ?? wants.set(n, new Set()).get(n)!).add(t.id);
       }
     }
-    // a free block wanted by two trains goes to the one that already had it; otherwise it stays dead
-    // and the trains stop either side of it
+    // a free block wanted by two trains goes to the one that already had it; otherwise, where the
+    // simulator says which way trains are going, to the first of them (the other waits its turn), and
+    // with real controllers it stays dead and the trains stop either side of it
     const before = this.claimedBy;
     for (const [b, ts] of wants) {
+      const prev = before.get(b);
       if (ts.size === 1) claimed.set(b, [...ts][0]);
-      else { const prev = before.get(b); if (prev && ts.has(prev)) claimed.set(b, prev); }
+      else if (prev && ts.has(prev)) claimed.set(b, prev);
+      else if (this.where) claimed.set(b, [...ts][0]);
     }
     this.claimedBy = claimed;
 
