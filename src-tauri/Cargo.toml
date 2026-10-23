@@ -1,6 +1,6 @@
 [package]
 name = "railplot"
-version = "0.15.0"
+version = "1.0.0"
 description = "Free, open-source track planner for OO and H0 model railways"
 license = "MIT"
 edition = "2021"

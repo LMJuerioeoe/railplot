@@ -51,3 +51,12 @@ Locos' wheels rods and valve gear move as they run,drive view,should,yes,yes,"12
 Divide the layout into blocks for two or more trains,control,should,no,yes,"Railplot's own: Drive > Add a second train, or Set up > Divide into blocks for N trains; cuts at points and along long runs; trains keep their place; src/control/divide.ts"
 Shadows sky and shiny metal in the 3D view,drive view,should,yes,yes,"sun shadow map (off when the browser draws without a graphics card), metal/paint/matt finishes, sky and filmic tone; src/view3d.ts"
 Drive in 3D on any device connected to the hub,drive view,should,no,yes,"Railplot's own: the hub sends its simulator's trains in every update; each window keeps a copy that runs on smoothly between updates; placing, uncoupling, turning round and taking off go to the hub as commands; src/sim/world.ts snap/applySnap"
+A train that has not run yet goes backwards when driven back,simulation,must,yes,yes,BUG-018
+Trains stop short of a point set against them (option),simulation,should,no,yes,"Set up > Simulator; src/sim/world.ts roomAhead"
+Signals at every block joint and simulated trains obey them,control,should,yes,yes,"Set up > Signals; addSignalsAtBoundaries"
+Timetables on a fast layout clock,automation,should,yes,yes,"Auto > Clock and New timetable; waitTime step"
+Print the track at 1:1 on A4 with cutting and wiring lists,planning,should,no,yes,"File > Print; src/print.ts"
+First-run tour,onboarding,should,yes,yes,"three steps in a corner card; Help > Show the tour"
+Older and damaged layouts open and are put right,files,must,yes,yes,"readProject in src/io.ts; autosave backup"
+macOS build and code signing when certificates are set up,release,should,yes,partial,"release.yml; needs certificates from the owner"
+DCC-EX over USB in the desktop app,control,should,no,yes,"src-tauri/src/serial.rs; untested on hardware"
