@@ -1,5 +1,7 @@
 //! Desktop shell for Railplot. The editor itself is the web app in `dist/`;
-//! this side only provides file access, native file dialogs and updating itself.
+//! this side only provides file access, native file dialogs, USB serial ports and updating itself.
+mod serial;
+
 use std::fs;
 use tauri::{Emitter, Manager};
 use tauri_plugin_updater::UpdaterExt;
@@ -84,7 +86,7 @@ pub fn run() {
     // the release workflow adds the updater settings (the update signing key's public half) when it has
     // the key; a build without them still runs, and offers the download page instead
     let updates = context.config().plugins.0.contains_key("updater");
-    let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init()).manage(serial::Ports::default());
     if updates {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build()).manage(UpdaterOn);
     }
@@ -96,7 +98,11 @@ pub fn run() {
             startup_file,
             can_update,
             check_update,
-            install_update
+            install_update,
+            serial::serial_ports,
+            serial::serial_open,
+            serial::serial_write,
+            serial::serial_close
         ])
         .run(context)
         .expect("error while running Railplot");

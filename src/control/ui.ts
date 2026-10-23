@@ -10,7 +10,7 @@ import {
   Aspect, ControlEngine, addBlock, addController, addLight, addSensorsAtBoundaries, addSignal, addSignalsAtBoundaries, addTrain, clockOf, clockText, controlWarnings, inputWhere,
   outputWhere, pointLabel, quickStart, servoWhere, syncPoints, syncSensors, topology, wiringList, BLOCK_PINS,
 } from "./engine";
-import { CLIENT_ID, Link, SimLink, baseUrl, makeLink, uploadFile, webSerialSupported } from "./link";
+import { BrowserDccExLink, CLIENT_ID, Link, SerialPortInfo, SimLink, baseUrl, desktopSerial, listSerialPorts, makeLink, uploadFile, usbSupported, webSerialSupported } from "./link";
 import { ControlRuntime } from "./runtime";
 import { Cmd, LinkSummary, applyCommand, applySnapshot } from "./remote";
 import { HubClient, hubBase, hubStatus } from "./hubclient";
@@ -515,7 +515,7 @@ export class ControlUI {
         const text = !st ? `${c.name}: connecting…` : !st.online ? `${c.name}: offline` : st.accepted ? `${c.name}: driving` : c.kind === "dccex" ? `${c.name}: not answering` : `${c.name}: another device is driving`;
         wrap.append(h("span", { class: `chip chip-${kind}`, title: st?.message ?? "" }, text));
         if (st?.online && !st.accepted && c.kind === "esp32") wrap.append(h("button", { class: "btn btn-sm", type: "button", onclick: () => { this.act({ c: "take", controller: c.id }); toast(`Taking over ${c.name}…`); } }, "Take over"));
-        if (c.kind === "dccex" && !this.hub && c.conn !== "net" && !st?.online && webSerialSupported()) wrap.append(h("button", { class: "btn btn-sm", type: "button", onclick: () => this.connectUsb(c.id) }, "Connect USB"));
+        if (c.kind === "dccex" && !this.hub && c.conn !== "net" && !st?.online && usbSupported()) wrap.append(h("button", { class: "btn btn-sm", type: "button", onclick: () => this.connectUsb(c.id) }, "Connect USB"));
       }
       if (!this.engine.powerOn) {
         wrap.append(h("span", { class: "chip chip-warn" }, "Track power off"),
@@ -538,6 +538,30 @@ export class ControlUI {
   async connectUsb(controllerId: string) {
     const l = this.links.get(controllerId);
     if (!l?.connect) return;
+    // the desktop app opens ports itself: the only USB port there is, or the one picked from a list
+    if (!webSerialSupported() && desktopSerial() && l instanceof BrowserDccExLink) {
+      let ports: SerialPortInfo[];
+      try { ports = (await listSerialPorts()).sort((a, b) => Number(b.usb) - Number(a.usb)); }
+      catch (e) { toast(`Couldn't list the USB ports: ${(e as Error).message ?? e}`, "error"); return; }
+      if (!ports.length) { toast("No USB serial port found. Is the command station plugged in and switched on?", "error"); return; }
+      const open = async (name: string) => {
+        try {
+          await l.connectPort(name);
+          const c = this.cfg.controllers.find((x) => x.id === controllerId);
+          if (c && c.host !== name) { c.host = name; this.commitSetup(); }   // opened again by itself next time
+          toast(`Connected to DCC-EX on ${name}.`);
+        } catch (e) { toast((e as Error).message, "error"); }
+        this.render();
+      };
+      const usb = ports.filter((p) => p.usb);
+      if (usb.length === 1) { await open(usb[0].name); return; }
+      const pick = h("select", { id: "usb-port", "aria-label": "Port" }, ...ports.map((p) => h("option", { value: p.name }, `${p.name}${p.description ? ` (${p.description})` : p.usb ? "" : " (not USB)"}`))) as HTMLSelectElement;
+      dialog("Connect USB", h("div", { class: "form-grid" }, field("Which port is the command station on?", pick)), [
+        { label: "Cancel" },
+        { label: "Connect", primary: true, onClick: () => { open(pick.value); } },
+      ]);
+      return;
+    }
     try { await l.connect(); toast("Connected to DCC-EX over USB."); }
     catch (e) { if ((e as Error).name !== "NotFoundError") toast((e as Error).message, "error"); }
     this.render();
@@ -780,10 +804,10 @@ export class ControlUI {
         return h("div", { class: "dccex-setup" },
           h("div", { class: "setup-row" }, name, conn, remove),
           h("div", { class: "setup-row" }, host, field("Cab for track A", cab),
-            c.conn !== "net" && !this.hub ? h("button", { class: "btn btn-sm", type: "button", disabled: !webSerialSupported(), title: webSerialSupported() ? "" : "Needs Chrome or Edge on a computer", onclick: () => this.connectUsb(c.id) }, "Connect USB") : null),
+            c.conn !== "net" && !this.hub ? h("button", { class: "btn btn-sm", type: "button", disabled: !usbSupported(), title: usbSupported() ? "" : "Needs Chrome or Edge on a computer, or the desktop app", onclick: () => this.connectUsb(c.id) }, "Connect USB") : null),
           h("p", { class: "muted small" }, c.conn === "net"
             ? "Over Wi-Fi or Ethernet, DCC-EX listens on port 2560. A browser can't open that connection, so network DCC-EX needs the Railplot hub."
-            : this.hub ? "Plugged into the hub's computer: put its serial port in the address box (for example /dev/ttyACM0 on a Raspberry Pi)." : "Plugged into this computer: press Connect USB (Chrome or Edge). The desktop app can't reach USB yet; open the offline file in Chrome or Edge, or use the hub."));
+            : this.hub ? "Plugged into the hub's computer: put its serial port in the address box (for example /dev/ttyACM0 on a Raspberry Pi)." : "Plugged into this computer: press Connect USB, in the desktop app or in Chrome or Edge. The desktop app opens the same port again by itself next time."));
       }),
       h("div", { class: "btn-row" },
         h("button", { class: "btn btn-sm", type: "button", onclick: () => { addController(cfg, "esp32", cfg.controllers.some((c) => c.kind === "esp32") ? `railplot-${cfg.controllers.filter((c) => c.kind === "esp32").length + 1}.local` : "railplot.local"); this.commitSetup(); this.render(); } }, "Add ESP32 controller"),
