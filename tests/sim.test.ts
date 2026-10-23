@@ -543,3 +543,25 @@ test("BUG-017: two simulated trains in their own blocks never run into each othe
   run(5);
   expect([c1.odo, c2.odo]).toEqual(before);   // no bouncing back and forth
 });
+
+test("BUG-018: a train that hasn't moved yet goes backwards when driven back", () => {
+  const p = buildSample();
+  const { quickStart } = require("../src/control/engine");
+  const cfg = quickStart(p, undefined, "sim");
+  p.control = cfg;
+  const e = new ControlEngine(p, cfg);
+  const w = worldFor(e);
+  w.advanceTo(0);
+  const t = cfg.trains[0], c = w.consistOf(t.id)!;
+  e.setThrottle(t.id, -0.5);
+  for (let k = 0; k < 30; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  expect(c.travel).toBe(-1);
+  expect(c.odo!).toBeLessThan(-100);
+  // and forward again after stopping goes forward
+  e.setThrottle(t.id, 0);
+  for (let k = 30; k < 60; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  const back = c.odo!;
+  e.setThrottle(t.id, 0.5);
+  for (let k = 60; k < 90; k++) { e.step(0.1); w.advanceTo(k * 100 + 100); }
+  expect(c.odo!).toBeGreaterThan(back + 100);
+});

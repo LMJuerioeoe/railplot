@@ -589,7 +589,8 @@ export class World {
         const match = (way: 1 | -1) => { const seen = this.blocksAhead(c, way); let n = 0; while (n < rest.length && seen[n] === rest[n]) n++; return n; };
         const f = match(1), b = match(-1);
         if (f > b) c.travel = 1; else if (b > f) c.travel = -1;
-      } else if (d !== 0 && c.lastSign !== 0 && Math.sign(d) !== c.lastSign) {
+      } else if (d !== 0 && Math.sign(d) !== (c.lastSign || 1)) {
+        // the driver reversed (a train that hasn't run yet counts as last going forward, so "back" backs it)
         c.travel = c.travel === 1 ? -1 : 1;
       }
       if (d !== 0) c.lastSign = Math.sign(d);

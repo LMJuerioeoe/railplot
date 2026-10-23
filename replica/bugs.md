@@ -246,3 +246,16 @@ Steps
 Expected: a train following another waits behind it and goes on when it moves; trains heading for each other stop short. Actual: each moving train asked for the blocks on both sides of it, so a train following another found the block between them wanted by both and left dead; a loco running into another train's block took that train's power, and two trains meeting bounced back and forth for ever.
 Evidence: tests/sim.test.ts BUG-017; scratchpad stall runs (odo creeping 2 m in 60 s before, 143 m after)
 Status: fixed: in the simulator a train asks only for the blocks it stands in and the one ahead the way it's going, and the blocks under its vehicles are kept from other trains; a loco gets power only from its own train's blocks; a train brakes to stand short of another train's block, and the HUD and train card say "Waiting" and for whom. Dividing for trains no longer puts a train on a loop road with its points set against it
+
+### BUG-018: A train that hasn't moved yet goes forward when driven back
+
+- Severity: S3
+- Flow / case: F01, found while planning 1.0
+- Screen: Control > Drive, Drive in 3D
+
+Steps
+1. Try it with the simulator; press Back and open the throttle.
+
+Expected: it backs. Actual: it goes forward: the simulator turned a train round only when the power changed sign from the last time it ran, and a train that hadn't run had no last time.
+Evidence: tests/sim.test.ts BUG-018
+Status: fixed: a train that hasn't run counts as last going forward
