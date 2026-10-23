@@ -96,7 +96,7 @@ export class DriveView {
     this.app.root.classList.add("is-driving");
     this.buildHud();
     this.eye = null;
-    if (this.app.view3d) { this.app.view3d.onPick = (x, y) => this.pick(x, y); this.app.view3d.onHover = (x, y) => this.hoverAt(x, y); }
+    if (this.app.view3d) { this.app.view3d.onPick = (x, y) => this.pick(x, y); this.app.view3d.onHover = (x, y) => this.hoverAt(x, y); this.app.view3d.sky = true; }
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame(() => this.frame());
   }
@@ -109,7 +109,7 @@ export class DriveView {
     this.refs.card?.remove(); this.refs.placeCard?.remove(); this.refs = {}; this.cardFor = null;
     this.placing = null; this.hoverCoupler = null;
     this.app.root.classList.remove("is-driving");
-    if (this.app.view3d) { this.app.view3d.follow = null; this.app.view3d.onPick = null; this.app.view3d.onHover = null; this.app.view3d.setDynamic([]); }
+    if (this.app.view3d) { const v3 = this.app.view3d; v3.follow = null; v3.onPick = null; v3.onHover = null; v3.sky = false; v3.setDynamic([]); }
   }
 
   // ---------- HUD ----------
@@ -741,9 +741,11 @@ export class DriveView {
     r.speedBox?.classList.toggle("over", m > 1 || !!c?.held);
     const dead = w.noPower(this.train);
     if (r.tag) {
-      r.tag.hidden = !(dead || m >= 0.85 || c?.held);
-      r.tag.textContent = dead ? "No power" : c?.held ? "Held" : "Curve";
-      r.tag.title = dead ? "This track is in no block, so it gets no power. Add it to a block in Control > Set up > Blocks." : "";
+      const e = this.ctl.engine, wait = c?.waiting, by = wait ? e.train(e.claimedBy.get(wait) ?? "") : undefined;
+      r.tag.hidden = !(dead || m >= 0.85 || c?.held || wait);
+      r.tag.textContent = dead ? "No power" : wait ? "Waiting" : c?.held ? "Held" : "Curve";
+      r.tag.title = dead ? "This track is in no block, so it gets no power. Add it to a block in Control > Set up > Blocks."
+        : wait ? (by ? `${e.blockName(wait)} ahead is ${by.name}'s: it goes on when that's clear.` : `${e.blockName(wait)} ahead isn't free: a signal at stop, a fault, or another train heading for it.`) : "";
     }
     this.syncHud();
   }

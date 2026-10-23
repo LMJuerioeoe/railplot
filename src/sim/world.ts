@@ -36,6 +36,8 @@ export interface Consist {
   odo?: number;
   /** Held at the curve limit (derailments off): the HUD says so. */
   held?: boolean;
+  /** Slowing for, or stopped at, a block ahead that another train has: that block. */
+  waiting?: string;
 }
 
 export type DerailCause = "curve" | "trailing" | "open-end" | "collision";
@@ -54,6 +56,8 @@ export interface Derailment {
 
 /** Sideways acceleration a vehicle stays on the rails at, mm/s² (realistic). About 0.6 m/s on second radius. */
 export const CURVE_ACCEL = 800;
+/** How hard a train brakes for a block ahead that isn't its own, mm/s², and how far short of it it stands, mm. */
+const BRAKE = 500, STAND_OFF = 6;
 /** Running through a point set against the train, mm/s: forgiving lets a sprung point through at walking pace. */
 const TRAIL_SPEED = 80;
 /** Hitting the end of the line faster than this, mm/s, tips the front vehicle off (forgiving: 1.5 times). */
@@ -86,7 +90,11 @@ const worlds = new WeakMap<ControlEngine, World>();
 /** The world for an engine: one per layout, shared by every simulated controller. */
 export function worldFor(engine: ControlEngine): World {
   let w = worlds.get(engine);
-  if (!w) { const nw = new World(() => engine); w = nw; worlds.set(engine, nw); engine.onPoint = (item) => nw.onPiece(item); }
+  if (!w) {
+    const nw = new World(() => engine); w = nw; worlds.set(engine, nw);
+    engine.onPoint = (item) => nw.onPiece(item);
+    engine.where = (train) => nw.whereIs(train);
+  }
   return w;
 }
 
@@ -452,12 +460,41 @@ export class World {
     return !!c && i >= 0 && !!c.at[i] && !this.engine().topo.blockOfItem.has(c.at[i].item);
   }
 
+  /** The power a train's loco picks up: its block's, if that block is the train's (not another train's cab). */
   private powerOf(c: Consist): number {
     const e = this.engine();
     const i = c.vehicles.findIndex((v) => v.kind === "loco");
     if (i < 0 || !c.at[i]) return 0;
     const block = e.topo.blockOfItem.get(c.at[i].item);
-    return block ? e.power.get(block) ?? 0 : 0;
+    if (!block || (c.train && e.claimedBy.get(block) !== c.train)) return 0;
+    return e.power.get(block) ?? 0;
+  }
+
+  /** For the control engine: the blocks a train stands in, and the next one the way it's going. */
+  whereIs(train: string): { on: string[]; lead: string | null; ahead: string | null } | undefined {
+    const c = this.consistOf(train);
+    if (!c?.at.length || c.derailed) return undefined;
+    const i = c.travel === 1 ? 0 : c.at.length - 1;
+    const end = this.graph.advance(c.at[i], c.travel * c.vehicles[i].length / 2, this.points).pos;
+    return { on: [...this.blocksOf(c)], lead: this.engine().topo.blockOfItem.get(end.item) ?? null, ahead: this.blocksAhead(c, c.travel)[0] ?? null };
+  }
+
+  /**
+   * How far a train can run the way it's going before its leading end reaches another train's block (one
+   * given to it, or with some of its vehicles in), within `reach` mm; Infinity if there's none that near.
+   */
+  private roomAhead(c: Consist, reach: number): { room: number; block?: string } {
+    const e = this.engine(), way = c.travel, i = way === 1 ? 0 : c.at.length - 1;
+    let pos = this.graph.advance(c.at[i], way * c.vehicles[i].length / 2, this.points).pos;
+    for (let d = 0; d <= reach; d += 8) {
+      const b = e.topo.blockOfItem.get(pos.item);
+      const other = b && (e.claimedBy.get(b) ?? e.held.get(b));
+      if (other && other !== c.train) return { room: d, block: b };
+      const r = this.graph.advance(pos, way * 8, this.points);
+      if (r.stop) break;
+      pos = r.pos;
+    }
+    return { room: Infinity };
   }
 
   /**
@@ -473,8 +510,10 @@ export class World {
       const t = e.cfg.trains.find((x) => x.id === c.train);
       const path = e.runs.get(c.train)?.path;
       if (path?.length && t?.block) {
-        // the way whose blocks ahead follow the trip's way furthest (both ends of a loop lead into the same block)
-        const rest = path.slice(path.indexOf(t.block) + 1);
+        // the way whose blocks ahead follow the trip's way furthest (both ends of a loop lead into the same block),
+        // from the furthest block along the way that any of the train is in already
+        const on = this.blocksOf(c);
+        const rest = path.slice(Math.max(path.indexOf(t.block), ...path.map((b, i) => (on.has(b) ? i : -1))) + 1);
         const match = (way: 1 | -1) => { const seen = this.blocksAhead(c, way); let n = 0; while (n < rest.length && seen[n] === rest[n]) n++; return n; };
         const f = match(1), b = match(-1);
         if (f > b) c.travel = 1; else if (b > f) c.travel = -1;
@@ -517,6 +556,16 @@ export class World {
       const target = c.travel * Math.abs(this.powerOf(c)) * this.fullSpeed;
       c.speed += (target - c.speed) * Math.min(1, dt / MOTOR_LAG);
       if (Math.abs(c.speed) < 0.01 && target === 0) c.speed = 0;
+      // a train coming up to a block that isn't its own brakes, to stand short of it
+      c.waiting = undefined;
+      if (c.train && (c.speed * c.travel > 0 || target * c.travel > 0)) {
+        const ahead = this.roomAhead(c, (this.fullSpeed * this.fullSpeed) / (2 * BRAKE) + 40);
+        if (ahead.room < Infinity) {
+          const vmax = Math.sqrt(2 * BRAKE * Math.max(0, ahead.room - STAND_OFF));
+          if (Math.abs(c.speed) >= vmax) { c.speed = Math.sign(c.speed) * vmax; c.waiting = ahead.block; }
+          if (vmax < 1) { c.speed = 0; c.waiting = ahead.block; }
+        }
+      }
       // the tightest curve under any vehicle
       let limit = Infinity, at = 0;
       c.at.forEach((a, i) => { const l = this.curveLimit(this.graph.pose(a).r); if (l < limit) { limit = l; at = i; } });

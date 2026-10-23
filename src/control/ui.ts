@@ -570,7 +570,11 @@ export class ControlUI {
         h("div", { class: "train-head" },
           h("span", { class: "train-dot" }),
           h("strong", {}, t.name),
-          this.liveText(() => t.block ? `in ${e.blockName(t.block)}` : "not placed", "muted small"),
+          this.liveText(() => {
+            if (!t.block) return "not placed";
+            const wait = this.app.drive.world()?.consistOf(t.id)?.waiting, by = wait && e.train(e.claimedBy.get(wait) ?? "");
+            return `in ${e.blockName(t.block)}${wait ? ` · waiting for ${e.blockName(wait)}${by ? ` (${by.name})` : ""}` : ""}`;
+          }, "muted small"),
           this.liveText(() => `${Math.round(Math.abs(e.run(t.id).speed) * 100)}%`, "train-speed mono")),
         h("div", { class: "train-ctl" }, dirBtn(-1, "Back", "left"), slider, dirBtn(1, "Forward", "right")),
         this.liveText(() => {

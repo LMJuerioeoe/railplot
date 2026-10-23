@@ -220,3 +220,29 @@ Steps
 Expected: it throws, unless the train is on it. Actual: "Stop Train 1 before changing this point.": the guard held every point in a moving train's block, and with one block that's all of them.
 Evidence: tests/sim.test.ts BUG-015
 Status: fixed: with the simulator, which knows where every vehicle is, a point is held only while any part of a vehicle stands on it; real controllers keep the block rule. The e2e drive test now waits for the camera to settle before looking for a spot to hover
+
+### BUG-016: A train can be made up longer than the track, wrapping round the oval onto itself
+
+- Severity: S3
+- Flow / case: S08, reported by the owner on v0.13.0 (screenshot: a rake of coaches all the way round the sample oval)
+- Screen: Drive in 3D > Trains
+
+Steps
+1. Trains dialog, Train 1; keep pressing a coach tile.
+
+Expected: it stops when there's no more room. Actual: every vehicle is added, laid round the loop through the front of the train.
+Evidence: tests/sim.test.ts BUG-016
+Status: fixed: a vehicle (or a longer length) is refused, with the reason, when the train would run off the end of the track behind it, round a loop onto its own front, into another train, or past 40 vehicles; a train saved too long says so in the dialog
+
+### BUG-017: With two or more trains in the simulator, trains stop for no clear reason, or bounce off each other forever
+
+- Severity: S2
+- Flow / case: F01, reported by the owner on v0.13.0 (screenshot: Train 1 at 69% and 0 km/h behind Train 2)
+- Screen: Control > Drive, Drive in 3D
+
+Steps
+1. Divide the sample for two trains; drive both; stop Train 2, then send it back towards Train 1.
+
+Expected: a train following another waits behind it and goes on when it moves; trains heading for each other stop short. Actual: each moving train asked for the blocks on both sides of it, so a train following another found the block between them wanted by both and left dead; a loco running into another train's block took that train's power, and two trains meeting bounced back and forth for ever.
+Evidence: tests/sim.test.ts BUG-017; scratchpad stall runs (odo creeping 2 m in 60 s before, 143 m after)
+Status: fixed: in the simulator a train asks only for the blocks it stands in and the one ahead the way it's going, and the blocks under its vehicles are kept from other trains; a loco gets power only from its own train's blocks; a train brakes to stand short of another train's block, and the HUD and train card say "Waiting" and for whom. Dividing for trains no longer puts a train on a loop road with its points set against it
