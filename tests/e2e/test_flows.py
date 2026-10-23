@@ -40,6 +40,10 @@ with sync_playwright() as p:
     # F00 sample opens on first launch
     check("sample loads with no open ends", js(pg, "railplot.an.free.length") == 0 and js(pg, "railplot.p.items.length") == 27)
     shot(pg, "01-sample")
+    pg.locator(".tour").wait_for(timeout=3000)
+    check("a short tour greets a first visit", pg.locator(".tour").count() == 1 and "Welcome" in pg.locator(".tour").inner_text())
+    for _ in range(3): pg.click("#tour-next"); pg.wait_for_timeout(80)
+    check("seen through, it goes, and stays gone", pg.locator(".tour").count() == 0 and js(pg, "localStorage.getItem('railplot.tour.v1')") == "1")
 
     # F00b will my trains fit?
     pg.click("#train-fit button:has-text('Main line')"); pg.wait_for_timeout(150)

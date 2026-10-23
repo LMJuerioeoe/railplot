@@ -56,6 +56,8 @@ async function saveBlob(...args: Parameters<typeof rawSaveBlob>) {
 }
 
 const AUTOSAVE_KEY = "railplot.autosave.v1";
+/** Set once the first-run tour has been seen through or put away. */
+const TOUR_KEY = "railplot.tour.v1";
 const PREFS_KEY = "railplot.prefs.v1";
 const PRICES_KEY = "railplot.prices.v1";
 const CURRENCY_KEY = "railplot.currency.v1";
@@ -170,6 +172,8 @@ export class App {
       } catch { /* ignore a damaged autosave */ }
     }
     if (!loaded) this.p = buildSample();
+    // the very first time: a short tour, in a corner, that doesn't get in the way
+    if (!loaded && !store.get(TOUR_KEY)) setTimeout(() => this.showTour(), 600);
     for (const x of this.p.proposals ?? []) this.seenProposals.add(x.id);
     this.ctl.onProjectChanged();
     this.hist.reset(this.p);
@@ -1322,6 +1326,37 @@ export class App {
     await saveBlob(`${this.p.name}.png`, blob, { name: "PNG image", extensions: ["png"], mime: "image/png" });
   }
 
+  /**
+   * Three steps for someone new: planning, running trains, driving in 3D. A card in the corner of the
+   * plan, not a dialog, so the app can be used while it's open; put away for good once seen through.
+   */
+  showTour() {
+    this.el.workspace.querySelector(".tour")?.remove();
+    const steps: { title: string; text: string; act?: [string, () => void] }[] = [
+      { title: "Welcome to Railplot", text: "This is a sample layout: an oval with a passing loop. Pick track from the list on the left to add it at the arrow, drag pieces about, and press 3 to look round it in 3D. File > New starts your own." },
+      { title: "Run the trains", text: "Control runs the layout: real trains through a small controller, or a simulated one on screen. Try the simulator now, it needs nothing plugged in.", act: ["Open Control", () => this.setMode("control")] },
+      { title: "Drive in 3D", text: "With the simulator going, Drive in 3D puts you behind the train: the arrow keys or W and S drive it, C changes the camera, and P throws the point ahead.", act: ["Drive in 3D", () => this.drive.start()] },
+    ];
+    let i = 0;
+    const card = h("section", { class: "tour", role: "dialog", "aria-label": "Getting started", "aria-live": "polite" });
+    const done = () => { store.set(TOUR_KEY, "1"); card.remove(); };
+    const draw = () => {
+      const s = steps[i];
+      clear(card);
+      card.append(
+        h("div", { class: "tour-head" }, h("span", { class: "tour-step" }, `${i + 1} of ${steps.length}`), h("strong", {}, s.title),
+          h("button", { class: "icon-btn sm", type: "button", "aria-label": "Close the tour", title: "Close the tour", html: icon("close", 14), onclick: done })),
+        h("p", {}, s.text),
+        h("div", { class: "btn-row" },
+          s.act ? h("button", { class: "btn btn-sm", type: "button", onclick: () => s.act![1]() }, s.act[0]) : null,
+          h("span", { class: "grow" }),
+          i > 0 ? h("button", { class: "btn btn-sm", type: "button", onclick: () => { i--; draw(); } }, "Back") : null,
+          h("button", { class: "btn btn-sm btn-primary", type: "button", id: "tour-next", onclick: () => { if (i === steps.length - 1) done(); else { i++; draw(); } } }, i === steps.length - 1 ? "Done" : "Next")));
+    };
+    draw();
+    this.el.workspace.append(card);
+  }
+
   /** Print the plan: an overview, the track at 1:1 on A4 pages, the parts, cutting and wiring lists. */
   showPrint() {
     if (!projectBounds(this.p)) { toast("Nothing to print yet."); return; }
@@ -1823,6 +1858,7 @@ export class App {
       { label: "New layer", run: () => { addLayer(this.p); this.commit(); } },
     ] },
     { label: "Help", items: [
+      { label: "Show the tour", run: () => this.showTour() },
       { label: "Keyboard shortcuts", run: () => this.showShortcuts() },
       { label: "Connect Claude…", run: () => this.showClaudeHelp() },
       { label: "Check for updates…", run: () => this.showUpdates() },
