@@ -2,14 +2,17 @@
 // prototypes' dimensions at OO scale (1:76.2) and, where the owner has the model, from the maker's
 // published sizes. The drawing is in steam.ts, diesels.ts, coaches.ts and wagons.ts.
 import { VehicleCfg, VehicleKind } from "../control/types";
-import { BLACK, BRASS, COPPER, Label, RED_BEAM, RGB, Shapes, WHITE, boundsOf } from "./parts";
+import { BLACK, BRASS, COPPER, Label, RED_BEAM, RGB, Shapes, WHITE, boundsOf, withTravel } from "./parts";
 import { drawSteam, drawTender, SteamSpec, TenderSpec } from "./steam";
 import { drawClass08, drawClass37 } from "./diesels";
 import { CoachSpec, drawCoach } from "./coaches";
 import { drawBRBrakeVan, drawMineral, drawPlankOpen, drawTankWagon, drawToad, drawVan } from "./wagons";
 
 export type { RGB, Shapes };
-export { boundsOf };
+export { boundsOf, withTravel };
+
+/** A moving loco is drawn at this many points round one turn of its driving wheels. */
+export const MOTION_FRAMES = 12;
 
 /** A decal on a model: along a side (axis "y", at y = ±face) or on an end (axis "x", at x = face). */
 export interface Mark { axis: "x" | "y"; face: number; u: [number, number]; z: [number, number]; label: Label; side?: 1 | -1 }
@@ -33,6 +36,8 @@ export interface Model {
   note: string;
   /** Lettering, numbers, plates and emblems, painted on as decals. */
   marks?: Mark[];
+  /** Driving wheel radius (mm), on a loco whose wheels, rods and valve gear are drawn moving. */
+  motion?: number;
   /** A tender engine's tender: added behind it. */
   tender?: string;
   draw(s: Shapes): void;
@@ -62,7 +67,7 @@ const CREAM_T = (text: string): Label => ({ text, color: "#efe7cc", font: "sans"
 const WHITE_T = (text: string, font: Label["font"] = "sans"): Label => ({ text, color: "#f2f2ee", font });
 const DATA = (text: string, color = "#f2f2ee"): Label => ({ text, color, font: "condensed", bold: false });
 
-const steam = (spec: SteamSpec) => (s: Shapes) => drawSteam(s, spec);
+const steam = (spec: SteamSpec) => Object.assign((s: Shapes) => drawSteam(s, spec), { driverR: Math.max(...spec.wheels.filter((w) => w.driven).map((w) => w.r)) });
 const tender = (spec: TenderSpec) => (s: Shapes) => drawTender(s, spec);
 const coach = (spec: CoachSpec) => (s: Shapes) => drawCoach(s, spec);
 
@@ -255,7 +260,7 @@ export const MODELS: Model[] = [
     marks: [
       side(17.05, -38.5, -30.5, 26.6, 29.8, CREAM_T("D3083")), side(12.65, 8.5, 15.5, 31.5, 37.5, { logo: "br-crest-late" }),
     ],
-    draw: drawClass08,
+    draw: drawClass08, motion: 8.9,
   },
   {
     id: "br-class37", maker: "", name: "BR Class 37 Co-Co diesel", group: "diesel", kind: "loco",
@@ -406,6 +411,9 @@ export const MODELS: Model[] = [
     draw: (s) => drawBRBrakeVan(s, { length: 107, width: 32, body: BAUXITE }),
   },
 ];
+
+// steam locos' wheels and motion go round as they run
+for (const m of MODELS) { const r = (m.draw as { driverR?: number }).driverR; if (r && m.kind === "loco") m.motion ??= r; }
 
 // each model draws its markings after its body
 for (const m of MODELS) {

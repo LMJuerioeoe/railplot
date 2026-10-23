@@ -206,3 +206,17 @@ Steps
 Expected: it drives. Actual: 0 km/h. The block held only the track there was when it was made; new pieces were in no block, so no power. Set up said so, out of sight under Blocks; the drive view said nothing.
 Evidence: tests/sim.test.ts BUG-014; laying 3 pieces after setup left 3 unassigned in 0.12.1, none now
 Status: fixed: with one block holding all the track, new track joins it (in the undo history too); Set up offers "Add them to Whole layout" for track already left out; the drive view shows NO POWER and says why when the throttle opens on dead track
+
+### BUG-015: In the simulator, no point can be thrown while a train is running anywhere
+
+- Severity: S2
+- Flow / case: F01, reported by the owner on v0.12.x
+- Screen: Control > Drive, S10
+
+Steps
+1. Try it with the simulator (one block, "Whole layout"); drive Train 1.
+2. Tap any point.
+
+Expected: it throws, unless the train is on it. Actual: "Stop Train 1 before changing this point.": the guard held every point in a moving train's block, and with one block that's all of them.
+Evidence: tests/sim.test.ts BUG-015
+Status: fixed: with the simulator, which knows where every vehicle is, a point is held only while any part of a vehicle stands on it; real controllers keep the block rule. The e2e drive test now waits for the camera to settle before looking for a spot to hover

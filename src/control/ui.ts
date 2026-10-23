@@ -15,6 +15,7 @@ import { ControlRuntime } from "./runtime";
 import { Cmd, LinkSummary, applyCommand, applySnapshot } from "./remote";
 import { HubClient, hubBase, hubStatus } from "./hubclient";
 import { renderAuto } from "./autoui";
+import { divideForTrains } from "./divide";
 import { Feed, Joiner, feeds, joiners, wiringSvg } from "./wiringplan";
 import { ORIGINAL_HTML } from "../original";
 import { ControlConfig, DCCEX_CAB_BASE, channelName, channelsOf, emptyControl } from "./types";
@@ -592,6 +593,9 @@ export class ControlUI {
       });
       el.append(card);
     }
+    if (cfg.blocks.length === 1 && cfg.trains.length === 1)
+      el.append(h("div", { class: "btn-row" }, h("button", { class: "btn btn-sm", type: "button", id: "second-train",
+        title: "Cut the layout into blocks, so each train has its own power, and add a train", onclick: () => this.divide(2) }, "Add a second train")));
     const routes = cfg.routes ?? [];
     if (routes.length) {
       el.append(h("div", { class: "sub-head" }, "Routes"));
@@ -678,6 +682,23 @@ export class ControlUI {
       this.tab = "setup";
     } else toast("Simulator ready. Move the slider to drive.");
     this.render();
+  }
+
+  /** Cut the layout into blocks for `n` trains (trains stay where they stand), and say what came of it. */
+  private divide(n: number) {
+    const w = this.app.drive.world();
+    const lengths = w ? this.cfg.trains.map((t) => w.consistOf(t.id)?.vehicles.reduce((a, v) => a + v.length, 0) ?? 0) : [];
+    const longest = Math.max(0, ...lengths);
+    const where = (train: string) => {
+      const c = w?.consistOf(train), i = c ? Math.max(0, c.vehicles.findIndex((v) => v.kind === "loco")) : -1;
+      return c && i >= 0 ? c.at[i]?.item : undefined;
+    };
+    const blocks = divideForTrains(this.app.p, this.cfg, n, { trainLength: longest || undefined, where });
+    this.commitSetup(); this.render();
+    const placed = this.cfg.trains.filter((t) => t.block).length;
+    toast(placed < n
+      ? `${blocks} block${blocks === 1 ? "" : "s"}: room for ${placed} train${placed === 1 ? "" : "s"}. A longer layout or a passing loop makes room for more. Undo puts the old blocks back.`
+      : `${blocks} blocks, ${placed} trains. A train only gets power in a block no other train holds, so they can't run into each other. Undo puts the old blocks back.`);
   }
 
   private renderSetup(el: HTMLElement) {
@@ -782,7 +803,12 @@ export class ControlUI {
           this.commitSetup(); this.render();
           toast(sel.length ? `${b.name} made from the selected track.` : `Tap track pieces to add them to ${b.name}.`);
         } }, "New block"),
-        !cfg.blocks.length ? h("button", { class: "btn btn-sm", type: "button", onclick: () => { addBlock(cfg, p.items.map((i) => i.id), "Whole layout"); this.commitSetup(); this.render(); } }, "One block for everything") : null)));
+        !cfg.blocks.length ? h("button", { class: "btn btn-sm", type: "button", onclick: () => { addBlock(cfg, p.items.map((i) => i.id), "Whole layout"); this.commitSetup(); this.render(); } }, "One block for everything") : null),
+      p.items.length ? (() => {
+        const count = h("select", { id: "divide-count", "aria-label": "Trains" }, ...[2, 3, 4, 5, 6].map((n) => h("option", { value: String(n), selected: n === Math.max(2, Math.min(6, cfg.trains.length)) }, `${n} trains`))) as HTMLSelectElement;
+        return h("div", { class: "btn-row" },
+          h("button", { class: "btn btn-sm", type: "button", id: "divide-blocks", title: "Replace the blocks with ones cut at the points and along long runs, and put each train in its own", onclick: () => this.divide(+count.value) }, "Divide into blocks for"), count);
+      })() : null));
 
     // points
     el.append(sec("Points",

@@ -1,7 +1,7 @@
 // Steam locomotives and their tenders, built from a description of the prototype: where the wheels
 // are, how big the boiler is, what the cab and tanks look like, and the livery.
 import {
-  BLACK, BRASS, CAB_INSIDE, COAL, COPPER, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER,
+  sideCrank, turn, BLACK, BRASS, CAB_INSIDE, COAL, COPPER, DARK_STEEL, GLASS, RGB, SIDES, STEEL, Shapes, UNDER,
   WHEEL_BACK, WHEEL_FACE, arc, badge, coal, barX, barY, barZ, darker, discWheels, headstocks, lining, spokedWheels, step, strip,
 } from "./parts";
 
@@ -110,9 +110,11 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
     spokedWheels(s, wh.x, wh.r, wh.spokes ?? (isDriven ? Math.max(12, Math.round(wh.r * 1.45)) : 10), L.wheels,
       isDriven ? { balance: CRANK + Math.PI, crank: CRANK } : {});
   }
+  // where a crankpin is on side e as the wheels turn
+  const pinAt = (x: number, r: number, e: number) => { const a = CRANK + turn(r) + sideCrank(e); return [x + Math.cos(a) * r * 0.42, r + Math.sin(a) * r * 0.42] as const; };
   if (driven.length > 1) {
-    const pin = (x: number, r: number) => [x + Math.cos(CRANK) * r * 0.42, r + Math.sin(CRANK) * r * 0.42] as const;
     for (const e of SIDES) {
+      const pin = (x: number, r: number) => pinAt(x, r, e);
       const ya = e * (WHEEL_FACE + 0.9), yb = e * (WHEEL_FACE + 1.9);
       for (let i = 0; i + 1 < driven.length; i++) {
         const [x0, z0] = pin(driven[i].x, driven[i].r), [x1, z1] = pin(driven[i + 1].x, driven[i + 1].r);
@@ -124,9 +126,13 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
   if (cy.outside) {
     const yc = cy.y ?? Math.min(w - cy.r - 0.3, 12.6);
     const main = driven[p.mainDriver ?? Math.min(1, driven.length - 1)] ?? driven[0];
-    const [px, pz] = [main.x + Math.cos(CRANK) * main.r * 0.42, main.r + Math.sin(CRANK) * main.r * 0.42];
+    // the connecting rod's length, from the crosshead at rest to the crankpin as drawn standing
+    const pin0 = [main.x + Math.cos(CRANK) * main.r * 0.42, main.r + Math.sin(CRANK) * main.r * 0.42];
+    const rodL = Math.hypot(cy.x0 - 6.5 - pin0[0], cy.z - pin0[1]);
     for (const e of SIDES) {
       const y = e * yc;
+      const [px, pz] = pinAt(main.x, main.r, e);
+      const a = CRANK + turn(main.r) + sideCrank(e);
       const cyCol = L.body === BLACK || cy.block ? BLACK : darker(body, 0.95);
       s.cyl("x", cy.x0, cy.x1, y, cy.z, cy.r, cy.r, cyCol);                                    // cylinder, lagged in body colour
       s.ring("x", cy.x0 - 0.6, cy.x0, y, cy.z, cy.r + 0.4, cy.r - 1, BLACK);                   // covers
@@ -138,16 +144,19 @@ export function drawSteam(s: Shapes, p: SteamSpec) {
         s.box(cy.x0 + 1.5, cy.x1 - 1.5, Math.min(e * (Math.abs(y) + cy.r), e * (Math.abs(y) + cy.r + 0.3)), Math.max(e * (Math.abs(y) + cy.r), e * (Math.abs(y) + cy.r + 0.3)), cy.z + 1, zt - 1, darker(cyCol, 1.4));
       } else barX(s, cy.x0 + 2, cy.x1 - 2, y, cy.z + cy.r + 1.3, 1.6, BLACK);                  // valve chest
       // slidebars and crosshead, then the connecting rod to the main crankpin
-      const xh = cy.x0 - 6.5, yo = e * (yc - 1.2), yi = e * (yc - 0.4);
+      // the crosshead slides along the bars as the crank goes round: the rod keeps its length
+      const xh = Math.min(cy.x0 - 1.8, px + Math.sqrt(Math.max(0, rodL * rodL - (pz - cy.z) ** 2))), yo = e * (yc - 1.2), yi = e * (yc - 0.4);
       s.beam(cy.x0, cy.z + 1.4, cy.x0 - 12, cy.z + 1.4, Math.min(yo, yi), Math.max(yo, yi), 0.6, STEEL);
       s.beam(cy.x0, cy.z - 1.4, cy.x0 - 12, cy.z - 1.4, Math.min(yo, yi), Math.max(yo, yi), 0.6, STEEL);
       s.box(xh - 1.6, xh + 1.6, Math.min(yo, yi) - 0.3, Math.max(yo, yi) + 0.3, cy.z - 1.2, cy.z + 1.2, STEEL);
       const yr0 = e * (WHEEL_FACE + 2.0), yr1 = e * (WHEEL_FACE + 2.9);
       s.beam(xh, cy.z, px, pz, Math.min(yr0, yr1), Math.max(yr0, yr1), 1.6, STEEL);
       // Walschaerts gear: return crank to the expansion link, radius rod forward to the valve, combination lever
-      const lx = (xh + main.x) / 2 + 2, lz = cy.z + 3.5;
-      s.beam(px, pz, px + 1.5, pz + 2.8, Math.min(yr0, yr1), Math.max(yr0, yr1), 0.8, STEEL);
-      s.beam(px + 1.5, pz + 2.8, lx, lz - 1, Math.min(yr0, yr1), Math.max(yr0, yr1), 0.8, STEEL);
+      // the return crank stands a quarter turn on from the crankpin, so the eccentric rod rocks the link
+      const lx = (cy.x0 - 6.5 + main.x) / 2 + 2, lz = cy.z + 3.5 + Math.sin(a + Math.PI / 2) * 1.2;
+      const rx = px + Math.cos(a + Math.PI / 2) * 1.6, rz = pz + Math.sin(a + Math.PI / 2) * 1.6;
+      s.beam(px, pz, rx, rz, Math.min(yr0, yr1), Math.max(yr0, yr1), 0.8, STEEL);
+      s.beam(rx, rz, lx, lz - 1, Math.min(yr0, yr1), Math.max(yr0, yr1), 0.8, STEEL);
       s.box(lx - 1, lx + 1, Math.min(yo, yi) - 0.2, Math.max(yo, yi) + 0.2, lz - 2.5, lz + 2.5, DARK_STEEL);
       s.beam(lx, lz + 1.2, cy.x0 + 1, cy.z + cy.r + 1.3, Math.min(yo, yi), Math.max(yo, yi), 0.7, STEEL);
       s.beam(xh, cy.z - 1, xh + 1.2, cy.z + cy.r + 1.3, Math.min(yo, yi), Math.max(yo, yi), 0.6, STEEL);

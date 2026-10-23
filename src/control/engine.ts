@@ -105,6 +105,11 @@ export function neighbours(p: Project, cfg: ControlConfig, topo: Topology, block
 
 export class ControlEngine {
   topo: Topology;
+  /**
+   * The simulator knows where every vehicle is: what's standing on a point, if anything. Without it
+   * (real controllers) only the point's block is known, and any moving train in it holds the point.
+   */
+  onPoint?: (item: string) => string | null;
   runs = new Map<string, TrainRun>();
   claimedBy = new Map<string, string>();     // block -> train
   power = new Map<string, number>();         // block -> signed duty -1..1
@@ -405,13 +410,21 @@ export class ControlEngine {
     }
   }
 
-  /** Throw a point. Refused while a moving train is in the point's block. */
+  /**
+   * Throw a point. Refused while a vehicle stands on it (in the simulator), or, with real controllers,
+   * while a moving train is in the point's block.
+   */
   setPoint(item: string, state: number): string | null {
     const pc = this.cfg.points.find((q) => q.item === item);
     if (!pc) return "That point isn't set up for control yet.";
-    const block = this.topo.blockOfItem.get(item);
-    const t = block ? this.trainIn(block) : undefined;
-    if (t && Math.abs(this.run(t.id).speed) > 0.001) return `Stop ${t.name} before changing this point.`;
+    if (this.onPoint) {
+      const over = this.onPoint(item);
+      if (over) return `${over} is on this point: wait until it's clear.`;
+    } else {
+      const block = this.topo.blockOfItem.get(item);
+      const t = block ? this.trainIn(block) : undefined;
+      if (t && Math.abs(this.run(t.id).speed) > 0.001) return `Stop ${t.name} before changing this point.`;
+    }
     pc.state = ((state % pc.us.length) + pc.us.length) % pc.us.length;
     this.assign();
     return null;

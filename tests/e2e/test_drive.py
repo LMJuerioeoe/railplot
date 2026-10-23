@@ -44,7 +44,14 @@ def drive(pg):
     pg.keyboard.press("d"); pg.wait_for_timeout(800)
 
 def free_spot(pg, consist, ok=True, mid=True):
-    """A screen point over track where `consist` would (or wouldn't) fit."""
+    """A screen point over track where `consist` would (or wouldn't) fit, once the camera has settled on one."""
+    for _ in range(25):
+        at = spot_now(pg, consist, ok, mid)
+        if at: return at
+        pg.wait_for_timeout(200)
+    return None
+
+def spot_now(pg, consist, ok, mid):
     return js(pg, f"""(() => {{ const d = railplot.drive, w = d.world(), v = railplot.view3d, r = v.canvas.getBoundingClientRect();
       const pts = new Set(railplot.p.control.points.map(q => q.item));
       for (const a of w.graph.samples(40)) {{

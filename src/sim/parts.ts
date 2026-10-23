@@ -173,20 +173,42 @@ export function coal(s: Shapes, x0: number, x1: number, half: number, z: number,
 // OO wheels: the tread rides on the rail head at y = ±8.25; the wheel runs from ±7.3 (back) to ±9.6 (face)
 export const WHEEL_BACK = 7.3, WHEEL_FACE = 9.6;
 
+// ---------- motion ----------
+
+/** How far the vehicle being drawn has run, mm: its wheels turn by this over their radius. */
+let travelled = 0;
+/** The driving wheels' radius while drawing a moving loco: the other wheels keep time with them. */
+let driverR = 0;
+/**
+ * Draw a vehicle as it stands after running `mm` (frames of a moving loco's wheels and rods). With the
+ * driving wheels' radius, every other wheel turns a whole number of times per turn of the drivers, so
+ * frames a full turn apart are the same and the loop of frames runs on without a jump.
+ */
+export function withTravel(mm: number, draw: () => void, driver = 0) {
+  const was = [travelled, driverR]; travelled = mm; driverR = driver;
+  try { draw(); } finally { [travelled, driverR] = was; }
+}
+/** How far a wheel of radius r has turned, radians: forward is clockwise seen from the right-hand side. */
+export const turn = (r: number) => driverR ? -(travelled / driverR) * Math.max(1, Math.round(driverR / r)) : -travelled / r;
+/** The crank on the left-hand side leads the right by a quarter turn, as on the real thing. */
+export const QUARTER = Math.PI / 2;
+export const sideCrank = (e: number) => (e < 0 ? QUARTER : 0);
+
 /**
  * A spoked wheel pair on one axle at x, radius r (centre at z = r): tyres, rims, spokes, bosses and, for
  * driving wheels, a balance weight opposite the crank.
  */
 export function spokedWheels(s: Shapes, x: number, r: number, spokes: number, col: RGB, opts: { tyre?: RGB; balance?: number; crank?: number } = {}) {
-  const tyre = opts.tyre ?? DARK_STEEL;
+  const tyre = opts.tyre ?? DARK_STEEL, rot = turn(r);
   for (const e of SIDES) {
+    const q = opts.crank !== undefined ? sideCrank(e) : 0;
     const yb = e * WHEEL_BACK, yf = e * WHEEL_FACE, yfIn = e * (WHEEL_FACE - 0.5);
     s.ring("y", Math.min(yb, yf), Math.max(yb, yf), x, r, r, r - 1.1, tyre);
     const yfl = e * (WHEEL_BACK + 0.45);
     s.ring("y", Math.min(yb, yfl), Math.max(yb, yfl), x, r, r + 0.75, r - 0.4, tyre);               // the flange, inside the tread
     s.ring("y", Math.min(yb, yfIn), Math.max(yb, yfIn), x, r, r - 1.05, r - 1.9, col);
     for (let i = 0; i < spokes; i++) {
-      const t = (i / spokes) * Math.PI * 2 + 0.2;
+      const t = (i / spokes) * Math.PI * 2 + 0.2 + rot + q;
       const a = 1.9, b = r - 1.7;
       s.beam(x + Math.cos(t) * a, r + Math.sin(t) * a, x + Math.cos(t) * b, r + Math.sin(t) * b, Math.min(e * (WHEEL_FACE - 1.3), yfIn), Math.max(e * (WHEEL_FACE - 1.3), yfIn), Math.max(0.6, r * 0.075), col);
     }
@@ -194,12 +216,12 @@ export function spokedWheels(s: Shapes, x: number, r: number, spokes: number, co
     s.dish("y", yf, e, x, r, 1.5, 0.5, col);                                                      // axle end
     if (opts.balance !== undefined) {
       // a crescent of solid metal on the far side of the crank
-      const c = opts.balance, pts: [number, number][] = [];
+      const c = opts.balance + rot + q, pts: [number, number][] = [];
       for (let k = 0; k <= 8; k++) { const t = c - 0.75 + (1.5 * k) / 8; pts.push([x + Math.cos(t) * (r - 1.8), r + Math.sin(t) * (r - 1.8)]); }
       s.prismY(pts, Math.min(e * (WHEEL_FACE - 1.2), yfIn), Math.max(e * (WHEEL_FACE - 1.2), yfIn), col);
     }
     if (opts.crank !== undefined) {
-      const cr = r * 0.42, cx = x + Math.cos(opts.crank) * cr, cz = r + Math.sin(opts.crank) * cr;
+      const a = opts.crank + rot + q, cr = r * 0.42, cx = x + Math.cos(a) * cr, cz = r + Math.sin(a) * cr;
       s.cyl("y", Math.min(yf, e * (WHEEL_FACE + 0.9)), Math.max(yf, e * (WHEEL_FACE + 0.9)), cx, cz, 1.1, 1.1, STEEL);   // crankpin
     }
   }
