@@ -1328,6 +1328,28 @@ export class App {
     toast("SVG saved at true scale: 1 mm on paper = 1 mm on the layout.");
   }
 
+  /** A clean top-down planning sheet: board outline, track and a light scale grid for sketching scenery. */
+  async exportSceneryPng() {
+    const b = projectBounds(this.p);
+    if (!b) { toast("Nothing to export yet."); return; }
+    const pad = 40;
+    const W = b.maxX - b.minX + pad * 2, H = b.maxY - b.minY + pad * 2;
+    const s = Math.min(4, 6000 / Math.max(W, H));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(W * s)); c.height = Math.max(1, Math.round(H * s));
+    const ctx = c.getContext("2d");
+    if (!ctx) { toast("Couldn't render the scenery plan.", "error"); return; }
+    const pal = printPalette();
+    drawProject(ctx, { s, ox: (pad - b.minX) * s, oy: (b.maxY + pad) * s }, c.width, c.height, this.p, {
+      selection: new Set(), anchor: null, hoverEnd: null, heights: false, heightSel: null, labels: "none",
+      gridStep: this.p.gridStep, showGrid: true, analysis: { ends: [], partner: new Map(), free: [], bad: [] }, tracksGuides: false,
+    }, pal);
+    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
+    if (!blob) { toast("Couldn't render the scenery plan.", "error"); return; }
+    await saveBlob(`${this.p.name} scenery plan.png`, blob, { name: "Scenery planning sheet (PNG)", extensions: ["png"], mime: "image/png" });
+    toast("Scenery planning sheet saved with the layout grid.");
+  }
+
   // ---------- dialogs ----------
 
   /** Save a file the way this copy of Railplot can (a download, a save dialog, or the claude.ai page). */
@@ -1738,6 +1760,7 @@ export class App {
       { label: "Save as…", kbd: "Ctrl+Shift+S", run: () => this.save(true) },
       "-",
       { label: "Export image (PNG)…", run: () => this.exportPng() },
+      { label: "Export scenery planning sheet (PNG)…", run: () => this.exportSceneryPng() },
       { label: "Export true-scale drawing (SVG)…", run: () => this.exportSvg() },
       { label: "Parts list…", run: () => this.showPartsList() },
       "-",
