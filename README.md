@@ -72,7 +72,7 @@ bun run validate-libraries # checks every track library
 bunx tauri dev             # run the desktop app
 bunx tauri build           # build installers into src-tauri/target/release/bundle
 bun run hub                # run the Railplot hub from source
-bun run mcp                # run the Claude connector from source (stdio)
+bun run mcp                # run the shared MCP connector for ChatGPT or Claude (stdio)
 bun scripts/build-hub.ts   # the hub as a single-file program (--all for every platform and the .mcpb bundles)
 bun run docs               # the guides as a website, in site/
 ```
