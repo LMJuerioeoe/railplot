@@ -22,7 +22,7 @@ laptops on your network, and lets WiThrottle and Engine Driver apps drive the tr
   --no-mdns          don't announce the hub on the network
   --help             this text
 
-  railplot-hub mcp   runs the Railplot connector for Claude instead (see "railplot-hub mcp --help")
+  railplot-hub mcp   runs the Railplot MCP server instead (see "railplot-hub mcp --help")
 
 Send your layout to the hub from Railplot: Control > Set up > Railplot hub > Connect.
 More: docs/control/hub.md in the Railplot source.`;
@@ -42,7 +42,7 @@ function args(argv: string[]) {
 }
 
 if (process.argv[2] === "mcp") {
-  // the Railplot connector for Claude: stdio only, so nothing else may print to stdout
+  // the Railplot MCP server: stdio only, so nothing else may print to stdout
   const { runMcp } = await import("../mcp/run");
   await runMcp(process.argv.slice(3), pkg.version);
   process.exit(0);
