@@ -21,14 +21,14 @@ It runs as a small Windows (and Linux) desktop app, or in any modern browser wit
 - **Will my trains fit?** Give the length of your longest train and longest vehicle (or pick short goods, branch passenger or main line). The Layout panel lists passing loops and sidings too short to hold the train clear of the points, blocks shorter than it, curves too tight for long coaches, and reverse curves with no straight between them, where buffers lock. Click a finding to select the track.
 - **Shunting sessions.** Tools > Shunting session deals a puzzle for the Inglenook or your plan's own sidings: where each wagon starts and the train to make up, as numbered cards you can print, with a clock and a move count. Each card set has a number, so you can deal it again.
 - **Parts list.** Counts of every part, with flexible track rounded up to whole lengths. Type what each part costs, in pounds, dollars, euros or another currency, to get a total and the cost of each baseboard; prices are saved with the layout and offered again on your other layouts. Copy or save it as CSV.
-- **Export.** PNG pictures, and SVG drawings at true scale (1 mm on paper = 1 mm on the layout) for printing templates.
+- **Export.** PNG pictures, SVG drawings at true scale (1 mm on paper = 1 mm on the layout) for printing templates, and a top-down scenery planning sheet with a scale grid for sketching buildings, roads, platforms and other scenery.
 - **Layout control.** Drive a real analogue layout from a laptop or any phone on your Wi-Fi: train speed and direction with momentum, points on servos, colour-light signals, lights and infrared train sensors, through a small ESP32 controller with DRV8876 track drivers. Start with one train on the whole layout. Split the track into blocks to run more, with power following each train and automatic signals keeping a free block between them. A simulator and a two-train demo let you try it without hardware. See [docs/control](docs/control/README.md) and [firmware](firmware/README.md).
 - **Detecting trains by current.** As well as the infrared sensors, the DRV8876 drivers can tell which blocks draw current, with short detection pulses into blocks that have no power. Railplot warns about anything standing where no train is booked (a wagon left behind) and keeps trains out of that block, and moves a train on when its sensor missed it. See [Detecting trains by current](docs/control/README.md#detecting-trains-by-current).
 - **Wiring plan.** With the track split into blocks, Set up marks every insulated joiner (block joints and Electrofrog points) and track feed on the plan, draws a wiring diagram of each controller, and adds the joiners, feed wire, boards, drivers, sensors and servos to the parts list.
 - **Automation.** Routes set several points with one tap. Trips work out the way between two blocks from the plan, set the points and stop the train in the right block; shuttles and step-by-step automations run timetables and station stops. See [Automation](docs/control/automation.md).
 - **The hub.** A single-file program for a laptop or Raspberry Pi that runs the layout with no screen needed: several phones drive at once, automations keep going, and Engine Driver and WiThrottle apps can drive the analogue trains. See [the hub](docs/control/hub.md) and [throttle apps](docs/control/throttles.md).
 - **DCC-EX.** An EX-CommandStation's track outputs can be Railplot's analogue blocks, over USB or the network. See [DCC-EX](docs/control/dcc-ex.md).
-- **Plan with Claude.** The Railplot connector lets Claude (in the Claude desktop app or Claude Code) read your plans, check them and propose changes: modules, yards, track, example layouts. Each proposal appears under Claude's proposals, where you see it on the plan and accept or reject it; nothing changes until you do. With the hub, and only if you allow it, Claude can also set routes and points and run trains, never track power. See [Claude and Railplot](docs/claude.md).
+- **Plan with ChatGPT or Claude.** The Railplot MCP connector lets ChatGPT (desktop or web, where custom MCP apps are available) and Claude read your plans, check them and propose changes: modules, yards, track, example layouts. Each proposal appears under Claude's proposals, where you see it on the plan and accept or reject it; nothing changes until you do. With the hub, and only if you allow it, Claude can also set routes and points and run trains, never track power. See [ChatGPT and Railplot](docs/chatgpt.md) or [Claude and Railplot](docs/claude.md).
 - **Safe by default.** Unlimited undo, and your current plan is kept automatically between sessions.
 
 ![The sample layout in the 3D view](docs/screenshot-3d.png)
@@ -39,7 +39,7 @@ Download the latest Windows installer (`Railplot_x.y.z_x64-setup.exe`) or Linux 
 
 Prefer not to install? Download `railplot-offline.html` from the same page and open it in Edge, Chrome or Firefox. It works offline and saves layouts as files.
 
-The [Railplot hub](docs/control/hub.md) for Windows, Linux, Raspberry Pi and Mac is on the same page, with the [Claude connector](docs/claude.md) bundles (`railplot-claude-*.mcpb`) for the Claude desktop app.
+The [Railplot hub](docs/control/hub.md) for Windows, Linux, Raspberry Pi and Mac is on the same page, with the [ChatGPT MCP setup](docs/chatgpt.md) and [Claude connector](docs/claude.md) bundles (`railplot-claude-*.mcpb`) for the Claude desktop app.
 
 The guides are also published as a website with the browser version of Railplot (GitHub Pages, built by `.github/workflows/pages.yml`).
 
@@ -98,7 +98,7 @@ python tests/e2e/test_hub.py
 | `src/update.ts`, `src-tauri/src/lib.rs` | Checking GitHub for a newer release, and the desktop app's signed self-update |
 | `src/control/` | Layout control: the engine (blocks, trains, signals, automations), trip planning, controller links (ESP32, DCC-EX, simulator), the hub client and the Control panel |
 | `src/hub/` | The Railplot hub: web and WebSocket server, WiThrottle server, mDNS, DCC-EX over TCP and serial |
-| `src/mcp/`, `src/proposals.ts` | The Claude connector (an MCP server over stdio: tools, plan operations, file and hub access) and proposals |
+| `src/mcp/`, `src/proposals.ts` | The MCP server (stdio transport: tools, plan operations, file and hub access) and proposals |
 | `scripts/` | Builds: the app, the hub programs, the docs website |
 | `firmware/` | ESP32 controller firmware (Arduino/PlatformIO) |
 | `src-tauri/` | The Tauri desktop shell (file dialogs and file access only) |
