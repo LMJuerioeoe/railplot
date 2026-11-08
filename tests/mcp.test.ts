@@ -300,7 +300,7 @@ describe("through the hub", () => {
     const train = hub.p.control!.trains[0];
     let r = await call(s, "drive_train", { train: train.name, speed: 30 });
     expect(r.error).toBe(true);
-    expect(r.text).toContain("Let Claude use the controls");
+    expect(r.text).toContain("Let the connected assistant use the controls");
     // the owner turns it on in Railplot (the setting travels with the layout)
     const p = parseProject(serialize(hub.p));
     p.control!.claude = true;
@@ -317,7 +317,7 @@ describe("through the hub", () => {
     expect((await call(s, "set_point", { point: "point 1", position: "diverging" })).error).toBe(false);
     expect(hub.p.control!.points[0].state).toBe(1);
     const status = JSON.parse((await call(s, "get_control_status")).text);
-    expect(status.claude_may_use_controls).toBe(true);
+    expect(status.assistant_may_use_controls).toBe(true);
     expect(status.trains.length).toBe(2);
     expect(status.points[0].position).toMatch(/diverging/);
     const auto = hub.p.control!.automations![0];
