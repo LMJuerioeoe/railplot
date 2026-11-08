@@ -177,6 +177,11 @@ with sync_playwright() as p:
         pg.evaluate("railplot.exportPng()")
     check("PNG export", d.value.suggested_filename.endswith(".png"))
 
+    # clean top-down scenery planning export
+    with pg.expect_download() as d:
+        pg.evaluate("railplot.exportSceneryPng()")
+    check("scenery planning PNG export", "scenery plan" in d.value.suggested_filename.lower() and d.value.suggested_filename.endswith(".png"))
+
     # autosave survives reload
     pg.wait_for_timeout(700)
     count = js(pg, "railplot.p.items.length")
