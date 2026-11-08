@@ -743,7 +743,7 @@ export class ControlUI {
           toast(cfg.claude ? "The connected assistant can now use the controls through the hub." : "The connected assistant can no longer use the controls.");
         } }),
         h("span", {}, h("strong", {}, "Let the connected assistant use the controls"), h("br"),
-          h("span", { class: "muted small" }, "Through the hub and the Railplot connector, The connected assistant can then set routes, points, signals and lights, drive trains and run automations. It can never switch track power on or off. Stop the trains here or on any throttle at any time.")))));
+          h("span", { class: "muted small" }, "Through the hub and the Railplot connector, the connected assistant can then set routes, points, signals and lights, drive trains and run automations. It can never switch track power on or off. Stop the trains here or on any throttle at any time.")))));
 
     // controllers
     el.append(sec("Controllers",
