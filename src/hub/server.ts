@@ -193,7 +193,7 @@ export class Hub {
 
   /** A command from the MCP connector: only when the layout allows it, and never track power or emergency stops. */
   claudeCommand(cmd: Cmd): string | null {
-    if (!this.p.control?.claude) return "Claude isn't allowed to use the controls on this layout. Turn on \"Let Claude use the controls\" in Railplot, under Control > Set up > Railplot hub.";
+    if (!this.p.control?.claude) return "The connected assistant is not allowed to use the controls on this layout. Turn on \"Let Claude use the controls\" in Railplot, under Control > Set up > Railplot hub.";
     const allowed: Cmd["c"][] = ["throttle", "point", "signal", "light", "route", "auto"];
     if (!allowed.includes(cmd?.c)) return "Claude can set routes, points, signals and lights, drive trains and run automations, but not track power or emergency stops.";
     const err = applyCommand(this.engine, cmd);
