@@ -290,8 +290,8 @@ with sync_playwright() as p:
         before: { boards: [], items: [gone], starts: [] } }];
       railplot.applyRemoteProject(p); })()""")
     pg.wait_for_timeout(200)
-    check("a proposal shows under Claude's proposals", pg.locator(".prop-card:has-text('Add a siding')").count() == 1 and pg.locator(".prop-card >> text=adds 1 piece of track and removes 1 piece of track").count() == 1)
-    check("its arrival is announced", pg.locator(".toast:has-text('Claude proposes: Add a siding')").count() >= 1)
+    check("a proposal shows in the assistant proposals panel", pg.locator(".prop-card:has-text('Add a siding')").count() == 1 and pg.locator(".prop-card >> text=adds 1 piece of track and removes 1 piece of track").count() == 1)
+    check("its arrival is announced", pg.locator(".toast:has-text('Railplot connector proposes: Add a siding')").count() >= 1)
     pg.click(".prop-card button:has-text('Show')"); pg.wait_for_timeout(200)
     check("show draws it on the plan", js(pg, "railplot.showProp") == "Ptest1")
     shot(pg, "08f-proposal")
