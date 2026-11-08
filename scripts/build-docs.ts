@@ -13,6 +13,7 @@ const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 interface Page { src: string; out: string; title: string; group: string }
 const PAGES: Page[] = [
   { src: "docs/index.md", out: "index.html", title: "Home", group: "" },
+  { src: "docs/chatgpt.md", out: "chatgpt.html", title: "ChatGPT and Railplot", group: "Plan" },
   { src: "docs/claude.md", out: "claude.html", title: "Claude and Railplot", group: "Plan" },
   { src: "docs/control/README.md", out: "control/index.html", title: "Controlling the layout", group: "Run your layout" },
   { src: "docs/control/automation.md", out: "control/automation.html", title: "Automation", group: "Run your layout" },
