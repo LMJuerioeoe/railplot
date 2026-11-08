@@ -177,6 +177,11 @@ with sync_playwright() as p:
         pg.evaluate("railplot.exportPng()")
     check("PNG export", d.value.suggested_filename.endswith(".png"))
 
+    # clean top-down scenery planning export
+    with pg.expect_download() as d:
+        pg.evaluate("railplot.exportSceneryPng()")
+    check("scenery planning PNG export", "scenery plan" in d.value.suggested_filename.lower() and d.value.suggested_filename.endswith(".png"))
+
     # autosave survives reload
     pg.wait_for_timeout(700)
     count = js(pg, "railplot.p.items.length")
@@ -290,8 +295,8 @@ with sync_playwright() as p:
         before: { boards: [], items: [gone], starts: [] } }];
       railplot.applyRemoteProject(p); })()""")
     pg.wait_for_timeout(200)
-    check("a proposal shows under Claude's proposals", pg.locator(".prop-card:has-text('Add a siding')").count() == 1 and pg.locator(".prop-card >> text=adds 1 piece of track and removes 1 piece of track").count() == 1)
-    check("its arrival is announced", pg.locator(".toast:has-text('Claude proposes: Add a siding')").count() >= 1)
+    check("a proposal shows in the assistant proposals panel", pg.locator(".prop-card:has-text('Add a siding')").count() == 1 and pg.locator(".prop-card >> text=adds 1 piece of track and removes 1 piece of track").count() == 1)
+    check("its arrival is announced", pg.locator(".toast:has-text('Railplot connector proposes: Add a siding')").count() >= 1)
     pg.click(".prop-card button:has-text('Show')"); pg.wait_for_timeout(200)
     check("show draws it on the plan", js(pg, "railplot.showProp") == "Ptest1")
     shot(pg, "08f-proposal")
@@ -305,6 +310,10 @@ with sync_playwright() as p:
     check("undo brings a rejected proposal back", pg.locator(".prop-card").count() == 1)
     pg.keyboard.press("Control+y"); pg.wait_for_timeout(150)
     check("redo rejects it again", pg.locator(".prop-card").count() == 0)
+    pg.click("text=Help"); pg.click("text=Connect ChatGPT")
+    pg.wait_for_timeout(150)
+    check("Help explains how to connect ChatGPT desktop and web", js(pg, "document.querySelector('.dialog .about')?.textContent.includes('Secure MCP Tunnel') && document.querySelector('.dialog .about')?.textContent.includes('railplot-hub.exe')"))
+    pg.click(".dialog button:has-text('Close')")
     pg.click("text=Help"); pg.click("text=Connect Claude")
     pg.wait_for_timeout(150)
     check("Help explains how to connect Claude", pg.locator(".dialog >> text=railplot-claude-windows.mcpb").count() == 1)

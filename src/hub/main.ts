@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // railplot-hub: run a Railplot layout on a laptop or Raspberry Pi.
 //   railplot-hub [--layout my-layout.railplot] [--port 8080] [--withrottle 12090] [--name "My railway"] [--no-mdns]
-//   railplot-hub mcp [--hub localhost:8080] [--folder DIR]     the Railplot connector for Claude (stdio)
+//   railplot-hub mcp [--hub localhost:8080] [--folder DIR]     the Railplot MCP server (stdio)
 import os from "node:os";
 import path from "node:path";
 import appHtml from "../../dist/index.html" with { type: "text" };
@@ -22,7 +22,7 @@ laptops on your network, and lets WiThrottle and Engine Driver apps drive the tr
   --no-mdns          don't announce the hub on the network
   --help             this text
 
-  railplot-hub mcp   runs the Railplot connector for Claude instead (see "railplot-hub mcp --help")
+  railplot-hub mcp   runs the Railplot MCP server instead (see "railplot-hub mcp --help")
 
 Send your layout to the hub from Railplot: Control > Set up > Railplot hub > Connect.
 More: docs/control/hub.md in the Railplot source.`;
@@ -42,7 +42,7 @@ function args(argv: string[]) {
 }
 
 if (process.argv[2] === "mcp") {
-  // the Railplot connector for Claude: stdio only, so nothing else may print to stdout
+  // the Railplot MCP server: stdio only, so nothing else may print to stdout
   const { runMcp } = await import("../mcp/run");
   await runMcp(process.argv.slice(3), pkg.version);
   process.exit(0);

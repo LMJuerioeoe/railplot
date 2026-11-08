@@ -291,7 +291,7 @@ export class App {
     this.announceProposals(fresh);
   }
 
-  // ---------- proposals (from the Claude connector) ----------
+  // ---------- proposals from connected MCP assistants ----------
 
   /** After undo or redo: proposals that arrived since that state stay, ones resolved in a later step stay resolved. */
   private keepProposals(p: Project): Project {
@@ -305,10 +305,10 @@ export class App {
   private announceProposals(fresh: Proposal[]) {
     if (!fresh.length) return;
     this.root.classList.add("show-insp");
-    toast(fresh.length === 1 ? `Claude proposes: ${fresh[0].title}. Accept or reject it under Claude's proposals.` : `Claude made ${fresh.length} proposals. Accept or reject them under Claude's proposals.`);
+    toast(fresh.length === 1 ? `Railplot connector proposes: ${fresh[0].title}. Accept or reject it in the proposals panel.` : `The Railplot connector made ${fresh.length} proposals. Accept or reject them in the proposals panel.`);
   }
 
-  /** Desktop app with a saved file: pick up proposals the Claude connector wrote into the file. */
+  /** Desktop app with a saved file: pick up proposals the MCP connector wrote into the file. */
   async pollFileProposals() {
     const T = window.__TAURI__;
     if (!T || !this.filePath || isDialogOpen()) return;
@@ -356,7 +356,7 @@ export class App {
     const r = applyProposal(this.p, pr, force);
     if (!r.ok) {
       confirmDialog("The plan has changed since this was proposed",
-        `${r.stale.length} of the things it changes or removes ${r.stale.length === 1 ? "has" : "have"} been changed or deleted since Claude proposed this. Accepting puts Claude's versions in their place.`,
+        `${r.stale.length} of the things it changes or removes ${r.stale.length === 1 ? "has" : "have"} been changed or deleted since this proposal was made. Accepting applies the proposed versions.`,
         "Accept anyway").then((yes) => { if (yes) this.acceptProposal(id, true); });
       return;
     }
@@ -399,7 +399,7 @@ export class App {
     const list = this.mode === "design" ? this.p.proposals ?? [] : [];
     box.hidden = !list.length;
     if (!list.length) return;
-    box.append(h("div", { class: "sec-head" }, h("h3", { html: `${icon("spark", 16)}<span>Claude's proposals</span>` }), h("span", { class: "muted small mono" }, String(list.length))));
+    box.append(h("div", { class: "sec-head" }, h("h3", { html: `${icon("spark", 16)}<span>Assistant proposals</span>` }), h("span", { class: "muted small mono" }, String(list.length))));
     for (const pr of list) {
       const stale = staleIds(this.p, pr);
       const on = this.showProp === pr.id;
@@ -1328,6 +1328,28 @@ export class App {
     toast("SVG saved at true scale: 1 mm on paper = 1 mm on the layout.");
   }
 
+  /** A clean top-down planning sheet: board outline, track and a light scale grid for sketching scenery. */
+  async exportSceneryPng() {
+    const b = projectBounds(this.p);
+    if (!b) { toast("Nothing to export yet."); return; }
+    const pad = 40;
+    const W = b.maxX - b.minX + pad * 2, H = b.maxY - b.minY + pad * 2;
+    const s = Math.min(4, 6000 / Math.max(W, H));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(W * s)); c.height = Math.max(1, Math.round(H * s));
+    const ctx = c.getContext("2d");
+    if (!ctx) { toast("Couldn't render the scenery plan.", "error"); return; }
+    const pal = printPalette();
+    drawProject(ctx, { s, ox: (pad - b.minX) * s, oy: (b.maxY + pad) * s }, c.width, c.height, this.p, {
+      selection: new Set(), anchor: null, hoverEnd: null, heights: false, heightSel: null, labels: "none",
+      gridStep: this.p.gridStep, showGrid: true, analysis: { ends: [], partner: new Map(), free: [], bad: [] }, tracksGuides: false,
+    }, pal);
+    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
+    if (!blob) { toast("Couldn't render the scenery plan.", "error"); return; }
+    await saveBlob(`${this.p.name} scenery plan.png`, blob, { name: "Scenery planning sheet (PNG)", extensions: ["png"], mime: "image/png" });
+    toast("Scenery planning sheet saved with the layout grid.");
+  }
+
   // ---------- dialogs ----------
 
   /** Save a file the way this copy of Railplot can (a download, a save dialog, or the claude.ai page). */
@@ -1628,6 +1650,25 @@ export class App {
       [{ label: "Check for updates", onClick: () => { this.showUpdates(); return true; } }, { label: "Close", primary: true }]);
   }
 
+  showChatGPTHelp() {
+    const pre = (t: string) => h("pre", { class: "code-block" }, t);
+    dialog("Connect ChatGPT", h("div", { class: "about" },
+      h("p", {}, "ChatGPT can read your Railplot plans, check them and prepare changes as proposals. You review each proposal in Railplot and accept or reject it; the assistant does not silently edit your track plan."),
+      h("h3", {}, "ChatGPT desktop: restricted local plugin route"),
+      h("p", {}, "Railplot's MCP server supports local STDIO, but ChatGPT does not offer a general local-server settings screen for ordinary users. OpenAI's desktop-only plugin route for local MCP servers is restricted to approved partners and requires OpenAI allowlisting. Railplot has not been approved for that distribution route."),
+      h("p", {}, "The local command is provided for MCP development and for an approved desktop-only package, not as a normal ChatGPT desktop setup step:"),
+      pre('C:\\Railplot\\railplot-hub.exe mcp --hub localhost:8080 --folder "C:\\Users\\you\\Documents\\Railplot"'),
+      h("p", {}, h("a", { href: "https://developers.openai.com/plugins/deploy/desktop-only", target: "_blank", rel: "noopener" }, "OpenAI desktop-only plugin requirements")),
+      h("p", {}, "For ordinary ChatGPT use, connect through the web app and Secure MCP Tunnel below."),
+      h("h3", {}, "ChatGPT on the web"),
+      h("p", {}, "ChatGPT web needs a remote MCP connection. For a local Railplot installation, use OpenAI Secure MCP Tunnel: create a tunnel in Platform, run tunnel-client on the computer that can reach Railplot, then add a custom MCP server in ChatGPT and choose Tunnel. Keep tunnel-client running while using the connector."),
+      h("p", {}, "Custom MCP access and write permissions depend on your ChatGPT plan and workspace. Read-only access cannot submit Railplot proposals."),
+      h("p", {}, "Full setup, current requirements and troubleshooting:"),
+      h("p", {}, h("a", { href: "https://github.com/LMJuerioeoe/railplot/blob/main/docs/chatgpt.md", target: "_blank", rel: "noopener" }, "ChatGPT and Railplot setup guide")),
+      h("p", { class: "muted" }, "The connector can only access the layout folders you configure. The hub continues to enforce its control permissions and does not expose track power or emergency-stop controls.")),
+      [{ label: "Close", primary: true }]);
+  }
+
   showClaudeHelp() {
     const pre = (t: string) => h("pre", { class: "code-block" }, t);
     dialog("Connect Claude", h("div", { class: "about" },
@@ -1637,7 +1678,7 @@ export class App {
       pre(`{ "mcpServers": { "railplot": {\n  "command": "C:\\\\Railplot\\\\railplot-hub-windows-x64.exe",\n  "args": ["mcp", "--hub", "localhost:8080"]\n} } }`),
       h("p", {}, "For Claude Code: ", h("span", { class: "mono" }, "claude mcp add railplot -- /path/to/railplot-hub mcp")),
       h("p", {}, h("strong", {}, "Live or by file. "), "With the hub running and this window connected to it (Control › Set up › Railplot hub), proposals arrive straight away. Without the hub, Claude works on a saved .railplot file: the desktop app picks up proposals written into the file you have open; in a browser, open the file again to see them."),
-      h("p", { class: "muted" }, "Running trains is separate and off unless you turn on “Let Claude use the controls” under Control › Set up › Railplot hub. Claude can then set routes, points, signals and lights, drive trains and run automations, but never switch track power on or off.")),
+      h("p", { class: "muted" }, "Running trains is separate and off unless you turn on “Let the connected assistant use the controls” under Control › Set up › Railplot hub. Claude can then set routes, points, signals and lights, drive trains and run automations, but never switch track power on or off.")),
       [{ label: "Close", primary: true }]);
   }
 
@@ -1738,6 +1779,7 @@ export class App {
       { label: "Save as…", kbd: "Ctrl+Shift+S", run: () => this.save(true) },
       "-",
       { label: "Export image (PNG)…", run: () => this.exportPng() },
+      { label: "Export scenery planning sheet (PNG)…", run: () => this.exportSceneryPng() },
       { label: "Export true-scale drawing (SVG)…", run: () => this.exportSvg() },
       { label: "Parts list…", run: () => this.showPartsList() },
       "-",
@@ -1790,6 +1832,7 @@ export class App {
     ] },
     { label: "Help", items: [
       { label: "Keyboard shortcuts", run: () => this.showShortcuts() },
+      { label: "Connect ChatGPT…", run: () => this.showChatGPTHelp() },
       { label: "Connect Claude…", run: () => this.showClaudeHelp() },
       { label: "Check for updates…", run: () => this.showUpdates() },
       { label: "About Railplot", run: () => this.showAbout() },
