@@ -195,7 +195,7 @@ export class Hub {
   claudeCommand(cmd: Cmd): string | null {
     if (!this.p.control?.claude) return "The connected assistant is not allowed to use the controls on this layout. Turn on \"Let Claude use the controls\" in Railplot, under Control > Set up > Railplot hub.";
     const allowed: Cmd["c"][] = ["throttle", "point", "signal", "light", "route", "auto"];
-    if (!allowed.includes(cmd?.c)) return "Claude can set routes, points, signals and lights, drive trains and run automations, but not track power or emergency stops.";
+    if (!allowed.includes(cmd?.c)) return "The connected assistant can set routes, points, signals and lights, drive trains and run automations, but not track power or emergency stops.";
     const err = applyCommand(this.engine, cmd);
     if (!err) this.log(`MCP assistant: ${JSON.stringify(cmd)}`);
     return err;
