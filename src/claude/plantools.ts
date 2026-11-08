@@ -114,7 +114,7 @@ export function layoutSummary(p: Project, where: string) {
     control: cfg ? {
       controllers: cfg.controllers.length, blocks: cfg.blocks.length, points: cfg.points.length, signals: cfg.signals.length,
       trains: cfg.trains.map((t) => t.name), routes: (cfg.routes ?? []).map((r) => r.name), automations: (cfg.automations ?? []).map((a) => a.name),
-      claude_may_use_controls: !!cfg.claude,
+      assistant_may_use_controls: !!cfg.claude,
     } : null,
   };
 }
@@ -258,7 +258,7 @@ export function planTools(env: PlanEnv): ToolDef[] {
     ].filter(Boolean);
     if (previewOnly) return `Preview only, nothing sent.\n${lines.join("\n")}`;
     await t.addProposal(pr);
-    return `Proposal ${pr.id}, “${pr.title}”, is waiting in Railplot under Claude's proposals. The owner can show it on the plan, accept or reject it; nothing changes until they accept. Each proposal starts from the plan as it is now, so put steps that build on each other into one propose_plan.\n${lines.join("\n")}`;
+    return `Proposal ${pr.id}, “${pr.title}”, is waiting in Railplot in the assistant proposals panel. The owner can show it on the plan, accept or reject it; nothing changes until they accept. Each proposal starts from the plan as it is now, so put steps that build on each other into one propose_plan.\n${lines.join("\n")}`;
   }
 
   const stepTool = (op: keyof typeof OPS, name: string, title: string): ToolDef => {
@@ -429,7 +429,7 @@ function controlTools(env: PlanEnv): ToolDef[] {
         const blockName = (id: string | null | undefined) => (id ? cfg.blocks.find((b) => b.id === id)?.name ?? id : null);
         const pointName = (item: string) => `point ${cfg.points.findIndex((q) => q.item === item) + 1}`;
         return json({
-          claude_may_use_controls: st.claude, track_power: s.powerOn ? "on" : "off",
+          assistant_may_use_controls: st.claude, track_power: s.powerOn ? "on" : "off",
           trains: cfg.trains.map((t) => {
             const run = s.runs.find((r) => r[0] === t.id);
             const where = s.trains.find((x) => x[0] === t.id)?.[1];
@@ -448,7 +448,7 @@ function controlTools(env: PlanEnv): ToolDef[] {
     },
     {
       name: "set_route", title: "Set a route", annotations: act,
-      description: "Set a route: all its points at once. Needs the owner's permission (\"Let Claude use the controls\" in Railplot).",
+      description: "Set a route: all its points at once. Needs the owner's permission (\"Let the connected assistant use the controls\" in Railplot).",
       inputSchema: { type: "object", properties: { route: { type: "string", description: "Route id or name." } }, required: ["route"] },
       run: async (a) => { const { cfg } = await ready(); const r = find(cfg?.routes, a.route, "route"); return send({ c: "route", id: r.id }, `Route ${r.name} set.`); },
     },
@@ -509,7 +509,7 @@ function controlTools(env: PlanEnv): ToolDef[] {
 export const INSTRUCTIONS = `Railplot is a model railway track planner (OO and H0). This connector reads the owner's plan and sends proposals: changes the owner sees on the plan and accepts or rejects in Railplot. Nothing changes until they accept.
 Start with get_status, then get_layout. Positions are in mm on the plan (x right, y up); headings are degrees (0 = +x, 90 = +y). Track positions on baseboard modules (list_boards) are where track should cross module joints; build from them so tracks line up.
 To build, use the propose_ tools, or propose_plan for several steps that build on each other. Use preview: true to try something without sending it, then check_layout's findings to adjust. Keep proposals focused, each with a clear title and reason.
-The control tools work only through the Railplot hub and only when the owner has turned on "Let Claude use the controls". Track power and emergency stops are never available to you. Tell the owner before moving trains.`;
+The control tools work only through the Railplot hub and only when the owner has turned on "Let the connected assistant use the controls". Track power and emergency stops are never available to you. Tell the owner before moving trains.`;
 
 
 export const CONTROL_TOOLS = ["get_control_status", "set_route", "set_point", "set_signal", "set_light", "drive_train", "stop_train", "run_automation"];
