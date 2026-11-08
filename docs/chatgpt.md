@@ -54,11 +54,20 @@ ChatGPT web does not launch a local process on your computer. To use a local Rai
 This route requires access to OpenAI Platform tunnel settings and the relevant ChatGPT workspace's custom MCP app feature. Availability and write permissions depend on the ChatGPT plan and workspace policy. OpenAI currently documents full read/write MCP support for Business, Enterprise and Edu; Pro connections are limited to read/fetch permissions. Railplot's proposal tools create proposals, so they require a connection that permits those actions. A Free account may not have access to custom MCP apps.
 
 1. In OpenAI Platform, create a Secure MCP Tunnel and obtain its tunnel ID and runtime key. Keep the key private.
-2. On the computer running Railplot, download and configure OpenAI's `tunnel-client` using its current official instructions.
-3. Configure the tunnel client to launch the Railplot MCP process over STDIO. The command is the full path to `railplot-hub.exe`; the arguments are `mcp --hub localhost:8080 --folder "C:\\Users\\you\\Documents\\Railplot"`. If the layout is opened from a file rather than the live hub, `--hub none` is suitable.
-4. Start the tunnel client and verify its health with the tunnel client's diagnostic command.
-5. In ChatGPT web, open **Plugins → Add custom MCP server**, choose **Tunnel**, select the tunnel you created, configure the required authentication, review the permission warning, and create the app.
-6. Test with a read-only request such as asking Railplot for the current layout summary before trying a proposal tool.
+2. On the computer running Railplot, download the latest `tunnel-client` release from [OpenAI's tunnel-client repository](https://github.com/openai/tunnel-client). Keep the runtime API key private; do not paste it into ChatGPT or commit it to a file.
+3. Initialise a named STDIO profile (replace the tunnel ID and paths with your own):
+
+```powershell
+$env:CONTROL_PLANE_API_KEY = "YOUR_RUNTIME_KEY"
+tunnel-client init --sample sample_mcp_stdio_local --profile railplot --tunnel-id YOUR_TUNNEL_ID --mcp-command '"C:\\Railplot\\railplot-hub.exe" mcp --hub localhost:8080 --folder "C:\\Users\\you\\Documents\\Railplot"'
+tunnel-client doctor --profile railplot --explain
+tunnel-client run --profile railplot
+```
+
+If the layout is opened from a file rather than the live hub, use `--hub none` in the MCP command. Keep `tunnel-client run` running while discovering and calling tools in ChatGPT. For the exact supported flags and secure key handling, follow the [official Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
+4. In ChatGPT web, open **Plugins → Add custom MCP server**, choose **Tunnel**, select the tunnel you created, configure the required authentication, review the permission warning, and create the app.
+5. Test with a read-only request such as asking Railplot for the current layout summary before trying a proposal tool.
+
 
 Use the official [Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) and [ChatGPT custom MCP server instructions](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt) for the current Platform and ChatGPT screens. Tunnel permissions in Platform and permission to add custom apps in ChatGPT are separate.
 
