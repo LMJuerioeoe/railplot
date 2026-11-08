@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // railplot-hub: run a Railplot layout on a laptop or Raspberry Pi.
 //   railplot-hub [--layout my-layout.railplot] [--port 8080] [--withrottle 12090] [--name "My railway"] [--no-mdns]
-//   railplot-hub mcp [--hub localhost:8080] [--folder DIR]     the Railplot connector for Claude (stdio)
+//   railplot-hub mcp [--hub localhost:8080] [--folder DIR]     the Railplot MCP server (stdio)
 import os from "node:os";
 import path from "node:path";
 import appHtml from "../../dist/index.html" with { type: "text" };
