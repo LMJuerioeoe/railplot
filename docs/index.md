@@ -11,8 +11,8 @@ Railplot is a free, open-source track planner for OO and H0 model railways that 
 - The laser-cut baseboard range: standard boards, corners, curves, traversers, turntables and canopy modules that join face to face, with a warning when a point motor would sit on a frame member.
 - Ready-made fiddle yards, run-round loops and the Inglenook sidings shunting puzzle, and example shunting layouts on the baseboard modules.
 - Checks that your longest train fits the loops, sidings and blocks, and that curves suit long coaches.
-- A parts list with prices to shop from, and true-scale SVG drawings for templates.
-- Plan with Claude from the Claude app: it reads and checks your plan and proposes changes that you accept or reject.
+- A parts list with prices to shop from, true-scale SVG drawings for templates, and a top-down scenery planning sheet with a scale grid.
+- Plan with ChatGPT or Claude through the Railplot MCP connector: it reads and checks your plan and proposes changes that you accept or reject.
 
 ## Run
 
@@ -35,7 +35,8 @@ Railplot is a free, open-source track planner for OO and H0 model railways that 
 | [Hardware testing](control/testing.md) | What has been tested, and how to help |
 | [Firmware](../firmware/README.md) | The ESP32 controller's settings and interface |
 | [Baseboard modules](baseboard-modules.md) | The baseboard range, track positions and the module data |
-| [Claude and Railplot](claude.md) | The connector: Claude reads your plans and proposes changes |
+| [ChatGPT and Railplot](chatgpt.md) | Connect ChatGPT desktop or web to Railplot through MCP |
+| [Claude and Railplot](claude.md) | Connect Claude desktop or Claude Code to Railplot |
 | [Yards and example layouts](yards.md) | Fiddle yards, run-round loops, the Inglenook sidings and example layouts on the baseboards |
 | [Track libraries](library-format.md) | Adding a track system |
 | [The .railplot file](file-format.md) | The layout file format |
