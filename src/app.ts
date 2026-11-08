@@ -1650,6 +1650,26 @@ export class App {
       [{ label: "Check for updates", onClick: () => { this.showUpdates(); return true; } }, { label: "Close", primary: true }]);
   }
 
+  showChatGPTHelp() {
+    const pre = (t: string) => h("pre", { class: "code-block" }, t);
+    dialog("Connect ChatGPT", h("div", { class: "about" },
+      h("p", {}, "ChatGPT can read your Railplot plans, check them and prepare changes as proposals. You review each proposal in Railplot and accept or reject it; the assistant does not silently edit your track plan."),
+      h("h3", {}, "ChatGPT desktop"),
+      h("p", {}, "Use the Railplot hub executable as a local MCP server. In ChatGPT desktop, open Settings → MCP servers → Add server and choose STDIO."),
+      h("p", {}, "Command:"),
+      pre("C:\\Railplot\\railplot-hub.exe"),
+      h("p", {}, "Arguments (replace the folder with the location of your layouts):"),
+      pre('mcp --hub localhost:8080 --folder "C:\\Users\\you\\Documents\\Railplot"'),
+      h("p", {}, "If you are not running the Railplot hub, use --hub none. You can also run the source version with bun run mcp -- --hub localhost:8080 --folder \"C:\\Users\\you\\Documents\\Railplot\"."),
+      h("h3", {}, "ChatGPT on the web"),
+      h("p", {}, "ChatGPT web needs a remote MCP connection. For a local Railplot installation, use OpenAI Secure MCP Tunnel: create a tunnel in Platform, run tunnel-client on the computer that can reach Railplot, then add a custom MCP server in ChatGPT and choose Tunnel. Keep tunnel-client running while using the connector."),
+      h("p", {}, "Custom MCP access and write permissions depend on your ChatGPT plan and workspace. Read-only access cannot submit Railplot proposals."),
+      h("p", {}, "Full setup, current requirements and troubleshooting:"),
+      h("p", {}, h("a", { href: "https://github.com/LMJuerioeoe/railplot/blob/main/docs/chatgpt.md", target: "_blank", rel: "noopener" }, "ChatGPT and Railplot setup guide")),
+      h("p", { class: "muted" }, "The connector can only access the layout folders you configure. The hub continues to enforce its control permissions and does not expose track power or emergency-stop controls.")),
+      [{ label: "Close", primary: true }]);
+  }
+
   showClaudeHelp() {
     const pre = (t: string) => h("pre", { class: "code-block" }, t);
     dialog("Connect Claude", h("div", { class: "about" },
@@ -1813,6 +1833,7 @@ export class App {
     ] },
     { label: "Help", items: [
       { label: "Keyboard shortcuts", run: () => this.showShortcuts() },
+      { label: "Connect ChatGPT…", run: () => this.showChatGPTHelp() },
       { label: "Connect Claude…", run: () => this.showClaudeHelp() },
       { label: "Check for updates…", run: () => this.showUpdates() },
       { label: "About Railplot", run: () => this.showAbout() },
