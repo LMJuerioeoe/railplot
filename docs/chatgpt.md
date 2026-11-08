@@ -15,7 +15,7 @@ Railplot's MCP server runs locally over STDIO, but **ChatGPT does not provide a 
 That means the local command below is useful for MCP development and for an approved desktop-only plugin package, but it is **not** a supported "add a local server" workflow that every ChatGPT desktop user can configure:
 
 ```powershell
-C:\Railplot\\railplot-hub.exe mcp --hub localhost:8080 --folder "C:\Users\\you\Documents\Railplot"
+C:\Railplot\railplot-hub.exe mcp --hub localhost:8080 --folder "C:\Users\you\Documents\Railplot"
 ```
 
 For the desktop-only plugin route, the submitting organisation must first obtain OpenAI approval for local MCP submissions. See [OpenAI's desktop-only plugin requirements](https://developers.openai.com/plugins/deploy/desktop-only). Railplot has not been submitted for that approval.
@@ -34,7 +34,7 @@ This route requires access to OpenAI Platform tunnel settings and the relevant C
 
 ```powershell
 $env:CONTROL_PLANE_API_KEY = "YOUR_RUNTIME_KEY"
-tunnel-client init --sample sample_mcp_stdio_local --profile railplot --tunnel-id YOUR_TUNNEL_ID --mcp-command '"C:\Railplot\\railplot-hub.exe" mcp --hub localhost:8080 --folder "C:\Users\\you\Documents\Railplot"'
+tunnel-client init --sample sample_mcp_stdio_local --profile railplot --tunnel-id YOUR_TUNNEL_ID --mcp-command '"C:\Railplot\railplot-hub.exe" mcp --hub localhost:8080 --folder "C:\Users\you\Documents\Railplot"'
 tunnel-client doctor --profile railplot --explain
 tunnel-client run --profile railplot
 ```
