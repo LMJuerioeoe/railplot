@@ -1,6 +1,6 @@
 # ChatGPT and Railplot
 
-Railplot exposes a standard Model Context Protocol (MCP) server. The same server can be used by ChatGPT desktop through a local STDIO process, or by ChatGPT on the web through an OpenAI Secure MCP Tunnel. The connector reuses Railplot's existing MCP tools; there is no separate ChatGPT-specific implementation to keep in sync.
+Railplot exposes a standard Model Context Protocol (MCP) server. The same server can be used by an approved ChatGPT desktop-only plugin package (restricted distribution), or by ChatGPT on the web through an OpenAI Secure MCP Tunnel. The connector reuses Railplot's existing MCP tools; there is no separate ChatGPT-specific implementation to keep in sync.
 
 ## What ChatGPT can do
 
@@ -8,44 +8,19 @@ The connector can read a layout, inspect baseboards and track, check the plan, c
 
 The hub control tools are also available when connected to a live hub and when the layout owner has explicitly enabled the relevant control permission in Railplot. Railplot's hub continues to enforce its safety restrictions: the MCP connector cannot switch track power or invoke the emergency stop.
 
-## ChatGPT desktop: local connection
+## ChatGPT desktop: local STDIO (restricted availability)
 
-The ChatGPT desktop app's MCP settings support local STDIO servers. This is the simplest way to use Railplot with a layout stored on the same computer.
+Railplot's MCP server runs locally over STDIO, but **ChatGPT does not provide a general-purpose local STDIO server settings screen for ordinary users**. OpenAI's desktop-only plugin mechanism can package a local MCP server, but local-MCP plugin submissions are restricted to approved partners and must be allowlisted by OpenAI. Those plugins are installed from the ChatGPT desktop app.
 
-1. Download the Railplot hub executable for your operating system from the [Releases](../releases) page, or build it from source (see below).
-2. Open ChatGPT desktop **Settings → MCP servers → Add server**.
-3. Add a server named `railplot`, choose **STDIO**, and configure:
-   - **Command:** the full path to `railplot-hub.exe` on Windows (or `railplot-hub` on Linux/macOS).
-   - **Arguments:** `mcp --hub localhost:8080 --folder "C:\\Users\\you\\Documents\\Railplot"`
-4. Replace the example folder with the folder or folders containing your `.railplot` files. If the Railplot hub is not running, use `--hub none`.
-5. Save the server and restart the MCP connection if ChatGPT prompts you to.
-
-Example Windows command and arguments:
-
-```text
-Command:
-C:\\Railplot\\railplot-hub.exe
-
-Arguments:
-mcp
---hub
-localhost:8080
---folder
-C:\\Users\\you\\Documents\\Railplot
-```
-
-You can add more than one `--folder` argument. The connector only lists and opens layout files inside the folders you allow.
-
-### Running from source
-
-Install [Bun](https://bun.sh), then from the Railplot repository:
+That means the local command below is useful for MCP development and for an approved desktop-only plugin package, but it is **not** a supported "add a local server" workflow that every ChatGPT desktop user can configure:
 
 ```powershell
-bun install
-bun run mcp -- --hub localhost:8080 --folder "$HOME\\Documents\\Railplot"
+C:\\Railplot\\railplot-hub.exe mcp --hub localhost:8080 --folder "C:\\Users\\you\\Documents\\Railplot"
 ```
 
-The `mcp` script runs the same STDIO server used by the packaged hub executable. Do not add shell output or logging to STDOUT in an MCP launch command; STDOUT is reserved for the protocol.
+For the desktop-only plugin route, the submitting organisation must first obtain OpenAI approval for local MCP submissions. See [OpenAI's desktop-only plugin requirements](https://developers.openai.com/plugins/deploy/desktop-only). Railplot has not been submitted for that approval.
+
+For normal personal use, the supported ChatGPT connection documented here is **ChatGPT on the web through Secure MCP Tunnel** (next section). The same Railplot STDIO MCP process is what the tunnel runs locally. The desktop-only plugin route is a separate, restricted distribution path.
 
 ## ChatGPT web: Secure MCP Tunnel
 
