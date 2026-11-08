@@ -51,7 +51,7 @@ export function railplotTools(c: Connection): ToolDef[] {
         return json({
           open: t ? t.label : null, live: t?.kind === "hub",
           plan: p ? p.name : null, pending_proposals: p?.proposals?.length ?? 0,
-          claude_may_use_controls: t?.kind === "hub" ? !!p?.control?.claude : false,
+          assistant_may_use_controls: t?.kind === "hub" ? !!p?.control?.claude : false,
           folders: c.folders.roots,
           how_it_works: "Plans are in mm. You read the plan and send proposals; the owner accepts or rejects each one in Railplot. With the hub, proposals reach the open Railplot straight away; with a file, the desktop app picks them up from the file it has open.",
         });
