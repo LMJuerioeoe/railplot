@@ -170,14 +170,14 @@ export class Hub {
     return this.version;
   }
 
-  /** A proposal from the Claude connector: it joins the layout and every editor gets it. */
+  /** A proposal from the MCP connector: it joins the layout and every editor gets it. */
   addProposal(pr: Proposal): number {
     if (!pr || typeof pr.id !== "string" || !pr.add || !pr.change || !Array.isArray(pr.remove)) throw new Error("That isn't a proposal.");
     this.version++;
     pr.v = this.version;
     this.p.proposals = [...(this.p.proposals ?? []).filter((x) => x.id !== pr.id), pr];
     this.saveNow();
-    this.log(`Claude proposed: ${pr.title}`);
+    this.log(`MCP assistant proposed: ${pr.title}`);
     return this.version;
   }
 
@@ -191,13 +191,13 @@ export class Hub {
     return true;
   }
 
-  /** A command from the Claude connector: only when the layout allows it, and never track power or emergency stops. */
+  /** A command from the MCP connector: only when the layout allows it, and never track power or emergency stops. */
   claudeCommand(cmd: Cmd): string | null {
     if (!this.p.control?.claude) return "Claude isn't allowed to use the controls on this layout. Turn on \"Let Claude use the controls\" in Railplot, under Control > Set up > Railplot hub.";
     const allowed: Cmd["c"][] = ["throttle", "point", "signal", "light", "route", "auto"];
     if (!allowed.includes(cmd?.c)) return "Claude can set routes, points, signals and lights, drive trains and run automations, but not track power or emergency stops.";
     const err = applyCommand(this.engine, cmd);
-    if (!err) this.log(`Claude: ${JSON.stringify(cmd)}`);
+    if (!err) this.log(`MCP assistant: ${JSON.stringify(cmd)}`);
     return err;
   }
 
