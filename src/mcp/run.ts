@@ -9,9 +9,9 @@ export const MCP_HELP = `railplot-hub mcp: the Railplot MCP server (Model Contex
 
   --hub HOST[:PORT]   the Railplot hub to use when it is running (default localhost:8080; "none" for never)
   --file FILE         open this .railplot file to start with
-  --folder DIR ...    folders whose .railplot files Claude may read and add proposals to (default: your home folder)
+  --folder DIR ...    folders whose .railplot files the MCP client may read and add proposals to (default: your home folder)
 
-Claude reads the plan and sends proposals, which you accept or reject in Railplot.`;
+The MCP client reads the plan and sends proposals, which you accept or reject in Railplot.`;
 
 export function parseMcpArgs(argv: string[]) {
   const o: { hub: string; file?: string; folders: string[]; help: boolean } = { hub: "localhost:8080", folders: [], help: false };
