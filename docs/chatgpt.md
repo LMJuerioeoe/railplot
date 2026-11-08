@@ -73,6 +73,6 @@ For all supported desktop platforms, use `bun scripts/build-hub.ts --all`. The r
 - **No plan is open:** start the Railplot hub and connect it with `--hub localhost:8080`, or use `open_layout` to open a file.
 - **No files are found:** check the `--folder` paths. Only files within the configured folders are visible to the connector.
 - **The hub is not reachable:** check that Railplot's hub is running on the same computer and listening on the address supplied after `--hub`.
-- **ChatGPT desktop does not list the tools:** verify the executable path and arguments, then restart the MCP server from ChatGPT's MCP settings. Make sure the server writes protocol messages only to STDOUT.
+- **An approved desktop-only plugin does not list the tools:** verify the executable path and arguments in the package manifest, then restart the plugin. Make sure the server writes protocol messages only to STDOUT.
 - **ChatGPT web cannot discover the tunnel:** check that the tunnel client is running, its profile is healthy, and the tunnel is associated with the intended ChatGPT workspace. Platform tunnel access does not automatically grant ChatGPT workspace permission.
 - **Proposal tools are unavailable:** check the plan/workspace's MCP permission level. Read-only MCP access cannot submit Railplot proposals.
