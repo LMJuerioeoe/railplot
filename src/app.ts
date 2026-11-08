@@ -1678,7 +1678,7 @@ export class App {
       pre(`{ "mcpServers": { "railplot": {\n  "command": "C:\\\\Railplot\\\\railplot-hub-windows-x64.exe",\n  "args": ["mcp", "--hub", "localhost:8080"]\n} } }`),
       h("p", {}, "For Claude Code: ", h("span", { class: "mono" }, "claude mcp add railplot -- /path/to/railplot-hub mcp")),
       h("p", {}, h("strong", {}, "Live or by file. "), "With the hub running and this window connected to it (Control › Set up › Railplot hub), proposals arrive straight away. Without the hub, Claude works on a saved .railplot file: the desktop app picks up proposals written into the file you have open; in a browser, open the file again to see them."),
-      h("p", { class: "muted" }, "Running trains is separate and off unless you turn on “Let Claude use the controls” under Control › Set up › Railplot hub. Claude can then set routes, points, signals and lights, drive trains and run automations, but never switch track power on or off.")),
+      h("p", { class: "muted" }, "Running trains is separate and off unless you turn on “Let the connected assistant use the controls” under Control › Set up › Railplot hub. Claude can then set routes, points, signals and lights, drive trains and run automations, but never switch track power on or off.")),
       [{ label: "Close", primary: true }]);
   }
 
