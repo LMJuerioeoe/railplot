@@ -291,7 +291,7 @@ export class App {
     this.announceProposals(fresh);
   }
 
-  // ---------- proposals (from the Claude connector) ----------
+  // ---------- proposals from connected MCP assistants ----------
 
   /** After undo or redo: proposals that arrived since that state stay, ones resolved in a later step stay resolved. */
   private keepProposals(p: Project): Project {
@@ -305,10 +305,10 @@ export class App {
   private announceProposals(fresh: Proposal[]) {
     if (!fresh.length) return;
     this.root.classList.add("show-insp");
-    toast(fresh.length === 1 ? `Claude proposes: ${fresh[0].title}. Accept or reject it under Claude's proposals.` : `Claude made ${fresh.length} proposals. Accept or reject them under Claude's proposals.`);
+    toast(fresh.length === 1 ? `Railplot connector proposes: ${fresh[0].title}. Accept or reject it in the proposals panel.` : `The Railplot connector made ${fresh.length} proposals. Accept or reject them in the proposals panel.`);
   }
 
-  /** Desktop app with a saved file: pick up proposals the Claude connector wrote into the file. */
+  /** Desktop app with a saved file: pick up proposals the MCP connector wrote into the file. */
   async pollFileProposals() {
     const T = window.__TAURI__;
     if (!T || !this.filePath || isDialogOpen()) return;
@@ -356,7 +356,7 @@ export class App {
     const r = applyProposal(this.p, pr, force);
     if (!r.ok) {
       confirmDialog("The plan has changed since this was proposed",
-        `${r.stale.length} of the things it changes or removes ${r.stale.length === 1 ? "has" : "have"} been changed or deleted since Claude proposed this. Accepting puts Claude's versions in their place.`,
+        `${r.stale.length} of the things it changes or removes ${r.stale.length === 1 ? "has" : "have"} been changed or deleted since this proposal was made. Accepting applies the proposed versions.`,
         "Accept anyway").then((yes) => { if (yes) this.acceptProposal(id, true); });
       return;
     }
@@ -399,7 +399,7 @@ export class App {
     const list = this.mode === "design" ? this.p.proposals ?? [] : [];
     box.hidden = !list.length;
     if (!list.length) return;
-    box.append(h("div", { class: "sec-head" }, h("h3", { html: `${icon("spark", 16)}<span>Claude's proposals</span>` }), h("span", { class: "muted small mono" }, String(list.length))));
+    box.append(h("div", { class: "sec-head" }, h("h3", { html: `${icon("spark", 16)}<span>Assistant proposals</span>` }), h("span", { class: "muted small mono" }, String(list.length))));
     for (const pr of list) {
       const stale = staleIds(this.p, pr);
       const on = this.showProp === pr.id;
