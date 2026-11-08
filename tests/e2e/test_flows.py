@@ -312,7 +312,7 @@ with sync_playwright() as p:
     check("redo rejects it again", pg.locator(".prop-card").count() == 0)
     pg.click("text=Help"); pg.click("text=Connect ChatGPT")
     pg.wait_for_timeout(150)
-    check("Help explains how to connect ChatGPT desktop and web", pg.locator(".dialog >> text=Secure MCP Tunnel").count() == 1 and pg.locator(".dialog >> text=railplot-hub.exe").count() == 1)
+    check("Help explains how to connect ChatGPT desktop and web", js(pg, "document.querySelector('.dialog .about')?.textContent.includes('Secure MCP Tunnel') && document.querySelector('.dialog .about')?.textContent.includes('railplot-hub.exe')"))
     pg.click(".dialog button:has-text('Close')")
     pg.click("text=Help"); pg.click("text=Connect Claude")
     pg.wait_for_timeout(150)
