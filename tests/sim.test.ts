@@ -64,9 +64,12 @@ describe("the simulated world", () => {
 
   test("the rocket locomotive reaches 1000 km/h at scale and ignores curve speed limits", () => {
     const p = buildSample();
-    const e = new ControlEngine(p, p.control!);
+    const { quickStart } = require("../src/control/engine");
+    const cfg = quickStart(p, undefined, "sim");
+    p.control = cfg;
+    const e = new ControlEngine(p, cfg);
     const w = worldFor(e);
-    const t = p.control!.trains[0];
+    const t = cfg.trains[0];
     const c = w.stockOf(t.id);
     c.vehicles[0].speedKmh = 1000;
     t.momentum = 0;
