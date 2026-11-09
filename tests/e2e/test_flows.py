@@ -410,7 +410,7 @@ with sync_playwright() as p:
     def click_target(kind):
         at = js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect();
           const free = d.world().itemsUnder();
-          const t = d.targets.find(t => t.kind === '{kind}' && !free.has(t.id)); const s = t && v.toCanvas(t.x, t.y, t.z);
+          const t = d.targets.find(t => { if (t.kind !== '{kind}' || free.has(t.id)) return false; const p = v.toCanvas(t.x, t.y, t.z); return !!p && p.x >= 0 && p.y >= 0 && p.x <= r.width && p.y <= r.height; }); const s = t && v.toCanvas(t.x, t.y, t.z);
           return t && s ? [t.id, r.left + s.x, r.top + s.y] : null; }})()""")
         if at: pg.mouse.click(at[1], at[2]); pg.wait_for_timeout(200)
         return at and at[0]
