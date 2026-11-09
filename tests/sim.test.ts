@@ -79,7 +79,7 @@ describe("the simulated world", () => {
     expect(w.scaleKmh(t.id)).toBeCloseTo(1000, 0);
     expect(w.consistOf(t.id)?.derailed).toBeUndefined();
   });
-  test("the infinite rocket locomotive has infinite speed and instant acceleration", () => {
+  test("the infinite rocket locomotive accelerates smoothly without a top-speed cap", () => {
     const p = buildSample();
     const { quickStart } = require("../src/control/engine");
     const cfg = quickStart(p, undefined, "sim");
@@ -97,9 +97,14 @@ describe("the simulated world", () => {
     e.setThrottle(t.id, 1);
     e.step(0.1);
     w.advanceTo(100);
-    expect(w.consistOf(t.id)!.speed).toBe(Infinity);
-    expect(w.scaleKmh(t.id)).toBe(Infinity);
+    const firstSpeed = w.scaleKmh(t.id)!;
+    expect(firstSpeed).toBeGreaterThan(0);
+    expect(firstSpeed).toBeLessThan(1000);
+    expect(Number.isFinite(w.consistOf(t.id)!.speed)).toBe(true);
     expect(w.consistOf(t.id)!.at[0]).not.toEqual(before);
+    e.step(2);
+    w.advanceTo(2100);
+    expect(w.scaleKmh(t.id)!).toBeGreaterThan(firstSpeed);
   });
 
   test("a loco moves only with power in the block under it, and a speed shows at scale", () => {
