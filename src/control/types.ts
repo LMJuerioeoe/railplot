@@ -123,6 +123,8 @@ export interface VehicleCfg {
   detectable?: boolean;
   /** Simulator-only top speed in scale km/h; used by novelty stock such as the rocket locomotive. */
   speedKmh?: number;
+  /** Simulator-only: instantaneous acceleration and unbounded speed. */
+  infiniteSpeed?: boolean;
 }
 
 /** Simulated rolling stock: the vehicles, front to back, and where the front one's centre stands. */
