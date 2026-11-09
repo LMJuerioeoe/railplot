@@ -635,11 +635,11 @@ export class DriveView {
       name: "Infinite rocket locomotive", speedKmh: 1000, infiniteSpeed: true };
     const rocketLen = rocket.length;
     tiles.append(h("button", { type: "button", class: "part-tile stock-tile rocket-stock", id: "stock-rocket-loco",
-      "aria-label": `Add an Infinite rocket locomotive, ${rocketLen} mm, infinite speed and acceleration`,
-      title: "A silly simulator-only locomotive: instant acceleration, infinite displayed speed, and curve and block-braking limits disabled.",
+      "aria-label": `Add an Infinite rocket locomotive, ${rocketLen} mm, unlimited speed with rapid acceleration`,
+      title: "A silly simulator-only locomotive: smooth 1000 km/h per second acceleration, no top-speed cap, and curve and block-braking limits disabled.",
       onclick: () => this.makeUp(sc, [...sc.vehicles, { ...rocket, id: `v${cfg.nextId++}` }]) },
       silhouette("loco"), h("span", { class: "name" }, "🚀 Infinite rocket locomotive"),
-      h("span", { class: "len" }, `${rocketLen} mm · ∞ km/h · ∞ acceleration`)));
+      h("span", { class: "len" }, `${rocketLen} mm · ∞ km/h · 1000 km/h/s`)));
     body.append(tiles);
     // detailed models, at their real lengths, by type
     body.append(h("h3", {}, "Models"));
