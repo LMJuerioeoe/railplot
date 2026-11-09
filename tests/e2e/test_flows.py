@@ -537,9 +537,10 @@ with sync_playwright() as p:
     pg.select_option("#trip-dest", dest); pg.wait_for_timeout(100)
     check("the trip builder finds ways there", pg.locator(".trip-ways input[type=radio]").count() >= 1)
     shot(pg, "10-trip")
-    pg.fill("#trip-speed", "100")
+    # Keep the train below the simulator's curve-speed limit; full throttle can derail it.
+    pg.fill("#trip-speed", "50")
     pg.click("button:has-text('Save and start')"); pg.wait_for_timeout(30000)
-    check("a trip takes the express to its destination", js(pg, "railplot.p.control.trains[1].block") == dest, js(pg, "JSON.stringify({ blocks: railplot.p.control.trains.map(t => t.block), runs: [...railplot.ctl.engine.autoRuns], trainRun: railplot.ctl.engine.run(railplot.p.control.trains[1].id), claimed: [...railplot.ctl.engine.claimedBy], pose: railplot.drive?.world()?.poseOf(railplot.p.control.trains[1].id) })"))
+    check("a trip takes the express to its destination", js(pg, "railplot.p.control.trains[1].block") == dest, js(pg, "JSON.stringify({ blocks: railplot.p.control.trains.map(t => t.block), runs: [...railplot.ctl.engine.autoRuns], trainRun: railplot.ctl.engine.run(railplot.p.control.trains[1].id), claimed: [...railplot.ctl.engine.claimedBy], consist: railplot.drive?.world()?.consistOf(railplot.p.control.trains[1].id), pose: railplot.drive?.world()?.poseOf(railplot.p.control.trains[1].id) })"))
     # the step editor
     n0 = js(pg, "railplot.p.control.automations[0].steps.length")
     pg.locator(".auto-row button:has-text('Edit')").first.click(); pg.wait_for_timeout(150)
