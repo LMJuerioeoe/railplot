@@ -414,8 +414,12 @@ with sync_playwright() as p:
           return t && s ? [t.id, r.left + s.x, r.top + s.y] : null; }})()""")
         if at: pg.mouse.click(at[1], at[2]); pg.wait_for_timeout(200)
         return at and at[0]
-    pid = click_target("point")
-    check("clicking a point's lever in 3D throws it", pid and js(pg, f"railplot.p.control.points.find(q => q.item === '{pid}').state") == 1, pid)
+    point_target = js(pg, `(() => { const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect(), free = d.world().itemsUnder(); const t = d.targets.find(t => t.kind === "point" && !free.has(t.id) && railplot.p.control.points.find(q => q.item === t.id)?.state === 0); const s = t && v.toCanvas(t.x, t.y, t.z); return t && s && s.x >= 0 && s.y >= 0 && s.x <= r.width && s.y <= r.height ? [t.id, r.left+s.x, r.top+s.y] : null; })()`)
+    pid = point_target and point_target[0]
+    point_before = js(pg, `railplot.p.control.points.find(q => q.item === '${pid}').state`) if pid else None
+    if point_target: pg.mouse.click(point_target[1], point_target[2]); pg.wait_for_timeout(200)
+    point_after = js(pg, `railplot.p.control.points.find(q => q.item === '${pid}').state`) if pid else None
+    check("clicking a point's lever in 3D throws it", pid and point_after == 1, (pid, point_before, point_after))
     sid = click_target("signal")
     check("clicking a signal in 3D holds it at red", sid and js(pg, f"railplot.p.control.signals.find(s => s.id === '{sid}').mode") == "stop", sid)
     shot(pg, "09d-points-signals")
@@ -527,8 +531,9 @@ with sync_playwright() as p:
     pg.select_option("#trip-dest", dest); pg.wait_for_timeout(100)
     check("the trip builder finds ways there", pg.locator(".trip-ways input[type=radio]").count() >= 1)
     shot(pg, "10-trip")
-    pg.click("button:has-text('Save and start')"); pg.wait_for_timeout(15000)
-    check("a trip takes the express to its destination", js(pg, "railplot.p.control.trains[1].block") == dest, js(pg, "JSON.stringify([...railplot.ctl.engine.autoRuns])"))
+    pg.fill("#trip-speed", "100")
+    pg.click("button:has-text('Save and start')"); pg.wait_for_timeout(30000)
+    check("a trip takes the express to its destination", js(pg, "railplot.p.control.trains[1].block") == dest, js(pg, "JSON.stringify({ blocks: railplot.p.control.trains.map(t => t.block), runs: [...railplot.ctl.engine.autoRuns], trainRun: railplot.ctl.engine.run(ex), claimed: [...railplot.ctl.engine.claimedBy], pose: railplot.drive?.world()?.poseOf(ex) })"))
     # the step editor
     n0 = js(pg, "railplot.p.control.automations[0].steps.length")
     pg.locator(".auto-row button:has-text('Edit')").first.click(); pg.wait_for_timeout(150)
