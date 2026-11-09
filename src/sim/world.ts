@@ -557,16 +557,21 @@ export class World {
       const infiniteRocket = !!rocket?.infiniteSpeed;
       const lib = this.p.items.find((i) => i.id === c.at[0]?.item)?.part.split("/")[0] ?? "";
       const scale = scaleOf(lib);
-      // Convert a finite novelty top speed into model mm/s; the infinite variant is truly unbounded.
+      // A finite novelty top speed is converted to model mm/s. The infinite rocket has no
+      // top-speed target: it keeps accelerating, but does so visibly rather than jumping instantly.
       const fullSpeed = infiniteRocket ? Infinity : rocket && scale ? rocket.speedKmh! * 1e6 / (scale * 3600) : this.fullSpeed;
       const power = this.powerOf(c);
       const throttle = rocket && c.train && power !== 0 ? Math.abs(this.engine().run(c.train).speed) : Math.abs(power);
-      const target = infiniteRocket ? (throttle > 0 ? c.travel * Infinity : 0) : c.travel * throttle * fullSpeed;
-      // Infinite acceleration: no motor lag. Movement itself is bounded per frame below so the
-      // simulator can still process track joints, points, collisions and open ends safely.
-      if (infiniteRocket) c.speed = target;
-      else c.speed += (target - c.speed) * Math.min(1, dt / MOTOR_LAG);
-      if (Math.abs(c.speed) < 0.01 && target === 0) c.speed = 0;
+      const target = infiniteRocket ? 0 : c.travel * throttle * fullSpeed;
+      if (infiniteRocket) {
+        // 1,000 scale km/h per second: very punchy, smooth acceleration with no maximum speed.
+        const accel = (scale ? 1e9 / (scale * 3600) : 100000) * dt;
+        if (throttle > 0) c.speed += c.travel * accel * throttle;
+        else c.speed = Math.sign(c.speed) * Math.max(0, Math.abs(c.speed) - accel);
+      } else {
+        c.speed += (target - c.speed) * Math.min(1, dt / MOTOR_LAG);
+      }
+      if (Math.abs(c.speed) < 0.01 && target === 0 && !infiniteRocket) c.speed = 0;
       // a train coming up to a block that isn't its own brakes, to stand short of it
       c.waiting = undefined;
       if (!infiniteRocket && c.train && (c.speed * c.travel > 0 || target * c.travel > 0)) {
@@ -593,9 +598,7 @@ export class World {
         if (sc && c.at[0]) sc.at = { ...c.at[0] };
       }
       if (c.speed !== 0) c.stood = false;
-      const ds = infiniteRocket
-        ? (c.speed === 0 ? 0 : Math.sign(c.speed) * 500) // 500 model mm per frame: bounded work, unbounded displayed speed
-        : c.speed * dt;
+      const ds = c.speed * dt;
       if (ds !== 0) this.move(c, ds);
     }
   }
