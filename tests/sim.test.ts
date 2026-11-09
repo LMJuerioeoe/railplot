@@ -62,6 +62,20 @@ describe("the simulated world", () => {
     }
   });
 
+  test("the rocket locomotive reaches 1000 km/h at scale and ignores curve speed limits", () => {
+    const p = buildSample();
+    const e = new ControlEngine(p, p.control!);
+    const w = worldFor(e);
+    const t = p.control!.trains[0];
+    const c = w.stockOf(t.id);
+    c.vehicles[0].speedKmh = 1000;
+    t.momentum = 0;
+    w.advanceTo(0);
+    e.setThrottle(t.id, 1);
+    for (let k = 0; k < 120; k++) { e.step(0.1); w.advanceTo((k + 1) * 100); }
+    expect(w.scaleKmh(t.id)).toBeCloseTo(1000, 0);
+    expect(w.consistOf(t.id)?.derailed).toBeUndefined();
+  });
   test("a loco moves only with power in the block under it, and a speed shows at scale", () => {
     const p = buildControlDemo();
     const e = new ControlEngine(p, p.control!);
