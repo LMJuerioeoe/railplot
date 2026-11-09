@@ -101,7 +101,7 @@ try:
         check("the connector sees nothing waiting", "No proposals waiting" in text, text)
         goods = js(a, "railplot.p.control.trains[0].id")
         text, err = tool("drive_train", {"train": "Goods train", "speed": 25})
-        check("the controls are off until the owner allows them", err and "Let Claude use the controls" in text, text)
+        check("the controls are off until the owner allows them", err and "Let the connected assistant use the controls" in text, text)
         a.evaluate("railplot.setMode('control')"); a.click("text=Set up"); a.wait_for_timeout(200)
         a.check("#claude-control"); a.wait_for_timeout(1500)
         text, err = tool("drive_train", {"train": "Goods train", "speed": 25})
