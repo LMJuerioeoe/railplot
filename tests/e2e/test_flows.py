@@ -416,16 +416,23 @@ with sync_playwright() as p:
           const hit = candidates[0]; return hit ? [hit.t.id, r.left+hit.p.x, r.top+hit.p.y] : null; }})()""")
         if at: pg.mouse.click(at[1], at[2]); pg.wait_for_timeout(200)
         return at and at[0]
+    # Choose an unoccupied point regardless of its current road: the demo may leave
+    # every point thrown after the preceding driving/automation flows.
     point_target = js(pg, """(() => { const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect(), free = d.world().itemsUnder();
-      const candidates = d.targets.filter(t => t.kind === "point" && !free.has(t.id) && railplot.p.control.points.find(q => q.item === t.id)?.state === 0)
+      const candidates = d.targets.filter(t => t.kind === "point" && !free.has(t.id))
         .map(t => { const p = v.toCanvas(t.x, t.y, t.z); return p && p.x >= 0 && p.y >= 0 && p.x <= r.width && p.y <= r.height
           ? { t, p, d: Math.hypot(p.x-r.width/2, p.y-r.height/2) } : null; }).filter(Boolean).sort((a,b) => a.d-b.d);
       const hit = candidates[0]; return hit ? [hit.t.id, r.left+hit.p.x, r.top+hit.p.y] : null; })()""")
     pid = point_target and point_target[0]
     point_before = js(pg, f"railplot.p.control.points.find(q => q.item === '{pid}').state") if pid else None
+    point_roads = js(pg, f"Math.max(2, railplot.p.control.points.find(q => q.item === '{pid}').us.length)") if pid else None
     if point_target: pg.mouse.click(point_target[1], point_target[2]); pg.wait_for_timeout(200)
     point_after = js(pg, f"railplot.p.control.points.find(q => q.item === '{pid}').state") if pid else None
-    check("clicking a point's lever in 3D throws it", pid and point_after == 1, (pid, point_before, point_after))
+    point_expected = (point_before + 1) % point_roads if pid else None
+    check("clicking a point's lever in 3D throws it", pid and point_after == point_expected, (pid, point_before, point_after, point_expected))
+    # Ensure the selected signal is in automatic mode so a click deterministically holds it at red.
+    js(pg, "railplot.p.control.signals.forEach(s => s.mode = 'auto'); railplot.commit()")
+    pg.wait_for_timeout(250)
     sid = click_target("signal")
     check("clicking a signal in 3D holds it at red", sid and js(pg, f"railplot.p.control.signals.find(s => s.id === '{sid}').mode") == "stop", sid)
     shot(pg, "09d-points-signals")
