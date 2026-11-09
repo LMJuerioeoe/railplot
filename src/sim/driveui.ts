@@ -631,6 +631,15 @@ export class DriveView {
         onclick: () => this.makeUp(sc, [...sc.vehicles, newVehicle(st.kind, w.libId(), `v${cfg.nextId++}`, st.kind === "loco" && train ? train.color : undefined)]) },
         silhouette(st.kind), h("span", { class: "name" }, st.name), h("span", { class: "len" }, `${len} mm`)));
     }
+    const rocket = { ...newVehicle("loco", w.libId(), `v${cfg.nextId++}`, "#e04b32"),
+      name: "Rocket locomotive", speedKmh: 1000 };
+    const rocketLen = rocket.length;
+    tiles.append(h("button", { type: "button", class: "part-tile stock-tile rocket-stock", id: "stock-rocket-loco",
+      "aria-label": `Add a Rocket locomotive, ${rocketLen} mm, 1000 kilometres per hour`,
+      title: "A silly simulator-only locomotive: 1000 km/h at full throttle, with curve limits disabled.",
+      onclick: () => this.makeUp(sc, [...sc.vehicles, { ...rocket, id: `v${cfg.nextId++}` }]) },
+      silhouette("loco"), h("span", { class: "name" }, "🚀 Rocket locomotive"),
+      h("span", { class: "len" }, `${rocketLen} mm · 1000 km/h`)));
     body.append(tiles);
     // detailed models, at their real lengths, by type
     body.append(h("h3", {}, "Models"));

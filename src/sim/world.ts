@@ -553,13 +553,20 @@ export class World {
   step(dt: number) {
     for (const c of this.consists) {
       if (c.derailed || !c.at.length) { c.speed = 0; continue; }
-      const target = c.travel * Math.abs(this.powerOf(c)) * this.fullSpeed;
+      const rocket = c.vehicles.find((v) => v.kind === "loco" && v.speedKmh && v.speedKmh > 0);
+      const lib = this.p.items.find((i) => i.id === c.at[0]?.item)?.part.split("/")[0] ?? "";
+      const scale = scaleOf(lib);
+      // Convert the novelty locomotive scale km/h into model mm/s.
+      const fullSpeed = rocket && scale ? rocket.speedKmh! * 1e6 / (scale * 3600) : this.fullSpeed;
+      const power = this.powerOf(c);
+      const throttle = rocket && c.train && power !== 0 ? Math.abs(this.engine().run(c.train).speed) : Math.abs(power);
+      const target = c.travel * throttle * fullSpeed;
       c.speed += (target - c.speed) * Math.min(1, dt / MOTOR_LAG);
       if (Math.abs(c.speed) < 0.01 && target === 0) c.speed = 0;
       // a train coming up to a block that isn't its own brakes, to stand short of it
       c.waiting = undefined;
       if (c.train && (c.speed * c.travel > 0 || target * c.travel > 0)) {
-        const ahead = this.roomAhead(c, (this.fullSpeed * this.fullSpeed) / (2 * BRAKE) + 40);
+        const ahead = this.roomAhead(c, (fullSpeed * fullSpeed) / (2 * BRAKE) + 40);
         if (ahead.room < Infinity) {
           const vmax = Math.sqrt(2 * BRAKE * Math.max(0, ahead.room - STAND_OFF));
           if (Math.abs(c.speed) >= vmax) { c.speed = Math.sign(c.speed) * vmax; c.waiting = ahead.block; }
@@ -570,7 +577,7 @@ export class World {
       let limit = Infinity, at = 0;
       c.at.forEach((a, i) => { const l = this.curveLimit(this.graph.pose(a).r); if (l < limit) { limit = l; at = i; } });
       c.held = false;
-      if (Math.abs(c.speed) > limit) {
+      if (!rocket && Math.abs(c.speed) > limit) {
         if (this.mode === "off") { c.speed = Math.sign(c.speed) * limit; c.held = true; }
         else { this.derail(c, "curve", at, limit, this.graph.pose(c.at[at]).r); continue; }
       }

@@ -121,6 +121,8 @@ export interface VehicleCfg {
   color: string;
   /** Draws current in a detection pulse: locos always; wagons with a resistor wheelset. */
   detectable?: boolean;
+  /** Simulator-only top speed in scale km/h; used by novelty stock such as the rocket locomotive. */
+  speedKmh?: number;
 }
 
 /** Simulated rolling stock: the vehicles, front to back, and where the front one's centre stands. */
