@@ -408,15 +408,19 @@ with sync_playwright() as p:
     while pg.locator("#drive-camera").inner_text().split()[0] != "Tabletop": pg.keyboard.press("c"); pg.wait_for_timeout(100)
     pg.wait_for_timeout(300)
     def click_target(kind):
-        at = js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect();
-          const free = d.world().itemsUnder();
-          const t = d.targets.find(t => {{ if (t.kind !== '{kind}' || free.has(t.id)) return false; const p = v.toCanvas(t.x, t.y, t.z); return !!p && p.x >= 0 && p.y >= 0 && p.x <= r.width && p.y <= r.height; }}); const s = t && v.toCanvas(t.x, t.y, t.z);
-          return t && s ? [t.id, r.left + s.x, r.top + s.y] : null; }})()""")
+        at = js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect(), free = d.world().itemsUnder();
+          const candidates = d.targets.filter(t => t.kind === '{kind}' && (t.kind !== "point" || !free.has(t.id)))
+            .map(t => {{ const p = v.toCanvas(t.x, t.y, t.z); return p && p.x >= 0 && p.y >= 0 && p.x <= r.width && p.y <= r.height
+              ? {{ t, p, d: Math.hypot(p.x-r.width/2, p.y-r.height/2) }} : null; }}).filter(Boolean)
+            .sort((a,b) => a.d-b.d);
+          const hit = candidates[0]; return hit ? [hit.t.id, r.left+hit.p.x, r.top+hit.p.y] : null; }})()""")
         if at: pg.mouse.click(at[1], at[2]); pg.wait_for_timeout(200)
         return at and at[0]
-    point_target = js(pg, f"""(() => {{ const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect(), free = d.world().itemsUnder();
-      const t = d.targets.find(t => t.kind === "point" && !free.has(t.id) && railplot.p.control.points.find(q => q.item === t.id)?.state === 0);
-      const s = t && v.toCanvas(t.x, t.y, t.z); return t && s && s.x >= 0 && s.y >= 0 && s.x <= r.width && s.y <= r.height ? [t.id, r.left+s.x, r.top+s.y] : null; }})()""")
+    point_target = js(pg, """(() => { const d = railplot.drive, v = railplot.view3d, r = v.canvas.getBoundingClientRect(), free = d.world().itemsUnder();
+      const candidates = d.targets.filter(t => t.kind === "point" && !free.has(t.id) && railplot.p.control.points.find(q => q.item === t.id)?.state === 0)
+        .map(t => { const p = v.toCanvas(t.x, t.y, t.z); return p && p.x >= 0 && p.y >= 0 && p.x <= r.width && p.y <= r.height
+          ? { t, p, d: Math.hypot(p.x-r.width/2, p.y-r.height/2) } : null; }).filter(Boolean).sort((a,b) => a.d-b.d);
+      const hit = candidates[0]; return hit ? [hit.t.id, r.left+hit.p.x, r.top+hit.p.y] : null; })()""")
     pid = point_target and point_target[0]
     point_before = js(pg, f"railplot.p.control.points.find(q => q.item === '{pid}').state") if pid else None
     if point_target: pg.mouse.click(point_target[1], point_target[2]); pg.wait_for_timeout(200)
@@ -535,7 +539,7 @@ with sync_playwright() as p:
     shot(pg, "10-trip")
     pg.fill("#trip-speed", "100")
     pg.click("button:has-text('Save and start')"); pg.wait_for_timeout(30000)
-    check("a trip takes the express to its destination", js(pg, "railplot.p.control.trains[1].block") == dest, js(pg, "JSON.stringify({ blocks: railplot.p.control.trains.map(t => t.block), runs: [...railplot.ctl.engine.autoRuns], trainRun: railplot.ctl.engine.run(ex), claimed: [...railplot.ctl.engine.claimedBy], pose: railplot.drive?.world()?.poseOf(ex) })"))
+    check("a trip takes the express to its destination", js(pg, "railplot.p.control.trains[1].block") == dest, js(pg, "JSON.stringify({ blocks: railplot.p.control.trains.map(t => t.block), runs: [...railplot.ctl.engine.autoRuns], trainRun: railplot.ctl.engine.run(railplot.p.control.trains[1].id), claimed: [...railplot.ctl.engine.claimedBy], pose: railplot.drive?.world()?.poseOf(railplot.p.control.trains[1].id) })"))
     # the step editor
     n0 = js(pg, "railplot.p.control.automations[0].steps.length")
     pg.locator(".auto-row button:has-text('Edit')").first.click(); pg.wait_for_timeout(150)
