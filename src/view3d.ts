@@ -5,6 +5,8 @@ import { getModule, moduleToWorld, overallDepth } from "./modules";
 import { MOTION_FRAMES, Model, RGB, Shapes, modelById, withTravel } from "./sim/models";
 import { Label, paintLabel } from "./sim/decals";
 import { BLACK, BRASS, COAL, COPPER, DARK_STEEL, GLASS, STEEL, UNDER } from "./sim/parts";
+import { MAT as SMAT, STRIDE } from "./gfx/mesh";
+import { sceneryMesh } from "./roomscene";
 
 type V3 = [number, number, number];
 
@@ -97,7 +99,23 @@ function routeHeights(it: Item, routeIndex: number): [number, number] {
   return [it.z[0] ?? 0, it.z[1] ?? 0];
 }
 
-export interface Options3D { supports: boolean; sleepers: boolean }
+export interface Options3D { supports: boolean; sleepers: boolean; room?: boolean; legs?: boolean }
+
+/** A wall of the room: drawn only from the inside, and casting no shadow (see the shaders). */
+const WALL_FINISH = -1;
+/** Copy scenery, furniture, legs and the room (built z-up, with their own materials) into the layout's mesh. */
+function addScenery(m: MeshBuilder, p: Project, opt: Options3D) {
+  if (!p.objects?.length && !p.room) return;
+  const src = sceneryMesh(p, { room: opt.room !== false, legs: opt.legs !== false });
+  const d = src.data, base = m.pos.length / 3;
+  for (let i = 0; i < d.length; i += STRIDE) {
+    const k = d[i + 9];
+    m.finish = k === SMAT.wall ? WALL_FINISH : k === SMAT.steel ? MAT.metal : k === SMAT.glass || k === SMAT.window || k === SMAT.water ? MAT.glass : k === SMAT.paint || k === SMAT.glow ? MAT.paint : MAT.matt;
+    m.vert(W(d[i], d[i + 1], d[i + 2]), [d[i + 3], d[i + 5], -d[i + 4]], [d[i + 6], d[i + 7], d[i + 8]]);
+  }
+  for (const k of src.idx) m.idx.push(base + k);
+  m.finish = MAT.matt;
+}
 
 export function buildScene(p: Project, opt: Options3D): MeshBuilder {
   const m = new MeshBuilder();
@@ -174,6 +192,7 @@ export function buildScene(p: Project, opt: Options3D): MeshBuilder {
       m.finish = MAT.matt;
     });
   }
+  addScenery(m, p, opt);
   return m;
 }
 
@@ -254,8 +273,9 @@ void main(){
   if(uAO<0.5 && vM<0.05){ float g=noise(vW.xz*0.45)*0.6+noise(vW.xz*1.7)*0.4; base*=0.92+0.16*g; }
   vec3 n=normalize(vN);
   vec3 V=normalize(uEye-vW);
+  if(vM<-0.5 && dot(n,V)<0.0) discard;   // a room wall seen from outside: look through it
   if(dot(n,V)<0.0) n=-n;   // lit from whichever side is seen
-  float metal=step(0.9,vM), gloss=vM;
+  float metal=step(0.9,vM), gloss=max(vM,0.0);
   float sun=sunlit(n);
   float d=max(dot(n,uSun),0.0)*sun;
   vec3 lin=pow(base,vec3(2.2));
@@ -282,8 +302,8 @@ void main(){
 
 /** Depth from the sun, for shadows. */
 const SHADOW_VS = `#version 300 es
-in vec3 aPos; uniform mat4 uLight; uniform mat4 uModel;
-void main(){ gl_Position=uLight*uModel*vec4(aPos,1.0); }`;
+in vec3 aPos; in float aMat; uniform mat4 uLight; uniform mat4 uModel;
+void main(){ gl_Position = aMat < -0.5 ? vec4(2.0, 2.0, 2.0, 1.0) : uLight*uModel*vec4(aPos,1.0); }`;
 const SHADOW_FS = `#version 300 es
 precision mediump float; out vec4 o; void main(){ o=vec4(1.0); }`;
 

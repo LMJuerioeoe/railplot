@@ -7,6 +7,8 @@ import { Part, getPart, routeLength } from "./library";
 import type { ControlConfig } from "./control/types";
 import type { Proposal } from "./proposals";
 import type { TrainSpec } from "./trainfit";
+import type { PlanObject, Room } from "./objects";
+import { deleteObjects, mirrorObjects, moveObjects, objectBounds, rotateObjects } from "./objects";
 import { MODULES, ModulePlacement, TrackGuide, endsTouch, facesMatching, getModule, moduleCorners, moduleEnds, moduleGuides, moduleMembers, modulePorts, moduleToWorld, placementAtEnd } from "./modules";
 
 export const FILE_FORMAT = "railplot";
@@ -47,6 +49,10 @@ export interface Project {
   prices?: Prices;
   /** Changes suggested through the Claude connector, waiting to be accepted or rejected. */
   proposals?: Proposal[];
+  /** Scenery and rolling stock standing on the plan. */
+  objects?: PlanObject[];
+  /** The room the layout stands in, for the 3D view. */
+  room?: Room;
 }
 
 export function newProject(name = "Untitled layout"): Project {
@@ -255,6 +261,7 @@ export function deleteItems(p: Project, ids: Iterable<string>) {
   p.items = p.items.filter((i) => !set.has(i.id));
   p.boards = p.boards.filter((b) => !set.has(b.id));
   p.starts = p.starts.filter((s) => !set.has(s.id));
+  deleteObjects(p, set);
 }
 
 export function moveItems(p: Project, ids: Iterable<string>, dx: number, dy: number) {
@@ -265,6 +272,7 @@ export function moveItems(p: Project, ids: Iterable<string>, dx: number, dy: num
     if (b.module) { b.module.cx += dx; b.module.cy += dy; }
   }
   for (const s of p.starts) if (set.has(s.id)) { s.x += dx; s.y += dy; }
+  moveObjects(p, set, dx, dy);
 }
 
 export function rotateItems(p: Project, ids: Iterable<string>, angle: number, about: Vec) {
@@ -278,6 +286,7 @@ export function rotateItems(p: Project, ids: Iterable<string>, angle: number, ab
     if (b.module) { const c = rp({ x: b.module.cx, y: b.module.cy }); b.module.cx = c.x; b.module.cy = c.y; b.module.rot = normAngle(b.module.rot + angle); }
   }
   for (const s of p.starts) if (set.has(s.id)) { const q = rp(s); s.x = q.x; s.y = q.y; s.h = normAngle(s.h + angle); }
+  rotateObjects(p, set, angle, about);
 }
 
 /** Mirror the selection left-to-right about a vertical line through `cx`. */
@@ -297,6 +306,7 @@ export function mirrorItems(p: Project, ids: Iterable<string>, cx: number) {
     }
   }
   for (const s of p.starts) if (set.has(s.id)) { s.x = 2 * cx - s.x; s.h = normAngle(Math.PI - s.h); }
+  mirrorObjects(p, set, cx);
 }
 
 export function selectionBounds(p: Project, ids: Iterable<string>) {
@@ -308,6 +318,7 @@ export function selectionBounds(p: Project, ids: Iterable<string>) {
   for (const it of p.items) if (set.has(it.id)) take(geom(it).bounds);
   for (const b of p.boards) if (set.has(b.id)) take(boardBounds(b));
   for (const s of p.starts) if (set.has(s.id)) take({ minX: s.x - 10, minY: s.y - 10, maxX: s.x + 10, maxY: s.y + 10 });
+  for (const o of p.objects ?? []) if (set.has(o.id)) take(objectBounds(p, o));
   return isFinite(minX) ? { minX, minY, maxX, maxY } : null;
 }
 
@@ -317,7 +328,7 @@ export function boardBounds(b: Board) {
 }
 
 export function projectBounds(p: Project) {
-  const ids = [...p.items.map((i) => i.id), ...p.boards.map((b) => b.id), ...p.starts.map((s) => s.id)];
+  const ids = [...p.items.map((i) => i.id), ...p.boards.map((b) => b.id), ...p.starts.map((s) => s.id), ...(p.objects ?? []).map((o) => o.id)];
   return selectionBounds(p, ids);
 }
 

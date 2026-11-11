@@ -16,6 +16,7 @@ import { yardParts } from "../yards";
 import type { Cmd, Snapshot } from "../control/remote";
 import { OPS, OpContext, runSteps, flexFor, OpError } from "./ops";
 import { ToolDef, ToolError } from "./tooldefs";
+import { objectBox, objectDef, roomBox } from "../objects";
 
 /** Where the plan comes from, and where proposals go. */
 export interface PlanTarget {
@@ -109,6 +110,11 @@ export function layoutSummary(p: Project, where: string) {
     track: { sectional_pieces: s.pieces, flexible_mm: Math.round(s.flexLength), total_mm: Math.round(s.trackLength), tightest_radius: isFinite(s.minRadius) ? Math.round(s.minRadius) : null, steepest_percent: r1(s.maxGradient) },
     track_systems: Object.fromEntries(libs), main_track_system: p.items.length ? mainLibrary(p) : null,
     layers: p.layers.map((l) => `${l.name} (${l.id})${l.visible ? "" : ", hidden"}`),
+    scenery: (p.objects ?? []).slice(0, 80).map((o) => {
+      const b = objectBox(p, o);
+      return { id: o.id, what: objectDef(o.kind)?.name ?? o.kind, at: [Math.round(o.x), Math.round(o.y)], facing: r1(normAngle(o.rot) / DEG), size: [Math.round(b.w), Math.round(b.d), Math.round(b.hgt)], ...(o.onTrack ? { on_track: true } : {}) };
+    }),
+    room: p.room ? (() => { const b = roomBox(p.room!); return { left_wall_x: b.x, front_wall_y: b.y, width: b.w, depth: b.d, ceiling_height: p.room!.height, baseboard_top_above_floor: p.room!.boardHeight, open_sides: (p.room!.open ?? []).map((i) => ["front", "right", "back", "left"][i] ?? i) }; })() : null,
     health: healthLine(p),
     pending_proposals: (p.proposals ?? []).map((x) => ({ id: x.id, title: x.title, change: describeProposal(x), out_of_date: staleIds(p, x).length > 0 })),
     control: cfg ? {

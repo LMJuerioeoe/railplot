@@ -24,6 +24,7 @@ const PAGES: Page[] = [
   { src: "firmware/README.md", out: "firmware/index.html", title: "Controller firmware", group: "Run your layout" },
   { src: "docs/baseboard-modules.md", out: "baseboard-modules.html", title: "Baseboard modules", group: "Reference" },
   { src: "docs/yards.md", out: "yards.html", title: "Yards and example layouts", group: "Reference" },
+  { src: "docs/scenery.md", out: "scenery.html", title: "Scenery and the room", group: "Reference" },
   { src: "docs/library-format.md", out: "library-format.html", title: "Track libraries", group: "Reference" },
   { src: "docs/file-format.md", out: "file-format.html", title: "The .railplot file", group: "Reference" },
 ];
