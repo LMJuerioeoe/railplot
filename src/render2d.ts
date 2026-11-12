@@ -2,6 +2,8 @@
 import { Pose, Prim, Seg, Vec, primAt, primOf, samplePrim, walk } from "./geom";
 import { Analysis, Board, Item, Project, geom, gradeBand, gradient, isVisible, motorsOverFrame, partOf } from "./model";
 import { getModule, moduleFixings, moduleGuides, moduleMembers, moduleOpenings, modulePorts, moduleToWorld } from "./modules";
+import { drawObject2d, objectCorners, objectDef } from "./objects";
+import { pointOf, tiesOf } from "./trackdetail";
 
 export interface View { s: number; ox: number; oy: number }  // px per mm, screen position of world origin
 export const toScreen = (v: View, p: Vec): Vec => ({ x: v.ox + p.x * v.s, y: v.oy - p.y * v.s });
@@ -11,6 +13,7 @@ export interface Palette {
   plot: string; grid: string; gridMajor: string; board: string; boardEdge: string; boardText: string;
   rail: string; sleeper: string; select: string; accent: string; ink: string; ink2: string;
   ok: string; warn: string; bad: string; free: string; flex: string; ghost: string; prop: string;
+  ballast: string; railHi: string; tie: string; dark: boolean;
 }
 
 export function readPalette(el: HTMLElement): Palette {
@@ -21,6 +24,7 @@ export function readPalette(el: HTMLElement): Palette {
     boardText: g("--board-text"), rail: g("--rail"), sleeper: g("--sleeper"), select: g("--select"), accent: g("--accent"),
     ink: g("--ink"), ink2: g("--ink-2"), ok: g("--ok"), warn: g("--warn"), bad: g("--bad"), free: g("--free"),
     flex: g("--flex"), ghost: g("--ghost"), prop: g("--proposal"),
+    ballast: g("--ballast"), railHi: g("--rail-hi"), tie: g("--tie"), dark: g("--is-dark") === "1",
   };
 }
 
@@ -47,6 +51,8 @@ export interface Overlay {
   tracksGuides?: boolean;
   /** Guides tighter than this radius are drawn in red (the flexible track's minimum). */
   guideMinRadius?: number;
+  /** Draw track as it looks from above (ballast, sleepers, rails) instead of as a diagram. */
+  realistic?: boolean;
   /** A proposal shown on the plan: its new and changed boards and track, and what it removes. */
   proposal?: { boards: Board[]; items: Item[]; dim: Set<string>; removed: Set<string> } | null;
 }
@@ -118,6 +124,94 @@ function drawTrack(ctx: CanvasRenderingContext2D, v: View, routes: Prim[][], gau
   ctx.globalAlpha = 1;
 }
 
+let woodCache: { key: string; canvas: HTMLCanvasElement } | null = null;
+/** A tile of birch plywood, drawn once per theme: 512 px for 1024 mm. */
+function woodTile(base: string): HTMLCanvasElement {
+  if (woodCache?.key === base) return woodCache.canvas;
+  const c = document.createElement("canvas"); c.width = c.height = 512;
+  const x = c.getContext("2d")!;
+  x.fillStyle = base; x.fillRect(0, 0, 512, 512);
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let i = 0; i < 150; i++) {
+    const y = rnd() * 512, a = 0.02 + rnd() * 0.035, dark = rnd() > 0.42;
+    x.strokeStyle = dark ? `rgba(70,45,15,${a})` : `rgba(255,245,215,${a})`;
+    x.lineWidth = 0.6 + rnd() * 2.2;
+    x.beginPath();
+    const amp = 1 + rnd() * 2.5, ph = rnd() * 6.3, f = 1;
+    for (let px = 0; px <= 512; px += 16) { const yy = y + Math.sin((px / 512) * Math.PI * 2 * f + ph) * amp; px ? x.lineTo(px, yy) : x.moveTo(px, yy); }
+    x.stroke();
+    if (y < 8 || y > 504) { x.beginPath(); for (let px = 0; px <= 512; px += 16) { const yy = y + (y < 8 ? 512 : -512) + Math.sin((px / 512) * Math.PI * 2 * f + ph) * amp; px ? x.lineTo(px, yy) : x.moveTo(px, yy); } x.stroke(); }
+  }
+  woodCache = { key: base, canvas: c };
+  return c;
+}
+
+function boardFill(ctx: CanvasRenderingContext2D, v: View, pal: Palette, realistic: boolean): string | CanvasPattern {
+  if (!realistic || typeof document === "undefined" || typeof DOMMatrix === "undefined") return pal.board;
+  const pat = ctx.createPattern(woodTile(pal.board), "repeat");
+  if (!pat || !pat.setTransform) return pal.board;
+  pat.setTransform(new DOMMatrix().translate(v.ox, v.oy).scale(v.s * 1.4, v.s * 0.9));
+  return pat;
+}
+
+/** Track seen from above: sleepers (long timbers under points), then both rails with a bright head. */
+function drawTrackReal(ctx: CanvasRenderingContext2D, v: View, it: Item, pal: Palette, rail: string, alpha: number) {
+  const g = geom(it), prof = g.part.lib.profile, half = g.part.lib.gauge / 2 + 0.45;
+  const routes = g.routes.map((r) => r.prims);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = g.part.def.type === "flex" ? pal.flex : pal.tie;
+  const wpx = prof.sleeperWidth * v.s;
+  if (wpx >= 1.1) {
+    ctx.beginPath();
+    for (const t of tiesOf(it)) {
+      const tx = Math.cos(t.h), ty = Math.sin(t.h), nx = -ty, ny = tx, hw = t.w / 2;
+      const c = (a: number, b: number) => toScreen(v, { x: t.x + tx * a + nx * b, y: t.y + ty * a + ny * b });
+      const p0 = c(-hw, t.a), p1 = c(hw, t.a), p2 = c(hw, t.b), p3 = c(-hw, t.b);
+      ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+    }
+    ctx.fill();
+  } else {
+    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = prof.sleeperLength * v.s; ctx.globalAlpha = alpha * 0.6;
+    strokeRoutes(ctx, v, routes, [0]); ctx.globalAlpha = alpha;
+  }
+  const pt = v.s >= 0.7 ? pointOf(it) : null;
+  if (pt) {
+    const tb = pt.tiebar, nx = -Math.sin(tb.h), ny = Math.cos(tb.h), e = half + 8;
+    const a = toScreen(v, { x: tb.x + nx * e, y: tb.y + ny * e }), b = toScreen(v, { x: tb.x - nx * e, y: tb.y - ny * e });
+    ctx.strokeStyle = pal.dark ? "#0c0c0d" : "#18181a"; ctx.lineWidth = Math.max(1.5, 2.2 * v.s);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  const w = 2 * v.s;
+  if (w >= 2.2) {
+    ctx.strokeStyle = rail; ctx.lineWidth = w; strokeRoutes(ctx, v, routes, [half, -half]);
+    ctx.strokeStyle = pal.railHi; ctx.lineWidth = Math.max(0.8, 0.85 * v.s); strokeRoutes(ctx, v, routes, [half, -half]);
+  } else {
+    ctx.strokeStyle = rail === pal.rail ? (pal.dark ? pal.rail : pal.railHi) : rail; ctx.lineWidth = Math.max(1, 1.1 * v.s); strokeRoutes(ctx, v, routes, [half, -half]);
+  }
+  if (pt && v.s >= 1) {
+    const f = toScreen(v, pt.frog);
+    ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(-pt.frog.h);
+    ctx.fillStyle = pal.dark ? "#0c0c0d" : "#18181a"; ctx.fillRect(-10 * v.s, -1.5 * v.s, 16 * v.s, 3 * v.s); ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawObjects(ctx: CanvasRenderingContext2D, v: View, p: Project, o: Overlay, pal: Palette, pass: "floor" | "flat" | "upright") {
+  for (const ob of p.objects ?? []) {
+    const def = objectDef(ob.kind);
+    if (!def || (def.floor ? "floor" : def.flat ? "flat" : "upright") !== pass) continue;
+    drawObject2d(ctx, p, ob, (q) => toScreen(v, q), v.s);
+    if (o.selection.has(ob.id)) {
+      const c = objectCorners(p, ob, 3 / v.s).map((q) => toScreen(v, q));
+      ctx.strokeStyle = pal.select; ctx.lineWidth = 2; ctx.setLineDash([]);
+      ctx.beginPath(); c.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = pal.select;
+      for (const q of c) ctx.fillRect(q.x - 3, q.y - 3, 6, 6);
+    }
+  }
+}
+
 export function drawGrid(ctx: CanvasRenderingContext2D, v: View, w: number, h: number, step: number, pal: Palette) {
   let st = step;
   while (st * v.s < 8) st *= 2;
@@ -142,6 +236,25 @@ export function drawProject(ctx: CanvasRenderingContext2D, v: View, w: number, h
   ctx.fillStyle = pal.plot;
   ctx.fillRect(0, 0, w, h);
   if (o.showGrid) drawGrid(ctx, v, w, h, o.gridStep, pal);
+  const real = !!o.realistic && !o.heights;
+
+  // the room: floor tint and walls (open sides dashed)
+  if (p.room && p.room.pts.length >= 3) {
+    const rp = p.room.pts.map((q) => toScreen(v, q));
+    ctx.beginPath(); rp.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath();
+    ctx.fillStyle = pal.ink; ctx.globalAlpha = pal.dark ? 0.07 : 0.035; ctx.fill(); ctx.globalAlpha = 1;
+    const open = new Set(p.room.open ?? []);
+    rp.forEach((q, i) => {
+      const r = rp[(i + 1) % rp.length];
+      ctx.strokeStyle = pal.ink2; ctx.lineWidth = open.has(i) ? 1.5 : Math.max(3, 60 * v.s); ctx.setLineDash(open.has(i) ? [8, 6] : []);
+      ctx.globalAlpha = open.has(i) ? 0.8 : 0.55;
+      ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(r.x, r.y); ctx.stroke();
+    });
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+
+  // furniture on the floor, under the baseboards
+  if (p.objects?.length) drawObjects(ctx, v, p, o, pal, "floor");
 
   // baseboards
   for (const b of p.boards) {
@@ -149,7 +262,13 @@ export function drawProject(ctx: CanvasRenderingContext2D, v: View, w: number, h
     ctx.beginPath();
     b.pts.forEach((q, i) => { const s = toScreen(v, q); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y); });
     ctx.closePath();
-    ctx.fillStyle = pal.board; ctx.fill();
+    if (real) {
+      // a soft drop shadow from three offset copies: canvas shadowBlur is far too slow to redraw on every mouse move
+      ctx.save(); ctx.fillStyle = pal.dark ? "rgba(0,0,0,0.2)" : "rgba(40,30,10,0.07)";
+      for (const d of [2, 4, 7]) { ctx.translate(0, d === 2 ? 2 : d === 4 ? 2 : 3); ctx.fill(); }
+      ctx.restore();
+    }
+    ctx.fillStyle = boardFill(ctx, v, pal, real); ctx.fill();
     if (b.module && o.structure !== false) drawModule(ctx, v, b, pal);
     if (b.module && o.tracksGuides !== false) drawTrackGuides(ctx, v, b, pal, o);
     ctx.beginPath();
@@ -170,8 +289,21 @@ export function drawProject(ctx: CanvasRenderingContext2D, v: View, w: number, h
     }
   }
 
-  // tracks
+  // ground cover, then ballast under all the track, then the track itself
+  if (p.objects?.length) drawObjects(ctx, v, p, o, pal, "flat");
   const font = (px: number) => `${px}px ${getComputedStyle(document.documentElement).getPropertyValue("--font-num") || "monospace"}`;
+  const realTrack = real && v.s >= 0.14;
+  if (realTrack) {
+    ctx.strokeStyle = pal.ballast; ctx.lineCap = "butt";
+    for (const it of p.items) {
+      if (!isVisible(p, it)) continue;
+      const g = geom(it);
+      ctx.globalAlpha = o.proposal?.dim.has(it.id) ? 0.3 : 1;
+      ctx.lineWidth = (g.part.lib.profile.sleeperLength + 9) * v.s;
+      strokeRoutes(ctx, v, g.routes.map((r) => r.prims), [0]);
+    }
+    ctx.globalAlpha = 1;
+  }
   for (const it of p.items) {
     if (!isVisible(p, it)) continue;
     const g = geom(it);
@@ -184,12 +316,14 @@ export function drawProject(ctx: CanvasRenderingContext2D, v: View, w: number, h
       if (band === "ok") rail = pal.ok; else if (band === "steep") rail = pal.warn; else if (band === "too-steep") rail = pal.bad;
     }
     if (sel) {
-      ctx.strokeStyle = pal.select; ctx.globalAlpha = 0.28; ctx.lineWidth = Math.max(6, (prof.sleeperLength + 6) * v.s);
+      ctx.strokeStyle = pal.select; ctx.globalAlpha = realTrack ? 0.42 : 0.28; ctx.lineWidth = Math.max(6, (prof.sleeperLength + (realTrack ? 12 : 6)) * v.s);
       ctx.lineCap = "round"; strokeRoutes(ctx, v, routes, [0]); ctx.lineCap = "butt"; ctx.globalAlpha = 1;
     }
-    drawTrack(ctx, v, routes, g.part.lib.gauge, prof.sleeperLength, prof.sleeperSpacing, sel ? pal.select : rail,
+    if (realTrack) drawTrackReal(ctx, v, it, pal, sel ? pal.select : rail, o.proposal?.dim.has(it.id) ? 0.3 : 1);
+    else drawTrack(ctx, v, routes, g.part.lib.gauge, prof.sleeperLength, prof.sleeperSpacing, sel ? pal.select : rail,
       g.part.def.type === "flex" ? pal.flex : pal.sleeper, o.proposal?.dim.has(it.id) ? 0.3 : 1);
   }
+  if (p.objects?.length) drawObjects(ctx, v, p, o, pal, "upright");
   if (o.proposal) drawProposal(ctx, v, p, o.proposal, pal);
 
   // joints, ends

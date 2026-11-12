@@ -83,3 +83,23 @@ Changes Claude has proposed through the [connector](claude.md) and that are stil
 | `before` | How the changed and removed objects looked when it was made. If the plan no longer matches, the proposal is out of date. |
 | `rename` | A new name for the plan (optional). |
 | `v` | On a hub: the hub's layout version when it arrived. |
+
+## Scenery and the room (0.16)
+
+Two optional fields:
+
+```json
+"objects": [
+  { "id": "o12", "kind": "scenery/station", "x": 1000, "y": 560, "rot": 0, "w": 300, "color": "#b06b4a" },
+  { "id": "o13", "kind": "scenery/buffer-stop", "x": 420, "y": 150, "rot": 0, "onTrack": true }
+],
+"room": {
+  "pts": [{ "x": 0, "y": 0 }, { "x": 2310, "y": 0 }, { "x": 2310, "y": 2370 }, { "x": 0, "y": 2370 }],
+  "height": 1340, "boardHeight": 830, "wall": "#5fb3ad", "floor": "wood", "open": [0]
+}
+```
+
+- `kind` is `scenery/<id>` from Railplot's catalogue. `x`, `y` (mm) and `rot` (radians) place the middle of the item. `z` is its height above the board.
+- `w`, `d` and `hgt` are stored only when changed from the catalogue size, in OO millimetres (Railplot scales them for H0). `color` only when changed.
+- `onTrack` marks an item that was snapped onto track (buffer stops, sheds, tunnel mouths, crossings, bridges).
+- `room.pts` is the floor outline in plan coordinates. `height` is floor to ceiling, `boardHeight` floor to baseboard top. `open` lists walls left out, by the index of the corner they start at.

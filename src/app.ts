@@ -27,6 +27,11 @@ import { trainFit } from "./trainfit";
 import { RELEASES_URL, desktopCanUpdate, desktopCheck, desktopInstall, installKind, latestRelease, newer } from "./update";
 import { wiringParts } from "./control/wiringplan";
 import { DEFAULT_WAGONS, INGLENOOK, Siding, deal, planSidings } from "./shunting";
+import { DEFAULT_OUTLINE, OutlineOpts, ROUND_SCALES, describeOutline, outlinePdf, planOutline } from "./outline";
+import {
+  OBJECTS, PlanObject, SCENERY_GROUPS, addObject, objectAt, objectBox, objectDef, objectScale, objectThumb,
+  objectsInRect, rectRoom, roomBox, roomFromBoards, snapObjectToTrack,
+} from "./objects";
 import { ControlUI } from "./control/ui";
 import { fetchText, servedByController } from "./control/link";
 import { hubStatus } from "./control/hubclient";
@@ -77,7 +82,7 @@ function defaultCurrency(): string {
   if (region === "PL") return "zł";
   return "€";
 }
-const VERSION = "0.14.0";
+const VERSION = "0.16.0";
 
 export class App {
   p: Project = newProject();
@@ -119,6 +124,8 @@ export class App {
   theme: "system" | "light" | "dark" = "system";
   /** Look for a newer version once a day when Railplot starts (desktop app and offline file). */
   checkUpdates = true;
+  /** How track is drawn on the plan: as it looks from above, or as a diagram. */
+  planStyle: "real" | "diagram" = "real";
   mode: "design" | "control" = "design";
   ctl!: ControlUI;
   drive!: DriveView;
@@ -232,14 +239,22 @@ export class App {
       if (d.theme) this.theme = d.theme;
       if (typeof d.showGrid === "boolean") this.showGrid = d.showGrid;
       if (typeof d.checkUpdates === "boolean") this.checkUpdates = d.checkUpdates;
+      if (d.planStyle === "real" || d.planStyle === "diagram") this.planStyle = d.planStyle;
     } catch { /* defaults */ }
     this.applyTheme();
   }
-  private savePrefs() { store.set(PREFS_KEY, JSON.stringify({ theme: this.theme, showGrid: this.showGrid, checkUpdates: this.checkUpdates })); }
+  private savePrefs() { store.set(PREFS_KEY, JSON.stringify({ theme: this.theme, showGrid: this.showGrid, checkUpdates: this.checkUpdates, planStyle: this.planStyle })); }
 
   private applyTheme() {
     if (this.theme === "system") document.documentElement.removeAttribute("data-theme");
     else document.documentElement.setAttribute("data-theme", this.theme);
+  }
+
+  /** Light, dark, or whatever the system uses. */
+  cycleTheme() {
+    this.theme = this.theme === "system" ? "light" : this.theme === "light" ? "dark" : "system";
+    this.applyTheme(); this.savePrefs(); this.onThemeChange(); this.renderToolbarState();
+    toast(this.theme === "system" ? "Theme follows the system." : `${this.theme === "light" ? "Light" : "Dark"} theme.`);
   }
 
   private onThemeChange() {
@@ -436,7 +451,7 @@ export class App {
   }
 
   private exists(id: string) {
-    return this.p.items.some((i) => i.id === id) || this.p.boards.some((b) => b.id === id) || this.p.starts.some((s) => s.id === id);
+    return this.p.items.some((i) => i.id === id) || this.p.boards.some((b) => b.id === id) || this.p.starts.some((s) => s.id === id) || !!this.p.objects?.some((o) => o.id === id);
   }
 
   private anchorValid(a: Anchor) {
@@ -706,14 +721,16 @@ export class App {
     if (!this.sel.size) return;
     const items = itemsById(this.p, this.sel);
     const boards = this.p.boards.filter((b) => this.sel.has(b.id));
-    this.clipboard = JSON.stringify({ items, boards });
+    const objects = (this.p.objects ?? []).filter((o) => this.sel.has(o.id));
+    const n = items.length + boards.length + objects.length;
+    this.clipboard = JSON.stringify({ items, boards, objects });
     if (cut) this.deleteSelection();
-    toast(`${cut ? "Cut" : "Copied"} ${items.length + boards.length} item${items.length + boards.length === 1 ? "" : "s"}.`);
+    toast(`${cut ? "Cut" : "Copied"} ${n} item${n === 1 ? "" : "s"}.`);
   }
 
   paste() {
     if (!this.clipboard) return;
-    const d = JSON.parse(this.clipboard) as { items: Item[]; boards: { id: string; name: string; pts: Vec[] }[] };
+    const d = JSON.parse(this.clipboard) as { items: Item[]; boards: { id: string; name: string; pts: Vec[] }[]; objects?: PlanObject[] };
     const ids: string[] = [];
     const off = 60;
     for (const it of d.items) {
@@ -724,14 +741,19 @@ export class App {
       const n = { ...b, id: uid(this.p, "b"), pts: b.pts.map((q) => ({ x: q.x + off, y: q.y - off })) };
       this.p.boards.push(n); ids.push(n.id);
     }
-    this.clipboard = JSON.stringify({ items: itemsById(this.p, ids), boards: this.p.boards.filter((b) => ids.includes(b.id)) });
+    for (const o of d.objects ?? []) {
+      const n = { ...o, id: uid(this.p, "o"), x: o.x + off, y: o.y - off };
+      delete n.onTrack;
+      (this.p.objects ??= []).push(n); ids.push(n.id);
+    }
+    this.clipboard = JSON.stringify({ items: itemsById(this.p, ids), boards: this.p.boards.filter((b) => ids.includes(b.id)), objects: (this.p.objects ?? []).filter((o) => ids.includes(o.id)) });
     this.sel = new Set(ids);
     this.last = null;
     this.commit();
   }
 
   selectAll() {
-    this.sel = new Set([...this.p.items.filter((i) => isVisible(this.p, i)).map((i) => i.id)]);
+    this.sel = new Set([...this.p.items.filter((i) => isVisible(this.p, i)).map((i) => i.id), ...(this.p.objects ?? []).map((o) => o.id)]);
     this.refresh();
   }
 
@@ -778,6 +800,7 @@ export class App {
   }
 
   private draw() {
+    if (this.mode3d) return;   // the plan is hidden behind the 3D view
     const dpr = window.devicePixelRatio || 1;
     const ctx = this.ctx;
     const w = this.canvas.width / dpr, hgt = this.canvas.height / dpr;
@@ -786,8 +809,9 @@ export class App {
     const ctlMode = this.mode === "control";
     drawProject(ctx, this.view, w, hgt, this.p, ctlMode ? {
       selection: new Set(), anchor: null, hoverEnd: null, heights: false, heightSel: null, labels: "none",
-      gridStep: this.p.gridStep, showGrid: this.showGrid, analysis: { ends: [], partner: new Map(), free: [], bad: [] }, structure: false, tracksGuides: false,
+      gridStep: this.p.gridStep, showGrid: this.showGrid, analysis: { ends: [], partner: new Map(), free: [], bad: [] }, structure: false, tracksGuides: false, realistic: this.planStyle === "real",
     } : {
+      realistic: this.planStyle === "real",
       selection: this.sel,
       anchor: anchor && !this.flex ? anchor : null,
       hoverEnd: this.hoverEnd,
@@ -809,7 +833,7 @@ export class App {
       proposal: this.proposalOverlay(),
     }, this.pal);
     if (ctlMode) this.ctl.drawOverlay(ctx, this.view);
-    this.el.emptyHint.hidden = ctlMode || this.p.items.length > 0 || this.p.boards.length > 0 || !!this.flex || !!this.boardDraft;
+    this.el.emptyHint.hidden = ctlMode || this.p.items.length > 0 || this.p.boards.length > 0 || !!this.p.objects?.length || !!this.flex || !!this.boardDraft;
   }
 
   private proposalOverlay() {
@@ -966,9 +990,12 @@ export class App {
           toast("Pick track on the left to build from this track position.");
           return;
         }
-        const it = hitItem(this.p, w, 5 / this.view.s);
-        const board = it ? null : boardAt(this.p, w);
-        const id = it?.id ?? board?.id;
+        const pad = 3 / this.view.s;
+        const vehicle = objectAt(this.p, w, pad, "stock");
+        const it = vehicle ? null : hitItem(this.p, w, 5 / this.view.s);
+        const obj = vehicle ?? (it ? undefined : objectAt(this.p, w, pad, "upright") ?? objectAt(this.p, w, 0, "flat"));
+        const board = it || obj ? null : boardAt(this.p, w);
+        const id = it?.id ?? obj?.id ?? board?.id ?? objectAt(this.p, w, 0, "floor")?.id;
         this.heightSel = null;
         if (id) {
           if (e.shiftKey || e.ctrlKey) { this.sel.has(id) ? this.sel.delete(id) : this.sel.add(id); this.refresh(); return; }
@@ -1055,6 +1082,8 @@ export class App {
       if (d.moved) {
         const snap = findSnap(this.p, this.sel, 14 / this.view.s);
         if (snap) applySnap(this.p, this.sel, snap);
+        // vehicles, buffer stops and the like settle onto the track they were dropped on
+        if (!this.p.items.some((i) => this.sel.has(i.id))) for (const o of this.p.objects ?? []) if (this.sel.has(o.id)) snapObjectToTrack(this.p, o, Math.max(30, 16 / this.view.s));
         this.last = null;
         this.commit();
       }
@@ -1066,6 +1095,7 @@ export class App {
         const minX = Math.min(d.a.x, d.b.x), maxX = Math.max(d.a.x, d.b.x), minY = Math.min(d.a.y, d.b.y), maxY = Math.max(d.a.y, d.b.y);
         if (b.pts.every((q) => q.x >= minX && q.x <= maxX && q.y >= minY && q.y <= maxY)) ids.push(b.id);
       }
+      ids.push(...objectsInRect(this.p, d.a, d.b));
       for (const id of ids) this.sel.add(id);
       this.marquee = null;
       this.refresh();
@@ -1205,7 +1235,7 @@ export class App {
         this.mode3d = false; this.el.view3d.hidden = true; this.root.classList.remove("is-3d");
         toast(String((err as Error).message ?? err), "error");
       }
-    } else { this.drive.stop(); this.canvas.focus(); }
+    } else { this.drive.stop(); this.canvas.focus(); this.render(); }
     this.renderToolbarState();
   }
 
@@ -1318,6 +1348,41 @@ export class App {
     const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
     if (!blob) { toast("Couldn't render the image.", "error"); return; }
     await saveBlob(`${this.p.name}.png`, blob, { name: "PNG image", extensions: ["png"], mime: "image/png" });
+  }
+
+  /** Black-and-white baseboard outlines to print and plan scenery on by hand. */
+  showOutlineExport() {
+    if (!planOutline(this.p, DEFAULT_OUTLINE)) { toast("Add a baseboard or some track first."); return; }
+    const sel = (id: string, opts: [string, string][], value: string) => {
+      const el = h("select", { id }, ...opts.map(([v, label]) => h("option", { value: v }, label))) as HTMLSelectElement;
+      el.value = value; return el;
+    };
+    const paper = sel("ol-paper", [["a4", "A4"], ["a3", "A3"], ["letter", "US Letter"]], "a4");
+    const scale = sel("ol-scale", [["fit", "Fit on one page"], ...ROUND_SCALES.filter((s) => s <= 25).map((s): [string, string] => [String(s), s === 1 ? "1:1 (full size)" : `1:${s}`])], "fit");
+    const track = sel("ol-track", [["light", "Light grey, to draw over"], ["black", "Black"], ["none", "Leave the track out"]], "light");
+    const cb = (id: string, on: boolean) => h("input", { type: "checkbox", id, checked: on }) as HTMLInputElement;
+    const grid = cb("ol-grid", true), names = cb("ol-names", true), scenery = cb("ol-scenery", false);
+    const info = h("p", { class: "muted small", id: "ol-info" });
+    const read = (): OutlineOpts => ({ paper: paper.value as OutlineOpts["paper"], scale: scale.value === "fit" ? "fit" : +scale.value, track: track.value as OutlineOpts["track"], grid: grid.checked, names: names.checked, scenery: scenery.checked });
+    const update = () => { const pl = planOutline(this.p, read()); info.textContent = pl ? describeOutline(pl) + (pl.pages > 40 ? " That is a lot of paper: pick a smaller scale." : "") : ""; };
+    for (const el of [paper, scale]) el.addEventListener("change", update);
+    update();
+    dialog("Baseboard outlines for scenery", h("div", { class: "form-grid" },
+      h("p", { class: "muted small" }, "A black-and-white drawing of the baseboards to print and plan scenery on with pen and paper. It has a scale bar, so you can measure straight off the sheet."),
+      h("div", { class: "row2" }, field("Paper", paper), field("Scale", scale)),
+      field("Track", track),
+      h("div", { class: "check-row" }, h("label", { class: "check" }, grid, "Grid"), h("label", { class: "check" }, names, "Baseboard names"),
+        this.p.objects?.length ? h("label", { class: "check" }, scenery, "Scenery already on the plan") : null),
+      info), [
+      { label: "Cancel" },
+      { label: "Save the PDF", primary: true, onClick: async () => {
+        const r = outlinePdf(this.p, read());
+        if (!r) return;
+        if (r.plan.pages > 80) { toast("That would be more than 80 pages. Pick a smaller scale.", "error"); return true; }
+        await saveBlob(`${this.p.name} baseboard outlines.pdf`, new Blob([r.pdf.buffer as ArrayBuffer], { type: "application/pdf" }), { name: "PDF drawing", extensions: ["pdf"], mime: "application/pdf" });
+        toast(`Saved ${r.plan.pages === 1 ? "one page" : `${r.plan.pages} pages`}. Print at 100% ("actual size") to keep the scale.`);
+      } },
+    ]);
   }
 
   async exportSvg() {
@@ -1781,6 +1846,7 @@ export class App {
       { label: "Export image (PNG)…", run: () => this.exportPng() },
       { label: "Export scenery planning sheet (PNG)…", run: () => this.exportSceneryPng() },
       { label: "Export true-scale drawing (SVG)…", run: () => this.exportSvg() },
+      { label: "Export baseboard outlines for scenery (PDF)…", run: () => this.showOutlineExport() },
       { label: "Parts list…", run: () => this.showPartsList() },
       "-",
       { label: "Open the sample layout", run: () => this.loadSample() },
@@ -1809,12 +1875,17 @@ export class App {
       "-",
       { label: "Track heights and gradients", kbd: "H", run: () => this.toggleHeights(), check: () => this.heights },
       { label: "Cycle track labels", kbd: "L", run: () => this.cycleLabels() },
+      { label: "Realistic track and boards", run: () => { this.planStyle = this.planStyle === "real" ? "diagram" : "real"; this.savePrefs(); this.render(); }, check: () => this.planStyle === "real" },
       { label: "Grid", run: () => { this.showGrid = !this.showGrid; this.savePrefs(); this.render(); }, check: () => this.showGrid },
       { label: "Baseboard frames and openings", run: () => { this.showStructure = !this.showStructure; this.render(); }, check: () => this.showStructure },
       { label: "Track positions on modules", run: () => { this.showTrackGuides = !this.showTrackGuides; this.render(); }, check: () => this.showTrackGuides },
       "-",
       { label: "3D view", kbd: "3", run: () => this.toggle3d(true) },
       { label: "Drive in 3D", kbd: "D", run: () => this.drive.start() },
+      "-",
+      { label: "Light theme", run: () => { this.theme = "light"; this.applyTheme(); this.savePrefs(); this.onThemeChange(); this.renderToolbarState(); }, check: () => this.theme === "light" },
+      { label: "Dark theme", run: () => { this.theme = "dark"; this.applyTheme(); this.savePrefs(); this.onThemeChange(); this.renderToolbarState(); }, check: () => this.theme === "dark" },
+      { label: "Theme follows the system", run: () => { this.theme = "system"; this.applyTheme(); this.savePrefs(); this.onThemeChange(); this.renderToolbarState(); }, check: () => this.theme === "system" },
     ] },
     { label: "Tools", items: [
       { label: "Select", kbd: "V", run: () => this.setTool("select") },
@@ -1827,6 +1898,8 @@ export class App {
       { label: "Baseboard modules…", run: () => { this.renderBoardLibrary(); this.root.classList.add("show-lib"); } },
       "-",
       { label: "Shunting session…", run: () => this.showShunting() },
+      { label: "Scenery and buildings…", run: () => { this.libId = "@scenery"; this.renderLibrary(); this.root.classList.add("show-lib"); } },
+      { label: "Room…", run: () => this.showRoom() },
       "-",
       { label: "New layer", run: () => { addLayer(this.p); this.commit(); } },
     ] },
@@ -1867,10 +1940,12 @@ export class App {
     const top = h("header", { class: "topbar" },
       h("div", { class: "brand", html: `<svg viewBox="0 0 28 28" width="22" height="22" aria-hidden="true"><path d="M4 22c8 0 6-16 20-16" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" opacity=".22"/><path d="M4 19.2c7.6 0 5.2-16 20-16M4 24.8c9.2 0 6.8-16 20-16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Railplot</span>` }),
       menubar,
-      h("div", { class: "doc" }, docName, docState));
+      h("div", { class: "doc" }, docName, docState),
+      h("button", { class: "icon-btn theme-btn", id: "tb-theme", type: "button", title: "Theme: light, dark or follow the system", "aria-label": "Change theme", onclick: () => this.cycleTheme(), html: icon("auto") }));
 
+    const short: Record<string, string> = { start: "Start", flex: "Flex", board: "Board", parts: "Parts", "3d": "3D" };
     const tb = (id: string, ic: string, label: string, run: () => void, kbd?: string) =>
-      h("button", { class: "tool-btn", id: `tb-${id}`, type: "button", title: kbd ? `${label} (${kbd})` : label, "aria-label": label, onclick: run, html: icon(ic) + `<span class="tool-txt">${label}</span>` });
+      h("button", { class: `tool-btn ${["new", "open", "save", "undo", "redo", "fit"].includes(id) ? "compact" : ""}`, id: `tb-${id}`, type: "button", title: kbd ? `${label} (${kbd})` : label, "aria-label": label, onclick: run, html: icon(ic) + `<span class="tool-txt">${short[id] ?? label}</span>` });
     const sep = () => h("span", { class: "tb-sep", "aria-hidden": "true" });
     const toolbar = h("div", { class: "toolbar", role: "toolbar", "aria-label": "Tools" },
       tb("lib", "panel", "Track", () => this.root.classList.toggle("show-lib")),
@@ -1886,6 +1961,8 @@ export class App {
       tb("flex", "flex", "Flex track", () => this.setTool("flex"), "G"),
       tb("board", "board", "Baseboard", () => this.setTool("board"), "B"),
       tb("measure", "measure", "Measure", () => this.setTool("measure"), "M"),
+      sep(),
+      tb("scenery", "tree", "Scenery", () => { this.libId = "@scenery"; this.renderLibrary(); this.root.classList.add("show-lib"); }),
       sep(),
       tb("heights", "heights", "Heights", () => this.toggleHeights(), "H"),
       tb("labels", "labels", "Labels", () => this.cycleLabels(), "L"),
@@ -1907,7 +1984,8 @@ export class App {
       for (const l of LIBRARIES.filter((x) => x.scale === sc)) g.append(h("option", { value: l.id }, l.name));
       libSelect.append(g);
     }
-    libSelect.append(h("optgroup", { label: "Ready-made" }, h("option", { value: "@boards" }, "Baseboards and modules"), h("option", { value: "@yards" }, "Yards and shunting puzzles")));
+    libSelect.append(h("optgroup", { label: "Ready-made" }, h("option", { value: "@boards" }, "Baseboards and modules"), h("option", { value: "@yards" }, "Yards and shunting puzzles")),
+      h("optgroup", { label: "Scenery" }, h("option", { value: "@scenery" }, "Scenery and buildings")));
     const search = h("input", { id: "lib-filter", type: "search", placeholder: "Filter by number or name", "aria-label": "Filter parts", oninput: (e: Event) => { this.filter = (e.target as HTMLInputElement).value; this.renderLibrary(); } });
     const lib = h("aside", { class: "library", "aria-label": "Track library" },
       h("div", { class: "lib-head" }, libSelect, search, h("p", { class: "lib-tip", id: "lib-tip" }, "Pick a part to join it at the arrow on the plan.")),
@@ -1922,8 +2000,8 @@ export class App {
       h("div", { class: "view3d-bar" },
         h("button", { class: "btn", type: "button", onclick: () => this.toggle3d(false), html: `${icon("close", 16)}<span>Back to plan</span>` }),
         h("button", { class: "btn", type: "button", onclick: () => this.view3d?.resetCamera(), html: `${icon("fit", 16)}<span>Reset view</span>` }),
-        h("label", { class: "check" }, h("input", { id: "v3-supports", type: "checkbox", checked: true, onchange: (e: Event) => { if (this.view3d) { this.view3d.opts.supports = (e.target as HTMLInputElement).checked; this.view3d.rebuild(); } } }), "Supports"),
-        h("label", { class: "check" }, h("input", { id: "v3-sleepers", type: "checkbox", checked: true, onchange: (e: Event) => { if (this.view3d) { this.view3d.opts.sleepers = (e.target as HTMLInputElement).checked; this.view3d.rebuild(); } } }), "Sleepers"),
+        ...([["supports", "Supports"], ["sleepers", "Sleepers"], ["room", "Room"], ["legs", "Legs"]] as const).map(([key, label]) =>
+          h("label", { class: "check" }, h("input", { id: `v3-${key}`, type: "checkbox", checked: true, onchange: (e: Event) => { if (this.view3d) { this.view3d.opts[key] = (e.target as HTMLInputElement).checked; this.view3d.rebuild(); } } }), label)),
         h("button", { class: "btn", type: "button", onclick: async () => {
           const b = await this.view3d?.snapshot();
           if (b) await saveBlob(`${this.p.name} 3D.png`, b, { name: "PNG image", extensions: ["png"], mime: "image/png" });
@@ -1976,8 +2054,11 @@ export class App {
   renderLibrary() {
     const tip = this.root.querySelector("#lib-tip");
     if (tip) tip.textContent = this.libId === "@boards" ? "Pick a module to add it after the selected one, or after the last module."
-      : this.libId === "@yards" ? "Pick a yard to build it from the arrow on the plan (an open track end, a start point or a track position on a module)." : "Pick a part to join it at the arrow on the plan.";
+      : this.libId === "@yards" ? "Pick a yard to build it from the arrow on the plan (an open track end, a start point or a track position on a module)."
+      : this.libId === "@scenery" ? "Pick something to put it in the middle of the plan, then drag it into place. Shift+R turns it."
+ : "Pick a part to join it at the arrow on the plan.";
     if (this.libId === "@boards") { this.renderBoardLibrary(); return; }
+    if (this.libId === "@scenery") { this.renderObjectLibrary(); return; }
     if (this.libId === "@yards") { this.renderYardLibrary(); return; }
     if (getLibrary(this.libId)) this.lastTrackLib = this.libId;
     const lib = getLibrary(this.libId) ?? LIBRARIES[0];
@@ -2003,6 +2084,80 @@ export class App {
     const src = this.el.libSrc;
     clear(src);
     src.append(`${lib.scale} · gauge ${lib.gauge} mm · geometry from `, ...lib.sources.flatMap((s, i) => [i ? ", " : "", h("a", { href: s.url, target: "_blank", rel: "noopener" }, s.title)]));
+  }
+
+  private renderObjectLibrary() {
+    (this.el.libSelect as HTMLSelectElement).value = "@scenery";
+    const grid = this.el.libGrid;
+    clear(grid);
+    const f = this.filter.trim().toLowerCase();
+    const k = objectScale(this.p);
+    for (const group of SCENERY_GROUPS) {
+      const defs = OBJECTS.filter((d) => d.group === group && (!f || `${d.name} ${d.id}`.toLowerCase().includes(f)));
+      if (!defs.length) continue;
+      grid.append(h("h4", { class: "lib-group" }, group));
+      for (const d of defs) {
+        const thumb = objectThumb(this.p, d.key, 208, 128);
+        thumb.className = "obj-thumb";
+        const kk = d.real ? 1 : k;
+        grid.append(h("button", { class: "part-tile obj-tile", type: "button", "data-object": d.key, title: d.name,
+          onclick: () => { this.root.classList.remove("show-lib"); this.placeObject(d.key); } },
+          h("span", { class: "part-thumb" }, thumb),
+          h("span", { class: "part-name" }, d.name),
+          h("span", { class: "part-geo" }, `${Math.round(d.w * kk)} × ${Math.round(d.d * kk)} mm`)));
+      }
+    }
+    if (!grid.childElementCount) grid.append(h("p", { class: "muted" }, "Nothing matches that filter."));
+    const src = this.el.libSrc;
+    clear(src);
+    src.append(`Drawn for ${k === 1 ? "OO (1:76)" : "H0 (1:87)"}. Sizes can be changed in Details once an item is on the plan.`);
+  }
+
+  /** Put a scenery item or a vehicle in the middle of the view, selected and ready to drag. */
+  placeObject(kind: string) {
+    const def = objectDef(kind);
+    if (!def) return;
+    if (this.mode3d) this.toggle3d(false);
+    const c = toWorldPt(this.view, { x: this.canvas.clientWidth / 2, y: this.canvas.clientHeight / 2 });
+    const n = (this.p.objects ?? []).filter((o) => Math.hypot(o.x - c.x, o.y - c.y) < 400).length;
+    const o = addObject(this.p, kind, Math.round(c.x + (n % 5) * 40), Math.round(c.y - (n % 5) * 40 - Math.floor(n / 5) * 60), 0);
+    const snapped = def.onTrack && snapObjectToTrack(this.p, o, 160);
+    this.setTool("select");
+    this.sel = new Set([o.id]); this.last = null; this.anchor = null;
+    this.commit();
+    toast(snapped ? `${def.name} is on the nearest track. Drag it along or to other track.` : def.onTrack ? `${def.name} added. Drag it onto track.` : `${def.name} added. Drag it into place; Shift+R turns it.`);
+  }
+
+  showRoom() {
+    const cur = this.p.room, fit = roomFromBoards(this.p);
+    const b = cur ? roomBox(cur) : fit ? roomBox(fit) : { x: 0, y: 0, w: 3000, d: 2400 };
+    const w = numInput("room-w", Math.round(b.w), { min: 100 }), d = numInput("room-d", Math.round(b.d), { min: 100 });
+    const x = numInput("room-x", Math.round(b.x)), y = numInput("room-y", Math.round(b.y));
+    const hgt = numInput("room-h", cur?.height ?? 2400, { min: 300 }), bh = numInput("room-bh", cur?.boardHeight ?? 1000, { min: 0 });
+    const wall = h("input", { id: "room-wall", type: "color", value: cur?.wall ?? "#e9e6df" }) as HTMLInputElement;
+    const floor = h("select", { id: "room-floor" }, h("option", { value: "wood" }, "Wooden floor"), h("option", { value: "carpet" }, "Carpet"), h("option", { value: "concrete" }, "Concrete")) as HTMLSelectElement;
+    floor.value = cur?.floor ?? "wood";
+    const sides = ["Front", "Right", "Back", "Left"].map((name, i) => {
+      const cb = h("input", { type: "checkbox", id: `room-open-${i}`, checked: cur?.open?.includes(i) ?? false }) as HTMLInputElement;
+      return { cb, el: h("label", { class: "check" }, cb, name) };
+    });
+    dialog("Room", h("div", { class: "form-grid" },
+      h("p", { class: "muted small" }, "The room shows in the 3D view, with the baseboards at their real height. Positions use the plan's own millimetres: X to the right, Y to the back."),
+      h("div", { class: "row2" }, field("Width (mm)", w), field("Depth (mm)", d)),
+      h("div", { class: "row2" }, field("Left wall X (mm)", x), field("Front wall Y (mm)", y)),
+      h("div", { class: "row2" }, field("Ceiling height (mm)", hgt), field("Baseboard top above the floor (mm)", bh)),
+      h("div", { class: "row2" }, field("Wall colour", wall), field("Floor", floor)),
+      h("div", { class: "field" }, h("span", { class: "field-label" }, "Sides without a wall (a railing is drawn instead)"), h("div", { class: "check-row" }, ...sides.map((s) => s.el)))), [
+      ...(cur ? [{ label: "Remove the room", danger: true, onClick: () => { delete this.p.room; this.commit(); } }] : []),
+      { label: "Cancel" },
+      { label: cur ? "Save" : "Add the room", primary: true, onClick: () => {
+        if (+w.value <= 0 || +d.value <= 0) { toast("Width and depth must be more than 0.", "error"); return true; }
+        const open = sides.map((s, i) => (s.cb.checked ? i : -1)).filter((i) => i >= 0);
+        this.p.room = rectRoom(+x.value, +y.value, +w.value, +d.value, { height: +hgt.value, boardHeight: +bh.value, wall: wall.value, floor: floor.value as "wood" | "carpet" | "concrete", ...(open.length ? { open } : {}) });
+        this.commit(); this.zoomFit();
+        toast("Room saved. Open the 3D view to see it.");
+      } },
+    ]);
   }
 
   private renderYardLibrary() {
@@ -2201,6 +2356,8 @@ export class App {
     on("heights", this.heights);
     on("labels", this.labels !== "none");
     on("3d", this.mode3d);
+    const tb = this.root.querySelector("#tb-theme");
+    if (tb) tb.innerHTML = icon(this.theme === "light" ? "sun" : this.theme === "dark" ? "moon" : "auto");
     (this.root.querySelector("#tb-undo") as HTMLButtonElement).disabled = !this.hist.canUndo();
     (this.root.querySelector("#tb-redo") as HTMLButtonElement).disabled = !this.hist.canRedo();
   }
@@ -2331,6 +2488,43 @@ export class App {
 
     const items = itemsById(this.p, this.sel);
     const boards = this.p.boards.filter((b) => this.sel.has(b.id));
+    const objs = (this.p.objects ?? []).filter((o) => this.sel.has(o.id));
+    if (objs.length && !items.length && !boards.length) {
+      if (objs.length > 1) {
+        append(box, h("div", { class: "sec-head" }, h("h3", {}, `${objs.length} scenery items`)), h("p", { class: "muted small" }, "Drag to move them together."), selectionButtons(this));
+        return;
+      }
+      const o = objs[0], def = objectDef(o.kind);
+      if (def) {
+        const bx = objectBox(this.p, o);
+        const sizeIn = (key: "w" | "d" | "hgt", label: string) => {
+          const inp = numInput(`ob-${key}`, Math.round(bx[key]), { min: 1 });
+          inp.addEventListener("change", () => { const val = Math.max(1, +inp.value) / bx.k; if (Math.abs(val - def[key]) < 0.5) delete o[key]; else o[key] = +val.toFixed(1); this.commit(); });
+          return field(`${label} (mm)`, inp);
+        };
+        const sizes = (["w", "d", "hgt"] as const).filter((key) => def.sizes[key]).map((key) => sizeIn(key, def.sizes[key]!));
+        const rotIn = numInput("ob-rot", +(normAngle(o.rot) / DEG).toFixed(1));
+        rotIn.addEventListener("change", () => { o.rot = normAngle(+rotIn.value * DEG); delete o.onTrack; this.commit(); });
+        const zIn = numInput("ob-z", +(o.z ?? 0).toFixed(1));
+        zIn.addEventListener("change", () => { const z = +zIn.value; if (z) o.z = z; else delete o.z; this.commit(); });
+        const cur = (o.color ?? def.color).toLowerCase();
+        const swatches = h("div", { class: "swatches", role: "group", "aria-label": "Colour" },
+          ...def.colors.map((c) => h("button", { class: `sw ${c.toLowerCase() === cur ? "on" : ""}`, type: "button", style: `--sw:${c}`, title: c, "aria-label": `Colour ${c}`,
+            onclick: () => { if (c === def.color) delete o.color; else o.color = c; this.commit(); } })),
+          h("input", { type: "color", class: "sw-pick", value: cur, title: "Any colour", "aria-label": "Any colour", onchange: (e: Event) => { o.color = (e.target as HTMLInputElement).value; this.commit(); } }));
+        append(box,
+          h("div", { class: "sec-head" }, h("h3", {}, def.name)),
+          h("p", { class: "muted small" }, def.group),
+          kv("Size", `${Math.round(bx.w)} × ${Math.round(bx.d)} mm, ${Math.round(bx.hgt)} mm high`),
+          sizes.length ? h("div", { class: sizes.length > 1 ? "row2" : "" }, ...sizes.slice(0, 2)) : null,
+          sizes.length > 2 ? sizes[2] : null,
+          h("div", { class: "row2" }, field("Rotation (°)", rotIn), field("Height above the board (mm)", zIn)),
+          def.colors.length || true ? h("div", { class: "field" }, h("span", { class: "field-label" }, "Colour"), swatches) : null,
+          def.onTrack ? h("p", { class: "muted small" }, o.onTrack ? "Standing on track. Drag it along the track or to other track." : "Drag it onto track and it turns to follow the rails.") : null,
+          selectionButtons(this));
+        return;
+      }
+    }
     if (items.length === 1 && !boards.length) {
       const it = items[0], g = geom(it), d = g.part.def;
       const gr = gradient(it);
@@ -2515,6 +2709,7 @@ function printPalette(): Palette {
     plot: "#ffffff", grid: "#eeeeee", gridMajor: "#dddddd", board: "#efe4cf", boardEdge: "#9a8460", boardText: "#5b4a2e",
     rail: "#2b2f2c", sleeper: "#a89880", select: "#2b2f2c", accent: "#a5650f", ink: "#1c2320", ink2: "#5a625c",
     ok: "#2f7d46", warn: "#b07c00", bad: "#b3362b", free: "#a5650f", flex: "#9a8a72", ghost: "#cccccc", prop: "#2f63c8",
+    ballast: "#b8b3a8", railHi: "#2b2f2c", tie: "#8a7a66", dark: false,
   };
 }
 
